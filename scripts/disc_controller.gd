@@ -53,8 +53,8 @@ func begin_aim(pointer_position: Vector2) -> bool:
 func update_aim(pointer_position: Vector2) -> void:
 	if not is_aiming:
 		return
-	var pull := pointer_position - global_position
-	var drag_distance := min(pull.length(), MAX_DRAG_DISTANCE)
+	var pull: Vector2 = pointer_position - global_position
+	var drag_distance: float = minf(pull.length(), MAX_DRAG_DISTANCE)
 	power_ratio = drag_distance / MAX_DRAG_DISTANCE
 	if drag_distance > 1.0:
 		aim_direction = -pull.normalized()
