@@ -30,7 +30,7 @@ func show_aiming(power_ratio: float) -> void:
 	status_label.text = "AIMING  •  %d%% POWER" % roundi(power_ratio * 100.0)
 
 func show_in_motion() -> void:
-	status_label.text = "IN PLAY  •  TRACK THE LINE"
+	status_label.text = "IN FLIGHT  •  TRACK THE LINE"
 
 func show_throw_result(distance: float, throws_left: int) -> void:
 	status_label.text = "SHOT COMPLETE  •  %.1f m TO JACK" % (distance / 10.0)
