@@ -5,23 +5,24 @@ extends Node2D
 ## live in their own scripts for easier expansion.
 
 const DESIGN_SIZE := Vector2(540.0, 960.0)
-const RINK_RECT := Rect2(42.0, 166.0, 456.0, 730.0)
-const RINK_RADIUS := 28.0
+const RINK_RECT := Rect2(24.0, 136.0, 492.0, 744.0)
+const RINK_RADIUS := 24.0
 
-const BACKGROUND := Color("#081a32")
-const RINK_EDGE := Color("#b8efb5")
-const RINK_GREEN := Color("#5cbf74")
-const RINK_GREEN_DARK := Color("#3b9a60")
-const RINK_LINE := Color(0.85, 1.0, 0.78, 0.44)
-const WHITE := Color("#f5fff3")
-const MUTED_WHITE := Color(0.75, 0.88, 0.80, 1.0)
-const ACCENT_BLUE := Color("#55a9e8")
-const JACK_GOLD := Color("#f4c95d")
-const JACK_GOLD_DARK := Color("#c78c31")
+const BACKGROUND := Color("#07131e")
+const RINK_EDGE := Color("#8cd9c1")
+const RINK_GREEN := Color("#25846d")
+const RINK_GREEN_DARK := Color("#104d4d")
+const RINK_RAIL := Color("#122c3b")
+const RINK_LINE := Color(0.76, 0.96, 0.88, 0.34)
+const WHITE := Color("#f3faf8")
+const MUTED_WHITE := Color("#98b6b6")
+const ACCENT_BLUE := Color("#6dd6e5")
+const JACK_GOLD := Color("#f3bd56")
+const JACK_GOLD_DARK := Color("#95541f")
 
-const JACK_POSITION := Vector2(270.0, 270.0)
-const DISC_POSITION := Vector2(270.0, 782.0)
-const JACK_RADIUS := 17.0
+const JACK_POSITION := Vector2(270.0, 210.0)
+const DISC_POSITION := Vector2(270.0, 818.0)
+const JACK_RADIUS := 19.0
 
 var screen_size := DESIGN_SIZE
 var disc: DiscController
@@ -89,37 +90,37 @@ func _draw_background() -> void:
 
 	# Large, quiet colour fields make the flat 2D scene feel more like a
 	# polished mobile game without adding any external image assets.
-	draw_circle(Vector2(76.0, 102.0), 190.0, Color(0.07, 0.22, 0.36, 0.34))
-	draw_circle(Vector2(500.0, 810.0), 240.0, Color(0.03, 0.12, 0.25, 0.44))
+	draw_circle(Vector2(70.0, 105.0), 230.0, Color(0.06, 0.25, 0.30, 0.24))
+	draw_circle(Vector2(500.0, 820.0), 280.0, Color(0.04, 0.12, 0.22, 0.50))
 
 func _draw_header() -> void:
 	draw_string(
 		ThemeDB.fallback_font,
-		Vector2(42.0, 70.0),
+		Vector2(30.0, 48.0),
 		"DISC QUEST",
 		HORIZONTAL_ALIGNMENT_LEFT,
 		-1.0,
-		30,
+		27,
 		WHITE
 	)
 	draw_string(
 		ThemeDB.fallback_font,
-		Vector2(44.0, 99.0),
-		"THE PERFECT LINE",
+		Vector2(32.0, 72.0),
+		"LONG LINE • PRECISION SPORT",
 		HORIZONTAL_ALIGNMENT_LEFT,
 		-1.0,
-		13,
+		11,
 		MUTED_WHITE
 	)
 
 	# Small status pill reserved for the level and throw counter.
 	draw_style_box(
-		_make_panel_style(Color(0.07, 0.19, 0.31, 0.86), Color(0.32, 0.66, 0.84, 0.5), 16.0),
-		Rect2(365.0, 44.0, 133.0, 56.0)
+		_make_panel_style(Color(0.05, 0.15, 0.21, 0.96), Color(0.25, 0.70, 0.69, 0.7), 14.0),
+		Rect2(354.0, 32.0, 162.0, 55.0)
 	)
 	draw_string(
 		ThemeDB.fallback_font,
-		Vector2(383.0, 68.0),
+		Vector2(371.0, 56.0),
 		"LEVEL %02d" % (current_level_index + 1),
 		HORIZONTAL_ALIGNMENT_LEFT,
 		-1.0,
@@ -128,7 +129,7 @@ func _draw_header() -> void:
 	)
 	draw_string(
 		ThemeDB.fallback_font,
-		Vector2(383.0, 87.0),
+		Vector2(371.0, 75.0),
 		"%d THROWS" % throws_left,
 		HORIZONTAL_ALIGNMENT_LEFT,
 		-1.0,
@@ -137,24 +138,34 @@ func _draw_header() -> void:
 	)
 
 func _draw_rink() -> void:
-	var shadow_rect := Rect2(RINK_RECT.position + Vector2(0.0, 12.0), RINK_RECT.size)
+	var shadow_rect := Rect2(RINK_RECT.position + Vector2(0.0, 14.0), RINK_RECT.size)
 	draw_style_box(
-		_make_panel_style(Color(0.0, 0.0, 0.0, 0.28), Color(0.0, 0.0, 0.0, 0.0), RINK_RADIUS),
+		_make_panel_style(Color(0.0, 0.0, 0.0, 0.40), Color(0.0, 0.0, 0.0, 0.0), RINK_RADIUS),
 		shadow_rect
 	)
 
-	# Dark inset border, soft outer edge, and two green layers create a
-	# simple 2.5D "tabletop" presentation.
 	draw_style_box(
-		_make_panel_style(RINK_GREEN_DARK, RINK_EDGE, RINK_RADIUS),
+		_make_panel_style(RINK_RAIL, RINK_EDGE, RINK_RADIUS),
 		RINK_RECT
 	)
 	draw_style_box(
 		_make_panel_style(RINK_GREEN, Color(0.0, 0.0, 0.0, 0.0), RINK_RADIUS - 7.0),
-		Rect2(RINK_RECT.position + Vector2(8.0, 8.0), RINK_RECT.size - Vector2(16.0, 16.0))
+		Rect2(RINK_RECT.position + Vector2(15.0, 15.0), RINK_RECT.size - Vector2(30.0, 30.0))
 	)
 
-	var inner := Rect2(RINK_RECT.position + Vector2(28.0, 28.0), RINK_RECT.size - Vector2(56.0, 56.0))
+	var inner := Rect2(RINK_RECT.position + Vector2(25.0, 25.0), RINK_RECT.size - Vector2(50.0, 50.0))
+	draw_line(
+		Vector2(inner.position.x - 10.0, inner.position.y),
+		Vector2(inner.position.x - 10.0, inner.end.y),
+		Color(0.60, 0.93, 0.82, 0.24),
+		2.0
+	)
+	draw_line(
+		Vector2(inner.end.x + 10.0, inner.position.y),
+		Vector2(inner.end.x + 10.0, inner.end.y),
+		Color(0.03, 0.20, 0.25, 0.50),
+		3.0
+	)
 	draw_line(
 		Vector2(inner.position.x, inner.position.y + 18.0),
 		Vector2(inner.end.x, inner.position.y + 18.0),
@@ -170,41 +181,68 @@ func _draw_rink() -> void:
 	draw_line(
 		Vector2(inner.position.x + inner.size.x * 0.5, inner.position.y),
 		Vector2(inner.position.x + inner.size.x * 0.5, inner.end.y),
-		Color(0.85, 1.0, 0.78, 0.16),
+		Color(0.76, 0.96, 0.88, 0.16),
 		2.0
 	)
 
-	# Subtle lane bands help the player read depth before gameplay exists.
-	for band_index in range(5):
-		var band_y := inner.position.y + 58.0 + band_index * 116.0
+	for band_index in range(11):
+		var band_y: float = inner.position.y + 28.0 + band_index * 63.0
 		draw_line(
 			Vector2(inner.position.x + 4.0, band_y),
 			Vector2(inner.end.x - 4.0, band_y),
-			Color(0.95, 1.0, 0.86, 0.07),
+			Color(0.85, 1.0, 0.92, 0.075 if band_index % 2 == 0 else 0.035),
 			1.0
 		)
 
+	_draw_throw_line(inner)
 	_draw_target_zone(inner)
 
 func _draw_target_zone(inner: Rect2) -> void:
-	var target_zone := Rect2(inner.position.x + 4.0, inner.position.y + 16.0, inner.size.x - 8.0, 132.0)
+	var target_zone := Rect2(inner.position.x + 4.0, inner.position.y + 16.0, inner.size.x - 8.0, 145.0)
 	draw_style_box(
-		_make_panel_style(Color(0.20, 0.53, 0.34, 0.12), Color(0.86, 1.0, 0.80, 0.18), 18.0),
+		_make_panel_style(Color(0.04, 0.31, 0.29, 0.34), Color(0.77, 0.95, 0.84, 0.28), 18.0),
 		target_zone
+	)
+	draw_arc(
+		Vector2(inner.position.x + inner.size.x * 0.5, target_zone.end.y - 25.0),
+		104.0,
+		PI,
+		TAU,
+		32,
+		Color(0.93, 0.78, 0.37, 0.24),
+		2.0
 	)
 	draw_string(
 		ThemeDB.fallback_font,
 		Vector2(target_zone.position.x, target_zone.end.y - 18.0),
-		"TARGET ZONE",
+		"JACK ZONE",
 		HORIZONTAL_ALIGNMENT_CENTER,
 		target_zone.size.x,
 		11,
-		Color(0.91, 1.0, 0.88, 0.60)
+		Color(0.90, 1.0, 0.92, 0.72)
+	)
+
+func _draw_throw_line(inner: Rect2) -> void:
+	var throw_y: float = inner.end.y - 46.0
+	draw_line(
+		Vector2(inner.position.x + 18.0, throw_y),
+		Vector2(inner.end.x - 18.0, throw_y),
+		Color(0.95, 0.80, 0.39, 0.78),
+		2.0
+	)
+	draw_string(
+		ThemeDB.fallback_font,
+		Vector2(inner.position.x, throw_y + 24.0),
+		"THROW LINE",
+		HORIZONTAL_ALIGNMENT_CENTER,
+		inner.size.x,
+		10,
+		Color(0.97, 0.86, 0.53, 0.78)
 	)
 
 func _draw_jack() -> void:
 	# Shadow
-	draw_circle(jack_position + Vector2(0.0, 8.0), JACK_RADIUS + 2.0, Color(0.0, 0.12, 0.07, 0.24))
+	draw_circle(jack_position + Vector2(0.0, 9.0), JACK_RADIUS + 3.0, Color(0.0, 0.12, 0.07, 0.30))
 	# Dark lower rim, gold body, and a small highlight make the target easy to
 	# read without needing a texture.
 	draw_circle(jack_position, JACK_RADIUS + 2.0, JACK_GOLD_DARK)
@@ -213,24 +251,24 @@ func _draw_jack() -> void:
 	draw_arc(jack_position + Vector2(0.0, -2.0), JACK_RADIUS - 4.0, 0.0, TAU, 32, Color(1.0, 0.95, 0.65, 0.34), 2.0)
 	draw_string(
 		ThemeDB.fallback_font,
-		jack_position + Vector2(-22.0, -32.0),
+		jack_position + Vector2(-28.0, -34.0),
 		"JACK",
 		HORIZONTAL_ALIGNMENT_CENTER,
-		44.0,
+		56.0,
 		11,
-		Color(0.97, 1.0, 0.88, 0.74)
+		Color(0.97, 1.0, 0.92, 0.82)
 	)
 
 func _draw_footer_hint() -> void:
-	var footer := Rect2(42.0, 918.0, 456.0, 28.0)
+	var footer := Rect2(24.0, 888.0, 492.0, 28.0)
 	draw_string(
 		ThemeDB.fallback_font,
 		Vector2(footer.position.x, footer.position.y + 19.0),
-		"TOUCH • AIM • RELEASE",
+		"DRAG BACK • AIM UP THE LANE • RELEASE",
 		HORIZONTAL_ALIGNMENT_CENTER,
 		footer.size.x,
 		13,
-		Color(0.73, 0.86, 0.86, 0.86)
+		Color(0.58, 0.82, 0.80, 0.90)
 	)
 
 func _make_panel_style(fill: Color, border: Color, corner_radius: float) -> StyleBoxFlat:
