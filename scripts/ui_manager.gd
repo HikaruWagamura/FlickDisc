@@ -3,11 +3,14 @@ extends CanvasLayer
 
 signal reset_requested
 signal next_level_requested
+signal bias_cycle_requested
 
 var status_label: Label
 var score_label: Label
 var reset_button: Button
 var next_button: Button
+var bias_button: Button
+var current_bias := 0.0
 
 func _ready() -> void:
 	status_label = _make_label(Vector2(30.0, 91.0), Vector2(320.0, 24.0), 13, Color("#d9f5e8"))
@@ -20,6 +23,9 @@ func _ready() -> void:
 	next_button.pressed.connect(func() -> void: next_level_requested.emit())
 	next_button.visible = false
 
+	bias_button = _make_button("BIAS  CENTER", Vector2(144.0, 915.0), Vector2(174.0, 36.0))
+	bias_button.pressed.connect(func() -> void: bias_cycle_requested.emit())
+
 func show_ready(level_number: int, throws_left: int) -> void:
 	status_label.text = "LEVEL %02d  •  TOUCH YOUR DISC" % level_number
 	score_label.text = "%d THROWS REMAINING" % throws_left
@@ -27,10 +33,10 @@ func show_ready(level_number: int, throws_left: int) -> void:
 	next_button.visible = false
 
 func show_aiming(power_ratio: float) -> void:
-	status_label.text = "AIMING  •  %d%% POWER" % roundi(power_ratio * 100.0)
+	status_label.text = "AIMING  •  %d%% POWER  •  %s" % [roundi(power_ratio * 100.0), _bias_name()]
 
 func show_in_motion() -> void:
-	status_label.text = "IN FLIGHT  •  TRACK THE LINE"
+	status_label.text = "IN FLIGHT  •  %s BIAS" % _bias_name()
 
 func show_throw_result(distance: float, throws_left: int) -> void:
 	status_label.text = "SHOT COMPLETE  •  %.1f m TO JACK" % (distance / 10.0)
@@ -41,6 +47,17 @@ func show_level_complete(score: int, closest_distance: float, has_next_level: bo
 	score_label.text = "BEST LINE  %.1f m TO JACK" % (closest_distance / 10.0)
 	reset_button.visible = true
 	next_button.visible = has_next_level
+
+func show_bias(value: float) -> void:
+	current_bias = value
+	bias_button.text = "BIAS  %s" % _bias_name()
+
+func _bias_name() -> String:
+	if current_bias < -0.5:
+		return "LEFT"
+	if current_bias > 0.5:
+		return "RIGHT"
+	return "CENTER"
 
 func _make_label(label_position: Vector2, label_size: Vector2, font_size: int, color: Color) -> Label:
 	var label := Label.new()
