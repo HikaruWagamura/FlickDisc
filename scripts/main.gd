@@ -74,8 +74,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		disc.update_aim(event.position)
 
 func _draw() -> void:
-	var scale_factor := min(screen_size.x / DESIGN_SIZE.x, screen_size.y / DESIGN_SIZE.y)
-	var offset := (screen_size - DESIGN_SIZE * scale_factor) * 0.5
+	var scale_factor: float = minf(screen_size.x / DESIGN_SIZE.x, screen_size.y / DESIGN_SIZE.y)
+	var offset: Vector2 = (screen_size - DESIGN_SIZE * scale_factor) * 0.5
 	draw_set_transform(offset, 0.0, Vector2.ONE * scale_factor)
 
 	_draw_background()
