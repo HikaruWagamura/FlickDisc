@@ -23,6 +23,7 @@ const JACK_GOLD_DARK := Color("#95541f")
 const JACK_POSITION := Vector2(270.0, 210.0)
 const DISC_POSITION := Vector2(270.0, 818.0)
 const JACK_RADIUS := 19.0
+const COURSE_BACKGROUND := preload("res://assets/course_background.png")
 const LANE_TOP_Y := 156.0
 const LANE_BOTTOM_Y := 872.0
 const LANE_TOP_LEFT := 114.0
@@ -92,12 +93,14 @@ func _draw() -> void:
 	_draw_footer_hint()
 
 func _draw_background() -> void:
-	draw_rect(Rect2(Vector2.ZERO, DESIGN_SIZE), BACKGROUND)
-
-	# Large, quiet colour fields make the flat 2D scene feel more like a
-	# polished mobile game without adding any external image assets.
-	draw_circle(Vector2(70.0, 105.0), 230.0, Color(0.06, 0.25, 0.30, 0.24))
-	draw_circle(Vector2(500.0, 820.0), 280.0, Color(0.04, 0.12, 0.22, 0.50))
+	draw_texture_rect_region(
+		COURSE_BACKGROUND,
+		Rect2(Vector2.ZERO, DESIGN_SIZE),
+		Rect2(224.0, 0.0, 576.0, 1024.0),
+		Color(1.0, 1.0, 1.0, 0.96)
+	)
+	draw_rect(Rect2(0.0, 0.0, DESIGN_SIZE.x, 138.0), Color(0.02, 0.08, 0.13, 0.68))
+	draw_rect(Rect2(0.0, 848.0, DESIGN_SIZE.x, 112.0), Color(0.02, 0.08, 0.12, 0.16))
 
 func _draw_header() -> void:
 	draw_string(
@@ -166,7 +169,7 @@ func _draw_rink() -> void:
 		_lane_point(LANE_BOTTOM_Y, 1.0, 24.0),
 		_lane_point(LANE_BOTTOM_Y, 0.0, 24.0),
 	])
-	draw_colored_polygon(surface, RINK_GREEN)
+	draw_colored_polygon(surface, Color(0.10, 0.52, 0.36, 0.24))
 	draw_polyline(surface, Color(0.52, 0.92, 0.77, 0.58), 2.0)
 
 	var inner_top := LANE_TOP_Y + 14.0
