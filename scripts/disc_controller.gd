@@ -6,14 +6,14 @@ signal shot_started
 signal shot_stopped
 
 const DISC_RADIUS := 27.0
-const MAX_DRAG_DISTANCE := 170.0
-const MAX_SPEED := 680.0
-const FRICTION_PER_SECOND := 0.72
-const STOP_SPEED := 7.0
-const STOP_GRACE_SECONDS := 0.18
+const MAX_DRAG_DISTANCE := 230.0
+const MAX_SPEED := 1050.0
+const FRICTION_PER_SECOND := 0.30
+const STOP_SPEED := 14.0
+const STOP_GRACE_SECONDS := 0.12
 
-const DISC_BLUE := Color("#5db7ef")
-const DISC_BLUE_DARK := Color("#1769ad")
+const DISC_BLUE := Color("#6bd9e6")
+const DISC_BLUE_DARK := Color("#125a79")
 const DISC_HIGHLIGHT := Color(0.88, 0.98, 1.0, 0.82)
 
 var start_position := Vector2.ZERO
@@ -75,7 +75,7 @@ func release_aim(pointer_position: Vector2) -> void:
 
 func launch() -> void:
 	freeze = false
-	linear_velocity = aim_direction * lerpf(120.0, MAX_SPEED, power_ratio)
+	linear_velocity = aim_direction * lerpf(150.0, MAX_SPEED, power_ratio)
 	shot_in_progress = true
 	stop_timer = 0.0
 	emit_signal("shot_started")
@@ -109,8 +109,8 @@ func _keep_inside_rink() -> void:
 	if clamped_position != position:
 		position = clamped_position
 		linear_velocity *= Vector2(
-			-0.42 if position.x == min_x or position.x == max_x else 1.0,
-			-0.42 if position.y == min_y or position.y == max_y else 1.0
+			-0.18 if position.x == min_x or position.x == max_x else 1.0,
+			-0.18 if position.y == min_y or position.y == max_y else 1.0
 		)
 
 func _draw() -> void:
@@ -121,7 +121,11 @@ func _draw() -> void:
 	draw_arc(Vector2(0.0, -3.0), DISC_RADIUS - 5.0, 0.0, TAU, 40, Color(0.88, 0.98, 1.0, 0.45), 2.0)
 
 	if is_aiming and power_ratio > 0.0:
-		var guide_length := lerpf(70.0, 180.0, power_ratio)
+		var guide_length: float = lerpf(150.0, 565.0, power_ratio)
 		var guide_end := aim_direction * guide_length
-		draw_dashed_line(Vector2.ZERO, guide_end, Color(0.92, 0.98, 1.0, 0.85), 4.0, 10.0)
-		draw_circle(guide_end, 7.0, Color(0.92, 0.98, 1.0, 0.42))
+		draw_dashed_line(Vector2.ZERO, guide_end, Color(0.90, 0.98, 0.96, 0.78), 3.0, 14.0)
+		for marker_index in range(1, 6):
+			var marker_position: Vector2 = aim_direction * (guide_length * marker_index / 6.0)
+			draw_circle(marker_position, 4.0, Color(0.92, 1.0, 0.96, 0.48))
+		draw_circle(guide_end, 9.0, Color(0.92, 1.0, 0.96, 0.30))
+		draw_arc(guide_end, 15.0, 0.0, TAU, 24, Color(0.92, 1.0, 0.96, 0.70), 2.0)
