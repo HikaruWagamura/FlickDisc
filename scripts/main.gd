@@ -40,6 +40,7 @@ var current_level_index := 0
 var current_level: Dictionary
 var jack_position := JACK_POSITION
 var throws_left := 3
+var current_power_ratio := 0.0
 
 func _ready() -> void:
 	get_viewport().size_changed.connect(_on_viewport_size_changed)
@@ -50,10 +51,12 @@ func _ready() -> void:
 	add_child(level_manager)
 	add_child(score_manager)
 	disc.aim_changed.connect(_on_disc_aim_changed)
+	disc.bias_changed.connect(_on_disc_bias_changed)
 	disc.shot_started.connect(_on_disc_shot_started)
 	disc.shot_stopped.connect(_on_disc_shot_stopped)
 	ui.reset_requested.connect(_on_reset_requested)
 	ui.next_level_requested.connect(_on_next_level_requested)
+	ui.bias_cycle_requested.connect(_on_bias_cycle_requested)
 	_on_viewport_size_changed()
 	_load_level(0)
 	queue_redraw()
@@ -120,6 +123,34 @@ func _draw_header() -> void:
 		-1.0,
 		11,
 		MUTED_WHITE
+	)
+
+	draw_style_box(
+		_make_panel_style(Color(0.03, 0.13, 0.20, 0.92), Color(0.30, 0.70, 0.71, 0.60), 14.0),
+		Rect2(174.0, 32.0, 164.0, 55.0)
+	)
+	draw_string(
+		ThemeDB.fallback_font,
+		Vector2(185.0, 55.0),
+		"RIVERSIDE DISC CLUB",
+		HORIZONTAL_ALIGNMENT_CENTER,
+		142.0,
+		11,
+		WHITE
+	)
+	draw_string(
+		ThemeDB.fallback_font,
+		Vector2(185.0, 72.0),
+		"CLASSIC RINK   •   •   •",
+		HORIZONTAL_ALIGNMENT_CENTER,
+		142.0,
+		9,
+		ACCENT_BLUE
+	)
+
+	draw_style_box(
+		_make_panel_style(Color(0.03, 0.12, 0.18, 0.80), Color(0.48, 0.84, 0.75, 0.28), 12.0),
+		Rect2(24.0, 91.0, 164.0, 43.0)
 	)
 
 	# Small status pill reserved for the level and throw counter.
@@ -267,16 +298,22 @@ func _draw_jack() -> void:
 	)
 
 func _draw_footer_hint() -> void:
-	var footer := Rect2(24.0, 888.0, 492.0, 28.0)
+	draw_style_box(
+		_make_panel_style(Color(0.02, 0.12, 0.16, 0.88), Color(0.33, 0.72, 0.71, 0.48), 11.0),
+		Rect2(164.0, 884.0, 212.0, 25.0)
+	)
 	draw_string(
 		ThemeDB.fallback_font,
-		Vector2(footer.position.x, footer.position.y + 19.0),
-		"DRAG BACK • AIM UP THE LANE • RELEASE",
-		HORIZONTAL_ALIGNMENT_CENTER,
-		footer.size.x,
-		13,
-		Color(0.58, 0.82, 0.80, 0.90)
+		Vector2(174.0, 901.0),
+		"POWER",
+		HORIZONTAL_ALIGNMENT_LEFT,
+		45.0,
+		9,
+		Color(0.68, 0.88, 0.82, 0.90)
 	)
+	draw_rect(Rect2(224.0, 893.0, 138.0, 7.0), Color(0.02, 0.06, 0.09, 0.90))
+	draw_rect(Rect2(224.0, 893.0, 138.0 * current_power_ratio, 7.0), ACCENT_BLUE)
+	draw_circle(Vector2(224.0 + 138.0 * current_power_ratio, 896.5), 5.0, Color(0.94, 1.0, 0.85, 0.90))
 
 func _make_panel_style(fill: Color, border: Color, corner_radius: float) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
@@ -291,6 +328,7 @@ func _load_level(level_index: int) -> void:
 	current_level = level_manager.get_level(current_level_index)
 	jack_position = current_level["jack_position"]
 	throws_left = current_level["throws"]
+	current_power_ratio = 0.0
 	score_manager.reset()
 	disc.start_position = DISC_POSITION
 	disc.set_rink_bounds(RINK_RECT)
@@ -299,15 +337,24 @@ func _load_level(level_index: int) -> void:
 	queue_redraw()
 
 func _on_disc_aim_changed(_direction: Vector2, power_ratio: float) -> void:
+	current_power_ratio = power_ratio
 	if power_ratio > 0.0:
 		ui.show_aiming(power_ratio)
 
+func _on_disc_bias_changed(bias_ratio: float) -> void:
+	ui.show_bias(bias_ratio)
+
+func _on_bias_cycle_requested() -> void:
+	disc.cycle_bias()
+
 func _on_disc_shot_started() -> void:
+	current_power_ratio = 0.0
 	throws_left -= 1
 	ui.show_in_motion()
 	queue_redraw()
 
 func _on_disc_shot_stopped() -> void:
+	current_power_ratio = 0.0
 	var distance := disc.position.distance_to(jack_position)
 	score_manager.record_throw(distance)
 	if throws_left > 0:
