@@ -23,6 +23,12 @@ const JACK_GOLD_DARK := Color("#95541f")
 const JACK_POSITION := Vector2(270.0, 210.0)
 const DISC_POSITION := Vector2(270.0, 818.0)
 const JACK_RADIUS := 19.0
+const LANE_TOP_Y := 156.0
+const LANE_BOTTOM_Y := 872.0
+const LANE_TOP_LEFT := 114.0
+const LANE_TOP_RIGHT := 426.0
+const LANE_BOTTOM_LEFT := 34.0
+const LANE_BOTTOM_RIGHT := 506.0
 
 var screen_size := DESIGN_SIZE
 var disc: DiscController
@@ -138,74 +144,66 @@ func _draw_header() -> void:
 	)
 
 func _draw_rink() -> void:
-	var shadow_rect := Rect2(RINK_RECT.position + Vector2(0.0, 14.0), RINK_RECT.size)
-	draw_style_box(
-		_make_panel_style(Color(0.0, 0.0, 0.0, 0.40), Color(0.0, 0.0, 0.0, 0.0), RINK_RADIUS),
-		shadow_rect
-	)
+	var outer_lane := PackedVector2Array([
+		_lane_point(LANE_TOP_Y - 10.0, 0.0, 46.0),
+		_lane_point(LANE_TOP_Y - 10.0, 1.0, 46.0),
+		_lane_point(LANE_BOTTOM_Y + 10.0, 1.0, 46.0),
+		_lane_point(LANE_BOTTOM_Y + 10.0, 0.0, 46.0),
+	])
+	var shadow_lane := PackedVector2Array([
+		outer_lane[0] + Vector2(0.0, 14.0),
+		outer_lane[1] + Vector2(0.0, 14.0),
+		outer_lane[2] + Vector2(0.0, 14.0),
+		outer_lane[3] + Vector2(0.0, 14.0),
+	])
+	draw_colored_polygon(shadow_lane, Color(0.0, 0.0, 0.0, 0.42))
+	draw_colored_polygon(outer_lane, RINK_RAIL)
+	draw_polyline(outer_lane, RINK_EDGE, 3.0)
 
-	draw_style_box(
-		_make_panel_style(RINK_RAIL, RINK_EDGE, RINK_RADIUS),
-		RINK_RECT
-	)
-	draw_style_box(
-		_make_panel_style(RINK_GREEN, Color(0.0, 0.0, 0.0, 0.0), RINK_RADIUS - 7.0),
-		Rect2(RINK_RECT.position + Vector2(15.0, 15.0), RINK_RECT.size - Vector2(30.0, 30.0))
-	)
+	var surface := PackedVector2Array([
+		_lane_point(LANE_TOP_Y, 0.0, 24.0),
+		_lane_point(LANE_TOP_Y, 1.0, 24.0),
+		_lane_point(LANE_BOTTOM_Y, 1.0, 24.0),
+		_lane_point(LANE_BOTTOM_Y, 0.0, 24.0),
+	])
+	draw_colored_polygon(surface, RINK_GREEN)
+	draw_polyline(surface, Color(0.52, 0.92, 0.77, 0.58), 2.0)
 
-	var inner := Rect2(RINK_RECT.position + Vector2(25.0, 25.0), RINK_RECT.size - Vector2(50.0, 50.0))
-	draw_line(
-		Vector2(inner.position.x - 10.0, inner.position.y),
-		Vector2(inner.position.x - 10.0, inner.end.y),
-		Color(0.60, 0.93, 0.82, 0.24),
-		2.0
-	)
-	draw_line(
-		Vector2(inner.end.x + 10.0, inner.position.y),
-		Vector2(inner.end.x + 10.0, inner.end.y),
-		Color(0.03, 0.20, 0.25, 0.50),
-		3.0
-	)
-	draw_line(
-		Vector2(inner.position.x, inner.position.y + 18.0),
-		Vector2(inner.end.x, inner.position.y + 18.0),
-		RINK_LINE,
-		2.0
-	)
-	draw_line(
-		Vector2(inner.position.x, inner.end.y - 18.0),
-		Vector2(inner.end.x, inner.end.y - 18.0),
-		RINK_LINE,
-		2.0
-	)
-	draw_line(
-		Vector2(inner.position.x + inner.size.x * 0.5, inner.position.y),
-		Vector2(inner.position.x + inner.size.x * 0.5, inner.end.y),
-		Color(0.76, 0.96, 0.88, 0.16),
-		2.0
-	)
+	var inner_top := LANE_TOP_Y + 14.0
+	var inner_bottom := LANE_BOTTOM_Y - 14.0
+	for band_index in range(12):
+		var band_y: float = lerpf(inner_top, inner_bottom, float(band_index) / 12.0)
+		var band_color := Color(0.88, 1.0, 0.94, 0.075 if band_index % 2 == 0 else 0.025)
+		draw_line(_lane_point(band_y, 0.03), _lane_point(band_y, 0.97), band_color, 2.0)
 
-	for band_index in range(11):
-		var band_y: float = inner.position.y + 28.0 + band_index * 63.0
+	for lane_index in range(1, 4):
+		var lane_fraction: float = float(lane_index) / 4.0
 		draw_line(
-			Vector2(inner.position.x + 4.0, band_y),
-			Vector2(inner.end.x - 4.0, band_y),
-			Color(0.85, 1.0, 0.92, 0.075 if band_index % 2 == 0 else 0.035),
-			1.0
+			_lane_point(inner_top, lane_fraction),
+			_lane_point(inner_bottom, lane_fraction),
+			Color(0.76, 0.96, 0.88, 0.14 if lane_index == 2 else 0.07),
+			2.0
 		)
 
-	_draw_throw_line(inner)
-	_draw_target_zone(inner)
+	draw_line(_lane_point(inner_top, 0.03), _lane_point(inner_bottom, 0.03), RINK_LINE, 2.0)
+	draw_line(_lane_point(inner_top, 0.97), _lane_point(inner_bottom, 0.97), RINK_LINE, 2.0)
+	_draw_throw_line()
+	_draw_target_zone()
 
-func _draw_target_zone(inner: Rect2) -> void:
-	var target_zone := Rect2(inner.position.x + 4.0, inner.position.y + 16.0, inner.size.x - 8.0, 145.0)
-	draw_style_box(
-		_make_panel_style(Color(0.04, 0.31, 0.29, 0.34), Color(0.77, 0.95, 0.84, 0.28), 18.0),
-		target_zone
-	)
+func _draw_target_zone() -> void:
+	var target_top := LANE_TOP_Y + 18.0
+	var target_bottom := LANE_TOP_Y + 160.0
+	var target_zone := PackedVector2Array([
+		_lane_point(target_top, 0.06),
+		_lane_point(target_top, 0.94),
+		_lane_point(target_bottom, 0.94),
+		_lane_point(target_bottom, 0.06),
+	])
+	draw_colored_polygon(target_zone, Color(0.04, 0.31, 0.29, 0.42))
+	draw_polyline(target_zone, Color(0.77, 0.95, 0.84, 0.30), 2.0)
 	draw_arc(
-		Vector2(inner.position.x + inner.size.x * 0.5, target_zone.end.y - 25.0),
-		104.0,
+		Vector2(270.0, target_bottom - 34.0),
+		102.0,
 		PI,
 		TAU,
 		32,
@@ -214,31 +212,37 @@ func _draw_target_zone(inner: Rect2) -> void:
 	)
 	draw_string(
 		ThemeDB.fallback_font,
-		Vector2(target_zone.position.x, target_zone.end.y - 18.0),
+		Vector2(120.0, target_bottom - 18.0),
 		"JACK ZONE",
 		HORIZONTAL_ALIGNMENT_CENTER,
-		target_zone.size.x,
+		300.0,
 		11,
 		Color(0.90, 1.0, 0.92, 0.72)
 	)
 
-func _draw_throw_line(inner: Rect2) -> void:
-	var throw_y: float = inner.end.y - 46.0
+func _draw_throw_line() -> void:
+	var throw_y: float = LANE_BOTTOM_Y - 48.0
 	draw_line(
-		Vector2(inner.position.x + 18.0, throw_y),
-		Vector2(inner.end.x - 18.0, throw_y),
+		_lane_point(throw_y, 0.04),
+		_lane_point(throw_y, 0.96),
 		Color(0.95, 0.80, 0.39, 0.78),
 		2.0
 	)
 	draw_string(
 		ThemeDB.fallback_font,
-		Vector2(inner.position.x, throw_y + 24.0),
+		Vector2(80.0, throw_y + 24.0),
 		"THROW LINE",
 		HORIZONTAL_ALIGNMENT_CENTER,
-		inner.size.x,
+		380.0,
 		10,
 		Color(0.97, 0.86, 0.53, 0.78)
 	)
+
+func _lane_point(y: float, across: float, inset: float = 0.0) -> Vector2:
+	var depth: float = clampf((y - LANE_TOP_Y) / (LANE_BOTTOM_Y - LANE_TOP_Y), 0.0, 1.0)
+	var left: float = lerpf(LANE_TOP_LEFT, LANE_BOTTOM_LEFT, depth) + inset
+	var right: float = lerpf(LANE_TOP_RIGHT, LANE_BOTTOM_RIGHT, depth) - inset
+	return Vector2(lerpf(left, right, clampf(across, 0.0, 1.0)), y)
 
 func _draw_jack() -> void:
 	# Shadow
