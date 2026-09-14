@@ -114,18 +114,24 @@ func _keep_inside_rink() -> void:
 		)
 
 func _draw() -> void:
-	draw_circle(Vector2(0.0, 11.0), DISC_RADIUS + 3.0, Color(0.0, 0.10, 0.17, 0.30))
-	draw_circle(Vector2.ZERO, DISC_RADIUS + 3.0, DISC_BLUE_DARK)
-	draw_circle(Vector2(0.0, -3.0), DISC_RADIUS, DISC_BLUE)
-	draw_circle(Vector2(-9.0, -11.0), 7.0, DISC_HIGHLIGHT)
-	draw_arc(Vector2(0.0, -3.0), DISC_RADIUS - 5.0, 0.0, TAU, 40, Color(0.88, 0.98, 1.0, 0.45), 2.0)
+	var depth: float = clampf((global_position.y - 156.0) / 716.0, 0.0, 1.0)
+	var visual_scale: float = lerpf(0.80, 1.16, depth)
+	var lift: float = clampf(linear_velocity.length() / MAX_SPEED, 0.0, 1.0) * 10.0
+	var disc_center := Vector2(0.0, -3.0 - lift)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE * visual_scale)
+	draw_circle(Vector2(0.0, 11.0 + lift * 0.35), DISC_RADIUS + 3.0, Color(0.0, 0.10, 0.17, 0.30))
+	draw_circle(disc_center + Vector2(0.0, 3.0), DISC_RADIUS + 3.0, DISC_BLUE_DARK)
+	draw_circle(disc_center, DISC_RADIUS, DISC_BLUE)
+	draw_circle(disc_center + Vector2(-9.0, -8.0), 7.0, DISC_HIGHLIGHT)
+	draw_arc(disc_center, DISC_RADIUS - 5.0, 0.0, TAU, 40, Color(0.88, 0.98, 1.0, 0.45), 2.0)
 
 	if is_aiming and power_ratio > 0.0:
 		var guide_length: float = lerpf(150.0, 565.0, power_ratio)
-		var guide_end := aim_direction * guide_length
-		draw_dashed_line(Vector2.ZERO, guide_end, Color(0.90, 0.98, 0.96, 0.78), 3.0, 14.0)
+		var guide_start := Vector2(0.0, -lift)
+		var guide_end := guide_start + aim_direction * guide_length
+		draw_dashed_line(guide_start, guide_end, Color(0.90, 0.98, 0.96, 0.78), 3.0, 14.0)
 		for marker_index in range(1, 6):
-			var marker_position: Vector2 = aim_direction * (guide_length * marker_index / 6.0)
+			var marker_position: Vector2 = guide_start + aim_direction * (guide_length * marker_index / 6.0)
 			draw_circle(marker_position, 4.0, Color(0.92, 1.0, 0.96, 0.48))
 		draw_circle(guide_end, 9.0, Color(0.92, 1.0, 0.96, 0.30))
 		draw_arc(guide_end, 15.0, 0.0, TAU, 24, Color(0.92, 1.0, 0.96, 0.70), 2.0)
