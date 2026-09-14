@@ -23,7 +23,7 @@ const JACK_GOLD_DARK := Color("#95541f")
 const JACK_POSITION := Vector2(270.0, 210.0)
 const DISC_POSITION := Vector2(270.0, 818.0)
 const JACK_RADIUS := 19.0
-const COURSE_BACKGROUND := preload("res://assets/course_background.png")
+const COURSE_BACKGROUND := preload("res://assets/course_background.jpg")
 const LANE_TOP_Y := 156.0
 const LANE_BOTTOM_Y := 872.0
 const LANE_TOP_LEFT := 114.0
@@ -96,7 +96,7 @@ func _draw_background() -> void:
 	draw_texture_rect_region(
 		COURSE_BACKGROUND,
 		Rect2(Vector2.ZERO, DESIGN_SIZE),
-		Rect2(224.0, 0.0, 576.0, 1024.0),
+		Rect2(96.0, 0.0, 432.0, 768.0),
 		Color(1.0, 1.0, 1.0, 0.96)
 	)
 	draw_rect(Rect2(0.0, 0.0, DESIGN_SIZE.x, 138.0), Color(0.02, 0.08, 0.13, 0.68))
