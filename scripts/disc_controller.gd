@@ -2,6 +2,7 @@ class_name DiscController
 extends RigidBody2D
 
 signal aim_changed(direction: Vector2, power_ratio: float)
+signal bias_changed(bias_ratio: float)
 signal shot_started
 signal shot_stopped
 
@@ -22,7 +23,10 @@ var is_aiming := false
 var shot_in_progress := false
 var aim_direction := Vector2.UP
 var power_ratio := 0.0
+var bias_ratio := 0.0
+var shot_bias := 0.0
 var stop_timer := 0.0
+var spin_angle := 0.0
 
 func _ready() -> void:
 	start_position = position
@@ -31,6 +35,13 @@ func _ready() -> void:
 
 func _physics_process(delta: float) -> void:
 	if shot_in_progress:
+		var speed: float = linear_velocity.length()
+		if speed > STOP_SPEED:
+			var slowdown_ratio: float = clampf(1.0 - speed / MAX_SPEED, 0.0, 1.0)
+			var turn_rate: float = lerpf(0.10, 0.75, slowdown_ratio)
+			linear_velocity = linear_velocity.rotated(shot_bias * turn_rate * delta)
+			var spin_direction: float = -1.0 if shot_bias < 0.0 else 1.0
+			spin_angle += spin_direction * lerpf(3.0, 16.0, speed / MAX_SPEED) * delta
 		linear_velocity *= pow(FRICTION_PER_SECOND, delta)
 		_keep_inside_rink()
 		if linear_velocity.length() <= STOP_SPEED:
@@ -42,6 +53,19 @@ func _physics_process(delta: float) -> void:
 		else:
 			stop_timer = 0.0
 	queue_redraw()
+
+func set_bias(value: float) -> void:
+	bias_ratio = clampf(value, -1.0, 1.0)
+	emit_signal("bias_changed", bias_ratio)
+	queue_redraw()
+
+func cycle_bias() -> void:
+	if bias_ratio < -0.5:
+		set_bias(0.0)
+	elif bias_ratio > 0.5:
+		set_bias(-1.0)
+	else:
+		set_bias(1.0)
 
 func begin_aim(pointer_position: Vector2) -> bool:
 	if shot_in_progress or pointer_position.distance_to(global_position) > DISC_RADIUS + 30.0:
@@ -75,6 +99,7 @@ func release_aim(pointer_position: Vector2) -> void:
 
 func launch() -> void:
 	freeze = false
+	shot_bias = bias_ratio
 	linear_velocity = aim_direction * lerpf(150.0, MAX_SPEED, power_ratio)
 	shot_in_progress = true
 	stop_timer = 0.0
@@ -90,6 +115,8 @@ func reset_to_start() -> void:
 	shot_in_progress = false
 	power_ratio = 0.0
 	stop_timer = 0.0
+	shot_bias = 0.0
+	spin_angle = 0.0
 	queue_redraw()
 
 func set_rink_bounds(bounds: Rect2) -> void:
@@ -120,18 +147,40 @@ func _draw() -> void:
 	var disc_center := Vector2(0.0, -3.0 - lift)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE * visual_scale)
 	draw_circle(Vector2(0.0, 11.0 + lift * 0.35), DISC_RADIUS + 3.0, Color(0.0, 0.10, 0.17, 0.30))
+	draw_circle(Vector2(0.0, 13.0 + lift * 0.35), DISC_RADIUS + 8.0, Color(0.42, 0.95, 0.90, 0.08))
+	draw_set_transform(Vector2.ZERO, spin_angle, Vector2.ONE * visual_scale)
 	draw_circle(disc_center + Vector2(0.0, 3.0), DISC_RADIUS + 3.0, DISC_BLUE_DARK)
 	draw_circle(disc_center, DISC_RADIUS, DISC_BLUE)
 	draw_circle(disc_center + Vector2(-9.0, -8.0), 7.0, DISC_HIGHLIGHT)
 	draw_arc(disc_center, DISC_RADIUS - 5.0, 0.0, TAU, 40, Color(0.88, 0.98, 1.0, 0.45), 2.0)
+	for spoke_index in range(4):
+		var spoke_angle: float = float(spoke_index) * PI * 0.5
+		var spoke_direction := Vector2.from_angle(spoke_angle)
+		draw_line(
+			disc_center + spoke_direction * 5.0,
+			disc_center + spoke_direction * 17.0,
+			Color(0.90, 1.0, 0.98, 0.62),
+			2.0
+		)
 
 	if is_aiming and power_ratio > 0.0:
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE * visual_scale)
 		var guide_length: float = lerpf(150.0, 565.0, power_ratio)
 		var guide_start := Vector2(0.0, -lift)
-		var guide_end := guide_start + aim_direction * guide_length
-		draw_dashed_line(guide_start, guide_end, Color(0.90, 0.98, 0.96, 0.78), 3.0, 14.0)
-		for marker_index in range(1, 6):
-			var marker_position: Vector2 = guide_start + aim_direction * (guide_length * marker_index / 6.0)
-			draw_circle(marker_position, 4.0, Color(0.92, 1.0, 0.96, 0.48))
-		draw_circle(guide_end, 9.0, Color(0.92, 1.0, 0.96, 0.30))
-		draw_arc(guide_end, 15.0, 0.0, TAU, 24, Color(0.92, 1.0, 0.96, 0.70), 2.0)
+		var current_point := guide_start
+		var current_direction := aim_direction
+		var path_points := PackedVector2Array([current_point])
+		var markers := PackedVector2Array()
+		for path_index in range(1, 25):
+			var progress: float = float(path_index) / 24.0
+			current_direction = current_direction.rotated(bias_ratio * 0.07 * (1.0 - progress))
+			current_point += current_direction * (guide_length / 24.0)
+			path_points.append(current_point)
+			if path_index % 4 == 0:
+				markers.append(current_point)
+		draw_polyline(path_points, Color(0.86, 1.0, 0.95, 0.24), 9.0)
+		draw_polyline(path_points, Color(0.90, 0.98, 0.96, 0.88), 3.0)
+		for marker_position in markers:
+			draw_circle(marker_position, 4.0, Color(0.92, 1.0, 0.96, 0.64))
+		draw_circle(current_point, 9.0, Color(0.92, 1.0, 0.96, 0.30))
+		draw_arc(current_point, 15.0, 0.0, TAU, 24, Color(0.92, 1.0, 0.96, 0.70), 2.0)
