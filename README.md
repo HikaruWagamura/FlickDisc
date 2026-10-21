@@ -1,35 +1,24 @@
 # DISC QUEST
 
-Portrait crokinole game. The table is a 3D board viewed from the player's seat.
+This repository is the game. It is a 3D Godot project. Open it here and press Play. The playable scene is `scenes/Main.tscn`.
 
-## Current step
+## Test it
 
-The Flick Disc artwork is printed on the round board. From the overview you also see the long club rink and its jack behind the table. Eight pegs stand on the 15-point circle, and buttons stay where they stop.
-
-- Wooden surface, recessed ditch, outer rail, and a center 20-hole.
-- Scoring rings: 20 in the hole, 15 inside the pegs, 10, then 5 on the outer wood. The ditch scores nothing.
-- Eight pegs. Discs bounce off the pegs, off each other, and off the rail.
-- Eight player discs per round. Each one stays on the table, so later shots can hit it.
-- Opponent discs sit on the far side. Knocking them around is part of the shot.
-- Center, left, and right bias. The guide stops at the first peg or disc.
-- Five layouts. The score is the total of your discs when the round ends.
-
-## Run it in Godot
-
-1. Open Godot 4.
+1. Install Godot 4.3.
 2. Choose **Import**.
-3. Select the `project.godot` file.
-4. Press the Play button.
+3. Select `project.godot` in this folder.
+4. Press **Play**.
 
-The project uses a 540 x 960 portrait viewport. On a desktop the window is a narrow portrait window.
+The window is a portrait phone shape, 540 by 960. On a desktop it is a narrow window. Use the left mouse button the same way you would use a finger.
+
+You should see the Flick Disc artwork on the round board, eight pegs, your disc at the near side with a bright ring, and the long club rink with its jack behind the table.
 
 ## How to play
 
-1. Touch the rose disc at the near side. A ring marks it while it is waiting.
-2. Drag backward, toward yourself. The guide shows direction, power, and bias, and it stops when a peg or disc is in the way.
-3. Release to flick. The disc slides the opposite way and caroms off pegs and other discs.
-4. A disc that slows down in the 20-hole drops in for 20 points.
-5. Tap **BIAS** to cycle CENTER, LEFT, and RIGHT before a shot.
-6. After all eight discs, **RESET** replays the layout and **NEXT LEVEL** loads the next one.
-
-On desktop, use the left mouse button in place of touch. Aiming is on the table plane, so a drag toward the bottom of the screen flicks the disc toward the far pegs.
+1. Press the disc at the near side. The ring marks the one you can flick.
+2. Drag downward, toward yourself. The guide shows direction and power, and it stops at the first peg or disc.
+3. Release to flick. The disc slides the other way and bounces off pegs, other discs, and the rail.
+4. A disc that slows down in the center hole drops in for 20 points. Inside the pegs is 15, the next ring is 10, and the outer wood is 5. The ditch scores nothing.
+5. The disc stays where it stops. The next disc appears on the near side when the table is still.
+6. Tap **BIAS** to cycle CENTER, LEFT, and RIGHT before a shot.
+7. After eight discs, **RESET** replays the layout and **NEXT LEVEL** loads the next one.
