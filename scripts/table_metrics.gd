@@ -1,24 +1,57 @@
 extends RefCounted
 
-## Shared layout for the 3D crokinole table.
-## One world unit is 0.33 m, so the playing surface is about 66 cm across.
+## Crokinole table in meters-ish world units.
+## The wooden surface has a radius of 0.92. Eight pegs stand on the 15-point circle.
 
-const PLAY_RADIUS := 1.0
-const SURFACE_Y := 0.0
-const DISC_RADIUS := 0.058
-const DISC_HEIGHT := 0.034
-const DISC_CENTER_Y := 0.018
-const JACK_RADIUS := 0.046
-const JACK_HEIGHT := 0.028
-const JACK_CENTER_Y := 0.016
-const METERS_PER_UNIT := 0.33
-const PLAYER_START := Vector3(0.0, 0.018, 0.62)
+const SURFACE_RADIUS := 0.92
+const DITCH_OUTER := 1.08
+const HOLE_RADIUS := 0.108
+const RING_15 := 0.40
+const RING_10 := 0.64
+const RING_5 := 0.92
+const PEG_RADIUS := 0.036
+const PEG_RING := 0.40
+const DISC_RADIUS := 0.050
+const DISC_HEIGHT := 0.026
+const DISC_CENTER_Y := 0.014
+const DITCH_Y := -0.006
+const PLAYER_START_Z := 0.76
+const DISCS_PER_ROUND := 8
+
+const MIN_SPEED := 1.15
+const MAX_SPEED := 3.6
+const MAX_DRAG_DISTANCE := 0.7
+const SURFACE_FRICTION := 0.2
+const DITCH_FRICTION := 0.08
+const PEG_RESTITUTION := 0.74
+const DISC_RESTITUTION := 0.9
+const RAIL_RESTITUTION := 0.4
+const STOP_SPEED := 0.055
+
+static func peg_positions() -> Array[Vector3]:
+	var points: Array[Vector3] = []
+	for index in 8:
+		var angle := PI / 8.0 + float(index) * TAU / 8.0
+		points.append(Vector3(cos(angle) * PEG_RING, 0.0, sin(angle) * PEG_RING))
+	return points
+
+static func points_for(distance_from_center: float, sunk: bool) -> int:
+	if sunk or distance_from_center <= HOLE_RADIUS:
+		return 20
+	if distance_from_center < RING_15:
+		return 15
+	if distance_from_center < RING_10:
+		return 10
+	if distance_from_center <= RING_5:
+		return 5
+	return 0
 
 static func plastic(color: Color, roughness: float, emission: float = 0.0) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
 	material.albedo_color = color
 	material.roughness = roughness
-	material.metallic = 0.06
+	material.metallic = 0.08
+	material.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
 	if emission > 0.0:
 		material.emission_enabled = true
 		material.emission = color

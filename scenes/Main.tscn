@@ -11,8 +11,7 @@ script = ExtResource("1_main")
 [node name="Board" type="Node3D" parent="."]
 script = ExtResource("4_board")
 
-[node name="PlayerDisc" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.018, 0.62)
+[node name="Shooter" type="Node3D" parent="."]
 script = ExtResource("2_disc")
 
 [node name="UI" type="CanvasLayer" parent="."]

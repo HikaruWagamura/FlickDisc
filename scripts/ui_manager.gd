@@ -16,18 +16,18 @@ var power_fill: ColorRect
 var current_bias := 0.0
 
 func _ready() -> void:
-	_make_scrim(Rect2(0.0, 0.0, 540.0, 128.0), Color(0.03, 0.02, 0.04, 0.72))
+	_make_scrim(Rect2(0.0, 0.0, 540.0, 108.0), Color(0.03, 0.02, 0.04, 0.72))
 	_make_scrim(Rect2(0.0, 848.0, 540.0, 112.0), Color(0.03, 0.02, 0.04, 0.78))
 
-	_make_label(Vector2(22.0, 12.0), Vector2(280.0, 32.0), 26, Color("#f7fbff"), "DISC QUEST")
-	_make_label(Vector2(24.0, 44.0), Vector2(260.0, 18.0), 11, Color("#ff8ec4"), "3D CROKINOLE")
-	level_label = _make_label(Vector2(330.0, 16.0), Vector2(188.0, 24.0), 16, Color("#f7fbff"), "LEVEL 01")
+	_make_label(Vector2(22.0, 8.0), Vector2(280.0, 28.0), 24, Color("#f7fbff"), "DISC QUEST")
+	_make_label(Vector2(24.0, 36.0), Vector2(280.0, 18.0), 11, Color("#ff8ec4"), "CROKINOLE  •  8 PEGS")
+	level_label = _make_label(Vector2(300.0, 10.0), Vector2(216.0, 22.0), 16, Color("#f7fbff"), "LEVEL 01")
 	level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	throws_label = _make_label(Vector2(330.0, 42.0), Vector2(188.0, 18.0), 12, Color("#8fd7ea"), "3 THROWS")
+	throws_label = _make_label(Vector2(300.0, 34.0), Vector2(216.0, 18.0), 12, Color("#8fd7ea"), "8 DISCS")
 	throws_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 
-	status_label = _make_label(Vector2(22.0, 72.0), Vector2(496.0, 22.0), 13, Color("#d9f5e8"), "")
-	score_label = _make_label(Vector2(22.0, 94.0), Vector2(496.0, 20.0), 11, Color("#8fc9bf"), "")
+	status_label = _make_label(Vector2(22.0, 58.0), Vector2(496.0, 22.0), 13, Color("#d9f5e8"), "")
+	score_label = _make_label(Vector2(22.0, 80.0), Vector2(496.0, 20.0), 11, Color("#8fc9bf"), "")
 
 	_make_label(Vector2(24.0, 864.0), Vector2(70.0, 18.0), 10, Color("#9fd8cc"), "POWER")
 	var track := ColorRect.new()
@@ -53,36 +53,41 @@ func _ready() -> void:
 	bias_button = _make_button("BIAS  CENTER", Vector2(144.0, 900.0), Vector2(174.0, 40.0))
 	bias_button.pressed.connect(func() -> void: bias_cycle_requested.emit())
 
-func show_ready(level_number: int, throws_left: int, difficulty: String = "") -> void:
-	status_label.text = "LEVEL %02d  •  DRAG YOUR DISC BACK" % level_number
-	if difficulty == "":
-		score_label.text = "%d THROWS REMAINING" % throws_left
-	else:
-		score_label.text = "%s  •  %d THROWS REMAINING" % [difficulty.to_upper(), throws_left]
+func show_ready(level_number: int, discs_left: int, difficulty: String = "", score: int = 0) -> void:
+	status_label.text = "LEVEL %02d  •  DRAG BACK AND FLICK AROUND THE PEGS" % level_number
+	var layout := difficulty.to_upper() if difficulty != "" else "CROKINOLE"
+	score_label.text = "%s  •  YOU %d  •  20 IN THE HOLE" % [layout, score]
+	show_match_status(level_number, discs_left, score)
 	reset_button.visible = true
 	next_button.visible = false
 
-func show_match_status(level_number: int, throws_left: int) -> void:
+func show_match_status(level_number: int, discs_left: int, score: int = 0) -> void:
 	level_label.text = "LEVEL %02d" % level_number
-	throws_label.text = "%d THROWS" % throws_left
+	throws_label.text = "%d LEFT  •  %d" % [discs_left, score]
 
 func show_aiming(power_ratio: float) -> void:
-	status_label.text = "PULL BACK  •  RELEASE TO FLICK  •  %d%%  •  %s" % [roundi(power_ratio * 100.0), _bias_name()]
+	status_label.text = "RELEASE TO FLICK  •  %d%%  •  %s" % [roundi(power_ratio * 100.0), _bias_name()]
 
 func show_power(ratio: float) -> void:
 	power_fill.size.x = 160.0 * clampf(ratio, 0.0, 1.0)
 
-func show_in_motion(throws_left: int) -> void:
-	status_label.text = "IN FLIGHT  •  %s BIAS" % _bias_name()
-	score_label.text = "%d THROWS REMAINING" % throws_left
+func show_in_motion(discs_left: int, score: int) -> void:
+	status_label.text = "IN FLIGHT  •  PEGS AND DISCS ARE LIVE"
+	score_label.text = "YOU %d  •  %d DISCS LEFT" % [score, discs_left]
 
-func show_throw_result(distance_meters: float, throws_left: int) -> void:
-	status_label.text = "SHOT COMPLETE  •  %.2f m TO JACK" % distance_meters
-	score_label.text = "%d THROWS REMAINING" % throws_left
+func show_landed(shot_points: int, total: int, discs_left: int, sunk: bool) -> void:
+	if sunk:
+		status_label.text = "20 IN THE HOLE"
+	elif shot_points > 0:
+		status_label.text = "LANDED FOR %d" % shot_points
+	else:
+		status_label.text = "IN THE DITCH  •  NO POINTS"
+	score_label.text = "YOU %d  •  %d DISCS LEFT" % [total, discs_left]
+	next_button.visible = false
 
-func show_level_complete(score: int, closest_distance: float, has_next_level: bool) -> void:
-	status_label.text = "LEVEL COMPLETE  •  SCORE %04d" % score
-	score_label.text = "BEST LINE  %.2f m TO JACK" % closest_distance
+func show_round_complete(total: int, last_points: int, has_next_level: bool) -> void:
+	status_label.text = "ROUND OVER  •  LAST DISC %d" % last_points
+	score_label.text = "YOU %d    •    20 HOLE   15   10   5" % total
 	reset_button.visible = true
 	next_button.visible = has_next_level
 
