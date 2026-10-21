@@ -11,13 +11,13 @@ signal impacted(speed: float, hit_jack: bool, hit_bank: bool)
 
 const DISC_RADIUS := 0.42
 const MAX_DRAG_PIXELS := 160.0
-const MAX_SPEED := 21.5
-const MIN_SPEED := 3.2
+const MAX_SPEED := 32.0
+const MIN_SPEED := 4.2
 const FRICTION_PER_SECOND := 0.52
 const STOP_SPEED := 0.15
 const STOP_GRACE_SECONDS := 0.15
-const TURN_FAST := 0.015
-const TURN_SLOW := 0.10
+const TURN_FAST := 0.007
+const TURN_DRAW := 0.30
 const PICK_RADIUS_PX := 88.0
 const GUIDE_DOTS := 16
 
@@ -33,6 +33,10 @@ var aim_direction := Vector3(0.0, 0.0, -1.0)
 var power_ratio := 0.0
 var bias_ratio := 0.0
 var shot_bias := 0.0
+var shot_power := 0.0
+var delivering_jack := false
+var bowl_bias := 0.95
+var hand_sign := -1.0
 var velocity := Vector3.ZERO
 var stop_timer := 0.0
 var spin_angle := 0.0
@@ -54,6 +58,8 @@ var _shadow: MeshInstance3D
 var _guide: Node3D
 var _dots: Array[MeshInstance3D] = []
 var _end_ring: MeshInstance3D
+var _jack_visual: Node3D
+var _bias_pip: MeshInstance3D
 
 
 func _ready() -> void:
@@ -85,18 +91,49 @@ func _physics_process(delta: float) -> void:
 		impacted.emit(_impact_speed, _impact_jack, _impact_bank)
 
 
-func set_bias(value: float) -> void:
-	bias_ratio = clampf(value, -1.0, 1.0)
+func configure_jack() -> void:
+	delivering_jack = true
+	bowl_bias = 0.0
+	bias_ratio = 0.0
+	radius = BowlScript.JACK_RADIUS
+	mass = BowlScript.JACK_MASS
+	is_jack = true
+	if _visual != null:
+		_visual.visible = false
+	if _jack_visual != null:
+		_jack_visual.visible = true
 	bias_changed.emit(bias_ratio)
 
 
-func cycle_bias() -> void:
-	if bias_ratio < -0.5:
-		set_bias(0.0)
-	elif bias_ratio > 0.5:
-		set_bias(-1.0)
-	else:
-		set_bias(1.0)
+func configure_bowl(index: int, hand: float) -> void:
+	delivering_jack = false
+	hand_sign = hand
+	var info: Dictionary = BowlScript.bowl_type(index)
+	bowl_bias = float(info["bias"])
+	bias_ratio = hand_sign * bowl_bias
+	radius = DISC_RADIUS
+	mass = BowlScript.DISC_MASS
+	is_jack = false
+	set_palette(index)
+	if _visual != null:
+		_visual.visible = true
+	if _jack_visual != null:
+		_jack_visual.visible = false
+	_place_pip()
+	bias_changed.emit(bias_ratio)
+
+
+func set_hand(hand: float) -> void:
+	hand_sign = hand
+	if delivering_jack:
+		return
+	bias_ratio = hand_sign * bowl_bias
+	_place_pip()
+	bias_changed.emit(bias_ratio)
+
+
+func toggle_hand() -> void:
+	set_hand(1.0 if hand_sign < 0.0 else -1.0)
 
 
 func begin_aim(pointer_position: Vector2) -> bool:
@@ -148,12 +185,25 @@ func release_aim(pointer_position: Vector2) -> void:
 
 
 func launch() -> void:
-	shot_bias = bias_ratio
-	velocity = aim_direction * lerpf(MIN_SPEED, MAX_SPEED, power_ratio)
-	velocity.y = 0.0
+	shot_power = power_ratio
+	shot_bias = 0.0 if delivering_jack else bias_ratio
+	velocity = _delivery_velocity(aim_direction, shot_bias, shot_power)
 	shot_in_progress = true
 	stop_timer = 0.0
 	shot_started.emit()
+
+
+func _delivery_velocity(aim: Vector3, bias: float, power: float) -> Vector3:
+	var speed := lerpf(MIN_SPEED, MAX_SPEED, power)
+	var planar := Vector2(aim.x, aim.z)
+	if planar.length() < 0.001:
+		planar = Vector2(0.0, -1.0)
+	if absf(bias) > 0.001:
+		# Start wide of the line. The late draw rolls the bowl back inward.
+		var shoulder := absf(bias) * 0.13 * (0.18 + 0.82 * power)
+		planar = planar.rotated(-signf(bias) * shoulder)
+	planar = planar.normalized() * speed
+	return Vector3(planar.x, 0.0, planar.y)
 
 
 func reset_to_start() -> void:
@@ -189,7 +239,8 @@ func set_green(bounds_min: Vector2, bounds_max: Vector2) -> void:
 
 func _advance(body, delta: float, use_shot_bias: bool) -> void:
 	var bias := shot_bias if use_shot_bias else 0.0
-	var moved := _move_planar(body.global_position, body.velocity, body.radius, bias, use_shot_bias, delta)
+	var length_power := shot_power if use_shot_bias else 0.0
+	var moved := _move_planar(body.global_position, body.velocity, body.radius, bias, use_shot_bias, delta, length_power)
 	body.global_position = moved[0]
 	body.velocity = moved[1]
 	var wall_hit: float = moved[2]
@@ -277,9 +328,9 @@ func _punch(body, amount: float) -> void:
 		body.add_punch(amount)
 
 
-func _move_planar(pos: Vector3, vel: Vector3, body_radius: float, bias: float, use_bias: bool, delta: float) -> Array:
+func _move_planar(pos: Vector3, vel: Vector3, body_radius: float, bias: float, use_bias: bool, delta: float, length_power: float = 0.0) -> Array:
 	if use_bias:
-		vel = _curve_and_damp(vel, bias, delta)
+		vel = _curve_and_damp(vel, bias, delta, length_power)
 	else:
 		vel *= pow(FRICTION_PER_SECOND, delta)
 		vel.y = 0.0
@@ -310,13 +361,16 @@ func _move_planar(pos: Vector3, vel: Vector3, body_radius: float, bias: float, u
 	return [pos, vel, wall]
 
 
-func _curve_and_damp(vel: Vector3, bias: float, delta: float) -> Vector3:
+func _curve_and_damp(vel: Vector3, bias: float, delta: float, length_power: float) -> Vector3:
 	var planar := Vector2(vel.x, vel.z)
 	var speed := planar.length()
 	if speed > 0.001 and absf(bias) > 0.001:
 		var slow := clampf(1.0 - speed / MAX_SPEED, 0.0, 1.0)
-		var turn := lerpf(TURN_FAST, TURN_SLOW, slow * slow)
-		planar = planar.rotated(bias * turn * delta)
+		# Most of the bend arrives as the bowl slows, so a long shot
+		# runs wide and then draws back toward the centre.
+		var turn := lerpf(TURN_FAST, TURN_DRAW, slow * slow * slow)
+		var length_scale := 0.32 + length_power
+		planar = planar.rotated(bias * length_scale * turn * delta)
 		vel.x = planar.x
 		vel.z = planar.y
 	vel *= pow(FRICTION_PER_SECOND, delta)
@@ -372,8 +426,7 @@ func _hide_guide() -> void:
 func _predict_path() -> PackedVector3Array:
 	var points := PackedVector3Array()
 	var pos := global_position
-	var vel := aim_direction * lerpf(MIN_SPEED, MAX_SPEED, power_ratio)
-	vel.y = 0.0
+	var vel := _delivery_velocity(aim_direction, bias_ratio, power_ratio)
 	var ghosts: Array = []
 	for body in obstacles:
 		ghosts.append({
@@ -386,7 +439,7 @@ func _predict_path() -> PackedVector3Array:
 	points.append(pos)
 	var step := 0.02
 	for i in 360:
-		var moved := _move_planar(pos, vel, radius, bias_ratio, true, step)
+		var moved := _move_planar(pos, vel, radius, bias_ratio, true, step, power_ratio)
 		pos = moved[0]
 		vel = moved[1]
 		for ghost in ghosts:
@@ -453,26 +506,35 @@ func _build_visual() -> void:
 	_mark_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_mark_mat.albedo_color = Color(0.97, 0.96, 0.93)
 
-	_add_cylinder(_spin, Vector3(0.0, 0.03, 0.0), 0.43, 0.40, 0.05, _rim_mat)
-	_add_cylinder(_spin, Vector3(0.0, 0.068, 0.0), 0.39, 0.34, 0.058, _body_mat)
-	_add_cylinder(_spin, Vector3(0.0, 0.1, 0.0), 0.26, 0.26, 0.014, _cap_mat)
-	var ring := MeshInstance3D.new()
-	ring.mesh = _annulus(0.16, 0.21, 28)
-	ring.position = Vector3(0.0, 0.11, 0.0)
-	ring.material_override = _mark_mat
-	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_spin.add_child(ring)
-	for spoke in 4:
-		var bar := MeshInstance3D.new()
-		var box := BoxMesh.new()
-		box.size = Vector3(0.11, 0.008, 0.03)
-		bar.mesh = box
-		var angle := float(spoke) * TAU / 4.0
-		bar.position = Vector3(cos(angle) * 0.1, 0.112, sin(angle) * 0.1)
-		bar.rotation.y = angle
-		bar.material_override = _mark_mat
-		bar.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		_spin.add_child(bar)
+	_add_sphere(_spin, Vector3(0.0, 0.42 * 0.66, 0.0), 0.42, Vector3(1.0, 0.66, 1.0), _rim_mat)
+	_add_sphere(_spin, Vector3(0.0, 0.34, 0.0), 0.3, Vector3(1.0, 0.72, 1.0), _body_mat)
+	_add_cylinder(_spin, Vector3(0.0, 0.26, 0.0), 0.4, 0.4, 0.045, _body_mat)
+	_bias_pip = MeshInstance3D.new()
+	var pip_mesh := SphereMesh.new()
+	pip_mesh.radius = 0.07
+	pip_mesh.height = 0.14
+	pip_mesh.radial_segments = 12
+	pip_mesh.rings = 8
+	_bias_pip.mesh = pip_mesh
+	_bias_pip.material_override = _mark_mat
+	_bias_pip.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_spin.add_child(_bias_pip)
+	_place_pip()
+
+	_jack_visual = Node3D.new()
+	_jack_visual.visible = false
+	add_child(_jack_visual)
+	var jack_mat := _disc_mat(Color(0.98, 0.82, 0.28), 0.22, 0.72)
+	jack_mat.emission_enabled = true
+	jack_mat.emission = Color(0.62, 0.42, 0.08)
+	jack_mat.emission_energy_multiplier = 0.35
+	_add_sphere(_jack_visual, Vector3(0.0, BowlScript.JACK_RADIUS, 0.0), BowlScript.JACK_RADIUS, Vector3.ONE, jack_mat)
+
+
+func _place_pip() -> void:
+	if _bias_pip == null:
+		return
+	_bias_pip.position = Vector3(hand_sign * 0.3, 0.3, 0.0)
 
 
 func _build_guide() -> void:
@@ -500,6 +562,20 @@ func _build_guide() -> void:
 	_end_ring.material_override = ring_mat
 	_end_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_guide.add_child(_end_ring)
+
+
+func _add_sphere(parent: Node3D, pos: Vector3, radius_m: float, scale: Vector3, mat: Material) -> void:
+	var mi := MeshInstance3D.new()
+	var mesh := SphereMesh.new()
+	mesh.radius = radius_m
+	mesh.height = radius_m * 2.0
+	mesh.radial_segments = 28
+	mesh.rings = 14
+	mi.mesh = mesh
+	mi.position = pos
+	mi.scale = scale
+	mi.material_override = mat
+	parent.add_child(mi)
 
 
 func _add_cylinder(parent: Node3D, pos: Vector3, bottom_r: float, top_r: float, height: float, mat: Material) -> void:

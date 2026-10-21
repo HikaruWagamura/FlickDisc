@@ -1,37 +1,37 @@
 class_name LevelManager
 extends Node
 
-## Jack positions are meters on the green: x across the rink, z down the rink.
-## The head sits in the far half of the 38 m green, the way a lawn-bowls head does.
+## The jack is delivered by the player. Each level only sets how far it must
+## travel before the bowls are allowed. Distances are metres from the mat.
 
 const LEVELS := [
 	{
 		"number": 1,
-		"jack_position": Vector2(0.0, -22.0),
+		"min_jack_m": 18.0,
 		"throws": 3,
 		"difficulty": "Practice",
 	},
 	{
 		"number": 2,
-		"jack_position": Vector2(-0.8, -20.2),
+		"min_jack_m": 23.0,
 		"throws": 3,
 		"difficulty": "Easy",
 	},
 	{
 		"number": 3,
-		"jack_position": Vector2(0.95, -24.0),
+		"min_jack_m": 28.0,
 		"throws": 3,
 		"difficulty": "Easy",
 	},
 	{
 		"number": 4,
-		"jack_position": Vector2(-0.55, -23.2),
+		"min_jack_m": 33.0,
 		"throws": 3,
 		"difficulty": "Medium",
 	},
 	{
 		"number": 5,
-		"jack_position": Vector2(0.7, -25.4),
+		"min_jack_m": 38.0,
 		"throws": 3,
 		"difficulty": "Medium",
 	},

@@ -2,11 +2,11 @@ class_name RinkView
 extends Node3D
 
 ## Long lawn-bowls rink built as a real 3D green.
-## Playing surface is 38 m by 5.8 m. The camera sits behind the mat and looks
-## down the length, so perspective — not a flat trapezoid — sells the distance.
+## Playing surface is 52 m by 11 m, wide enough for a full-length draw.
+## The camera sits behind the mat and looks down the length.
 
-const LENGTH := 38.0
-const HALF_WIDTH := 2.9
+const LENGTH := 52.0
+const HALF_WIDTH := 5.5
 const NEAR_Z := 0.0
 const FAR_Z := -LENGTH
 const DISC_Z := -1.65
@@ -46,6 +46,12 @@ func place_head(jack_xz: Vector2) -> void:
 	if head == null:
 		return
 	head.position = Vector3(jack_xz.x, SURFACE_Y, jack_xz.y)
+	head.visible = true
+
+
+func set_head_visible(show_head: bool) -> void:
+	if head != null:
+		head.visible = show_head
 
 
 func _prepare_materials() -> void:
@@ -138,7 +144,7 @@ func _build_lights() -> void:
 	sun.shadow_normal_bias = 1.4
 	sun.shadow_blur = 1.15
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
-	sun.directional_shadow_max_distance = 90.0
+	sun.directional_shadow_max_distance = 120.0
 	sun.directional_shadow_blend_splits = true
 	sun.look_at_from_position(Vector3.ZERO, Vector3(0.42, -1.05, 0.48), Vector3.UP)
 	add_child(sun)
@@ -155,11 +161,11 @@ func _build_lights() -> void:
 func _build_camera() -> void:
 	var camera := Camera3D.new()
 	camera.name = "GameCamera"
-	camera.fov = 38.0
+	camera.fov = 48.0
 	camera.near = 0.08
-	camera.far = 180.0
-	camera.position = Vector3(0.0, 7.5, 10.0)
-	camera.look_at_from_position(camera.position, Vector3(0.0, 0.15, -10.0), Vector3.UP)
+	camera.far = 220.0
+	camera.position = Vector3(0.0, 8.4, 9.6)
+	camera.look_at_from_position(camera.position, Vector3(0.0, 0.35, -12.0), Vector3.UP)
 	camera.current = true
 	add_child(camera)
 
@@ -174,16 +180,16 @@ func _build_grounds() -> void:
 	)
 	var ground := MeshInstance3D.new()
 	var plane := PlaneMesh.new()
-	plane.size = Vector2(70.0, 92.0)
+	plane.size = Vector2(96.0, 130.0)
 	ground.mesh = plane
-	ground.position = Vector3(0.0, -0.04, -28.0)
+	ground.position = Vector3(0.0, -0.04, -40.0)
 	ground.material_override = outfield
 	ground.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(ground)
 
-	_hill(Vector3(-16.0, -4.5, -62.0), 15.0, Color(0.45, 0.58, 0.62))
-	_hill(Vector3(2.0, -6.0, -68.0), 18.0, Color(0.40, 0.55, 0.50))
-	_hill(Vector3(18.0, -5.0, -60.0), 14.0, Color(0.50, 0.62, 0.66))
+	_hill(Vector3(-18.0, -4.5, -78.0), 16.0, Color(0.45, 0.58, 0.62))
+	_hill(Vector3(2.0, -6.0, -86.0), 18.0, Color(0.40, 0.55, 0.50))
+	_hill(Vector3(20.0, -5.0, -76.0), 15.0, Color(0.50, 0.62, 0.66))
 
 
 func _build_playing_surface() -> void:
@@ -275,9 +281,9 @@ func _build_surrounds() -> void:
 
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 4041
-	var tree_x := HALF_WIDTH + 1.85
-	for i in 9:
-		var z := -4.2 - float(i) * 3.7
+	var tree_x := HALF_WIDTH + 2.15
+	for i in 13:
+		var z := -4.5 - float(i) * 3.6
 		var scale_a := rng.randf_range(0.86, 1.16)
 		var scale_b := rng.randf_range(0.86, 1.16)
 		_tree(self, Vector3(tree_x, 0.0, z), scale_a, rng)
@@ -297,11 +303,11 @@ func _build_surrounds() -> void:
 		_tree(self, Vector3(7.4, 0.0, z), rng.randf_range(1.05, 1.35), rng)
 		_tree(self, Vector3(-7.6, 0.0, z + 1.6), rng.randf_range(1.05, 1.35), rng)
 
-	var banner_x := HALF_WIDTH + 0.42
-	_banner(self, Vector3(banner_x, 0.0, -12.6), "PLAY\nSLIDE\nCOMPETE", Color(0.11, 0.32, 0.58))
-	_banner(self, Vector3(-banner_x, 0.0, -12.2), "PLAY\nSLIDE\nCOMPETE", Color(0.11, 0.32, 0.58))
-	_banner(self, Vector3(banner_x, 0.0, -21.4), "DISC\nQUEST", Color(0.08, 0.24, 0.46))
-	_banner(self, Vector3(-banner_x, 0.0, -21.8), "DISC\nQUEST", Color(0.08, 0.24, 0.46))
+	var banner_x := HALF_WIDTH + 0.15
+	_banner(self, Vector3(banner_x, 0.0, -LENGTH * 0.36), "PLAY\nSLIDE\nCOMPETE", Color(0.11, 0.32, 0.58))
+	_banner(self, Vector3(-banner_x, 0.0, -LENGTH * 0.36), "PLAY\nSLIDE\nCOMPETE", Color(0.11, 0.32, 0.58))
+	_banner(self, Vector3(banner_x, 0.0, -LENGTH * 0.58), "DISC\nQUEST", Color(0.08, 0.24, 0.46))
+	_banner(self, Vector3(-banner_x, 0.0, -LENGTH * 0.58), "DISC\nQUEST", Color(0.08, 0.24, 0.46))
 
 	_flowers(self, Vector3(1.35, 0.0, FAR_Z - 1.3), rng)
 	_flowers(self, Vector3(-1.35, 0.0, FAR_Z - 1.5), rng)
@@ -312,7 +318,7 @@ func _build_surrounds() -> void:
 func _build_clubhouse() -> void:
 	var club := Node3D.new()
 	club.name = "Clubhouse"
-	club.position = Vector3(0.0, 0.0, -43.4)
+	club.position = Vector3(0.0, 0.0, FAR_Z - 5.6)
 	add_child(club)
 
 	var wall := _lit(Color(0.95, 0.93, 0.88), 0.72)

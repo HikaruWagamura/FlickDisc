@@ -34,6 +34,15 @@ static func palette(index: int) -> Array:
 	return looks[index % looks.size()]
 
 
+static func bowl_type(index: int) -> Dictionary:
+	var types := [
+		{"name": "NARROW", "bias": 0.62},
+		{"name": "MEDIUM", "bias": 0.95},
+		{"name": "WIDE", "bias": 1.28},
+	]
+	return types[index % types.size()]
+
+
 static func restitution_for(jack_involved: bool) -> float:
 	return JACK_RESTITUTION if jack_involved else DISC_RESTITUTION
 
@@ -79,12 +88,12 @@ static func resolve(a_pos: Vector3, a_vel: Vector3, a_radius: float, a_mass: flo
 	return {"hit": impact > 0.0, "a_pos": a_pos, "a_vel": a_vel, "b_pos": b_pos, "b_vel": b_vel, "impact": impact}
 
 
-func setup_disc(index: int) -> void:
+func setup_disc(index: int, hand: float = -1.0) -> void:
 	palette_index = index
 	radius = DISC_RADIUS
 	mass = DISC_MASS
 	is_jack = false
-	_build_disc(palette(index))
+	_build_disc(palette(index), hand)
 
 
 func setup_jack() -> void:
@@ -118,35 +127,27 @@ func present(speed: float) -> void:
 		_shadow.position = Vector3(0.08 + lift * 0.05, 0.012, 0.05)
 
 
-func _build_disc(colors: Array) -> void:
+func _build_disc(colors: Array, hand: float) -> void:
 	_shadow = _make_shadow(0.4)
 	add_child(_shadow)
 	_spin = Node3D.new()
 	add_child(_spin)
-	var rim := _mat(colors[0], 0.4, 0.15)
-	var body := _mat(colors[1], 0.32, 0.18)
-	var cap := _mat(colors[2], 0.28, 0.08)
+	var rim := _mat(colors[0], 0.38, 0.16)
+	var body := _mat(colors[1], 0.3, 0.2)
 	var mark := _flat(colors[3])
-	_cylinder(_spin, Vector3(0.0, 0.03, 0.0), 0.43, 0.40, 0.05, rim)
-	_cylinder(_spin, Vector3(0.0, 0.068, 0.0), 0.39, 0.34, 0.058, body)
-	_cylinder(_spin, Vector3(0.0, 0.1, 0.0), 0.26, 0.26, 0.014, cap)
-	var ring := MeshInstance3D.new()
-	ring.mesh = _annulus(0.16, 0.21, 28)
-	ring.position = Vector3(0.0, 0.11, 0.0)
-	ring.material_override = mark
-	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_spin.add_child(ring)
-	for spoke in 4:
-		var bar := MeshInstance3D.new()
-		var box := BoxMesh.new()
-		box.size = Vector3(0.11, 0.008, 0.03)
-		bar.mesh = box
-		var angle := float(spoke) * TAU / 4.0
-		bar.position = Vector3(cos(angle) * 0.1, 0.112, sin(angle) * 0.1)
-		bar.rotation.y = angle
-		bar.material_override = mark
-		bar.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		_spin.add_child(bar)
+	_round_bowl(_spin, rim, body)
+	var pip := MeshInstance3D.new()
+	var pip_mesh := SphereMesh.new()
+	pip_mesh.radius = 0.07
+	pip_mesh.height = 0.14
+	pip_mesh.radial_segments = 12
+	pip_mesh.rings = 8
+	pip.mesh = pip_mesh
+	# The pip sits on the bias side. Forehand draws toward -X.
+	pip.position = Vector3(signf(hand) * 0.3, 0.3, 0.0)
+	pip.material_override = mark
+	pip.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_spin.add_child(pip)
 
 
 func _build_jack() -> void:
@@ -192,6 +193,41 @@ func _make_shadow(size: float) -> MeshInstance3D:
 	shadow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	shadow.position = Vector3(0.08, 0.012, 0.05)
 	return shadow
+
+
+func _round_bowl(parent: Node3D, rim: Material, body: Material) -> void:
+	var shell := MeshInstance3D.new()
+	var mesh := SphereMesh.new()
+	mesh.radius = 0.42
+	mesh.height = 0.84
+	mesh.radial_segments = 32
+	mesh.rings = 16
+	shell.mesh = mesh
+	shell.scale = Vector3(1.0, 0.66, 1.0)
+	shell.position = Vector3(0.0, 0.42 * 0.66, 0.0)
+	shell.material_override = rim
+	parent.add_child(shell)
+	var crown := MeshInstance3D.new()
+	var crown_mesh := SphereMesh.new()
+	crown_mesh.radius = 0.3
+	crown_mesh.height = 0.6
+	crown_mesh.radial_segments = 24
+	crown_mesh.rings = 12
+	crown.mesh = crown_mesh
+	crown.scale = Vector3(1.0, 0.72, 1.0)
+	crown.position = Vector3(0.0, 0.34, 0.0)
+	crown.material_override = body
+	parent.add_child(crown)
+	var belt := MeshInstance3D.new()
+	var belt_mesh := CylinderMesh.new()
+	belt_mesh.top_radius = 0.4
+	belt_mesh.bottom_radius = 0.4
+	belt_mesh.height = 0.045
+	belt_mesh.radial_segments = 28
+	belt.mesh = belt_mesh
+	belt.position = Vector3(0.0, 0.26, 0.0)
+	belt.material_override = body
+	parent.add_child(belt)
 
 
 func _cylinder(parent: Node3D, pos: Vector3, bottom_r: float, top_r: float, height: float, mat: Material) -> void:

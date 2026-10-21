@@ -59,7 +59,7 @@ func _ready() -> void:
 	reset_button = _make_button("RESET", Vector2(18.0, 898.0), Vector2(118.0, 44.0))
 	reset_button.pressed.connect(func() -> void: reset_requested.emit())
 
-	bias_button = _make_button("BIAS  CENTER", Vector2(148.0, 898.0), Vector2(200.0, 44.0))
+	bias_button = _make_button("FOREHAND", Vector2(148.0, 898.0), Vector2(200.0, 44.0))
 	bias_button.pressed.connect(func() -> void: bias_cycle_requested.emit())
 
 	next_button = _make_button("NEXT LEVEL", Vector2(360.0, 898.0), Vector2(162.0, 44.0))
@@ -73,25 +73,49 @@ func set_power_ratio(power_ratio: float) -> void:
 	power_fill.size.x = POWER_WIDTH * clampf(power_ratio, 0.0, 1.0)
 
 
-func show_ready(level_number: int, throws_left: int, difficulty: String) -> void:
+func show_jack_prompt(level_number: int, difficulty: String, min_jack_m: float) -> void:
 	level_label.text = "LEVEL %02d" % level_number
-	throws_label.text = "%d THROWS" % throws_left
-	status_label.text = "LEVEL %02d  •  TOUCH YOUR DISC" % level_number
-	score_label.text = "%s  •  BOWLS STAY AND COLLIDE" % difficulty.to_upper()
+	throws_label.text = "JACK"
+	status_label.text = "THROW THE JACK TO SET THE LENGTH"
+	score_label.text = "%s  •  MINIMUM %.0f m" % [difficulty.to_upper(), min_jack_m]
 	reset_button.visible = true
 	next_button.visible = false
+	bias_button.text = "JACK"
+	set_power_ratio(0.0)
+
+
+func show_jack_aim(power_ratio: float) -> void:
+	status_label.text = "AIMING JACK  •  %d%%  •  JUDGE THE LENGTH" % roundi(power_ratio * 100.0)
+	set_power_ratio(power_ratio)
+
+
+func show_jack_running() -> void:
+	status_label.text = "JACK RUNNING"
+	score_label.text = "LET IT STOP TO READ THE LENGTH"
+
+
+func show_jack_illegal(reason: String, travelled: float, min_jack_m: float) -> void:
+	throws_label.text = "JACK"
+	status_label.text = reason
+	score_label.text = "%.1f m  •  NEEDS %.0f m" % [travelled, min_jack_m]
+
+
+func show_jack_set(travelled: float, bowl_name: String, throws_left: int) -> void:
+	throws_label.text = "%d BOWLS" % throws_left
+	status_label.text = "JACK AT %.1f m" % travelled
+	score_label.text = "NOW THE %s BOWL" % bowl_name
 	set_power_ratio(0.0)
 
 
 func show_aiming(power_ratio: float) -> void:
-	status_label.text = "AIMING  •  %d%% POWER  •  %s" % [roundi(power_ratio * 100.0), _bias_name()]
+	status_label.text = "AIMING  •  %d%%  •  %s" % [roundi(power_ratio * 100.0), _hand_name()]
 	set_power_ratio(power_ratio)
 
 
-func show_in_motion(throws_left: int) -> void:
-	throws_label.text = "%d THROWS" % throws_left
-	status_label.text = "IN FLIGHT  •  %s BIAS" % _bias_name()
-	score_label.text = "%d THROWS REMAINING" % throws_left
+func show_in_motion(throws_left: int, bowl_name: String, forehand: bool) -> void:
+	throws_label.text = "%d BOWLS" % throws_left
+	status_label.text = "%s  •  %s  •  DRAWING IN" % [bowl_name, "FOREHAND" if forehand else "BACKHAND"]
+	score_label.text = "%d BOWLS REMAINING" % throws_left
 
 
 func show_contact(hit_jack: bool) -> void:
@@ -114,17 +138,13 @@ func show_level_complete(score: int, closest_distance: float, has_next_level: bo
 	next_button.visible = has_next_level
 
 
-func show_bias(value: float) -> void:
-	current_bias = value
-	bias_button.text = "BIAS  %s" % _bias_name()
+func show_hand(forehand: bool, bowl_name: String) -> void:
+	current_bias = -1.0 if forehand else 1.0
+	bias_button.text = "%s  %s" % [_hand_name(), bowl_name]
 
 
-func _bias_name() -> String:
-	if current_bias < -0.5:
-		return "LEFT"
-	if current_bias > 0.5:
-		return "RIGHT"
-	return "CENTER"
+func _hand_name() -> String:
+	return "FOREHAND" if current_bias < 0.0 else "BACKHAND"
 
 
 func _make_label(label_position: Vector2, label_size: Vector2, font_size: int, color: Color) -> Label:

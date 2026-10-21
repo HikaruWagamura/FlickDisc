@@ -9,8 +9,10 @@ The prototype now includes:
 - A real 3D lawn-bowls rink, 38 m long by 5.8 m wide, viewed in perspective from behind the mat.
 - Mowed green, timber banks, ditch, center line, delivery mat, and a bullseye head.
 - Clubhouse, trees, hedges, benches, and paths around the green.
-- A player disc and jack that sit on the green and scale with distance.
-- Every throw stays on the green. Later bowls knock earlier bowls and the jack on every level.
+- A 52 m by 11 m green, wide enough for a full-length draw.
+- The jack is thrown first. Where it stops is the length for that end.
+- Three bowl types, narrow, medium, and wide. Each has its own bias and draws inward as it slows. A longer shot takes a wider line.
+- Every bowl stays on the green. Later bowls knock earlier bowls and the jack on every level.
 - Touch or mouse drag-to-aim controls, with haptic pulses and synthesized hit, roll, and settle sounds.
 - Physics-based launch, friction, bias curve, visible spin, and rink boundary limits.
 - Three throws per level with distance scoring in metres.
@@ -58,10 +60,10 @@ can open it). Serve that folder over HTTP and drag the disc with the mouse.
 
 ## Test the MVP
 
-1. Touch and hold the disc near the bottom of the rink.
-2. Drag backwards. The curved guide shows direction, power, bias, and any carom.
-3. Release to launch the disc. It stays where it stops, and the next disc can hit it or the jack.
-4. Tap **BIAS** to cycle between CENTER, LEFT, and RIGHT before a throw.
+1. Throw the jack first. Drag back from the mat and release. It must pass the minimum distance and stay on the rink.
+2. Touch the bowl and drag backwards. The guide shows the wide line and the inward draw.
+3. Release. The bowl stays where it stops, and the next bowl can hit it or the jack.
+4. Tap the hand button to switch FOREHAND and BACKHAND. Each bowl type has its own bias.
 5. Wait for it to stop. The distance to the Jack is recorded automatically.
 6. Repeat until all three throws are used.
 7. Use **RESET** to replay the current level or **NEXT LEVEL** after a
