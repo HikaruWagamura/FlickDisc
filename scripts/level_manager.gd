@@ -1,44 +1,65 @@
 class_name LevelManager
 extends Node
 
-## Level data is kept in one list so adding many future levels only means
-## adding another dictionary here or loading the same shape from a data file.
+## Each level is a crokinole layout. Opponent buttons are placed in world
+## units on the table, away from the eight pegs.
 
 const LEVELS := [
 	{
 		"number": 1,
-		"jack_position": Vector2(270.0, 210.0),
-		"rink_size": Vector2(492.0, 744.0),
-		"throws": 3,
-		"difficulty": "Practice",
+		"difficulty": "Open Board",
+		"discs": 8,
+		"opponents": [
+			Vector2(0.0, -0.22),
+			Vector2(-0.24, -0.48),
+			Vector2(0.24, -0.48),
+		],
 	},
 	{
 		"number": 2,
-		"jack_position": Vector2(168.0, 270.0),
-		"rink_size": Vector2(492.0, 744.0),
-		"throws": 3,
-		"difficulty": "Easy",
+		"difficulty": "Peg Guard",
+		"discs": 8,
+		"opponents": [
+			Vector2(0.0, -0.22),
+			Vector2(-0.11, -0.27),
+			Vector2(0.11, -0.27),
+			Vector2(0.0, -0.54),
+		],
 	},
 	{
 		"number": 3,
-		"jack_position": Vector2(375.0, 320.0),
-		"rink_size": Vector2(492.0, 744.0),
-		"throws": 3,
-		"difficulty": "Easy",
+		"difficulty": "Far Cluster",
+		"discs": 8,
+		"opponents": [
+			Vector2(-0.16, -0.48),
+			Vector2(0.16, -0.48),
+			Vector2(0.0, -0.30),
+			Vector2(-0.34, -0.66),
+			Vector2(0.34, -0.66),
+		],
 	},
 	{
 		"number": 4,
-		"jack_position": Vector2(220.0, 300.0),
-		"rink_size": Vector2(492.0, 744.0),
-		"throws": 3,
-		"difficulty": "Medium",
+		"difficulty": "Split Posts",
+		"discs": 8,
+		"opponents": [
+			Vector2(-0.22, -0.18),
+			Vector2(0.22, -0.18),
+			Vector2(0.0, -0.5),
+			Vector2(-0.46, -0.42),
+		],
 	},
 	{
 		"number": 5,
-		"jack_position": Vector2(340.0, 365.0),
-		"rink_size": Vector2(492.0, 744.0),
-		"throws": 3,
-		"difficulty": "Medium",
+		"difficulty": "Hole Watch",
+		"discs": 8,
+		"opponents": [
+			Vector2(-0.16, -0.16),
+			Vector2(0.16, -0.16),
+			Vector2(0.0, -0.3),
+			Vector2(-0.36, -0.58),
+			Vector2(0.36, -0.58),
+		],
 	},
 ]
 

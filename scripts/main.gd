@@ -1,372 +1,469 @@
-extends Node2D
+extends Node3D
 
-## DISC QUEST - game manager and rink renderer
-## The scene intentionally keeps the rink visuals here while gameplay systems
-## live in their own scripts for easier expansion.
+## Crokinole match. Buttons stay on the table and bounce off the eight pegs.
+## An end is eight discs. Both colors count, a disc on a line scores the
+## lower ring, and only the difference is added to the match.
 
-const DESIGN_SIZE := Vector2(540.0, 960.0)
-const RINK_RECT := Rect2(24.0, 136.0, 492.0, 744.0)
-const RINK_RADIUS := 24.0
+const Metrics = preload("res://scripts/table_metrics.gd")
+const LevelScript = preload("res://scripts/level_manager.gd")
+const ScoreScript = preload("res://scripts/score_manager.gd")
+const PuckScript = preload("res://scripts/puck.gd")
 
-const BACKGROUND := Color("#07131e")
-const RINK_EDGE := Color("#8cd9c1")
-const RINK_GREEN := Color("#25846d")
-const RINK_GREEN_DARK := Color("#104d4d")
-const RINK_RAIL := Color("#122c3b")
-const RINK_LINE := Color(0.76, 0.96, 0.88, 0.34)
-const WHITE := Color("#f3faf8")
-const MUTED_WHITE := Color("#98b6b6")
-const ACCENT_BLUE := Color("#6dd6e5")
-const JACK_GOLD := Color("#f3bd56")
-const JACK_GOLD_DARK := Color("#95541f")
-
-const JACK_POSITION := Vector2(270.0, 210.0)
-const DISC_POSITION := Vector2(270.0, 818.0)
-const JACK_RADIUS := 19.0
-const COURSE_BACKGROUND := preload("res://assets/course_background.jpg")
-const LANE_TOP_Y := 156.0
-const LANE_BOTTOM_Y := 872.0
-const LANE_TOP_LEFT := 114.0
-const LANE_TOP_RIGHT := 426.0
-const LANE_BOTTOM_LEFT := 34.0
-const LANE_BOTTOM_RIGHT := 506.0
-
-var screen_size := DESIGN_SIZE
-var disc: DiscController
-var ui: UIManager
-var level_manager: LevelManager
-var score_manager: ScoreManager
+var disc
+var ui
+var level_manager: Node
+var score_manager: Node
+var camera: Camera3D
+var pucks_root: Node3D
+var pucks: Array = []
+var active_puck
 var current_level_index := 0
 var current_level: Dictionary
-var jack_position := JACK_POSITION
-var throws_left := 3
-var current_power_ratio := 0.0
+var discs_left := 0
+var resolving := false
+var match_you := 0
+var match_them := 0
+var end_applied := false
+var last_award_you := 0
+var last_award_them := 0
+const MATCH_TARGET := 100
 
 func _ready() -> void:
-	get_viewport().size_changed.connect(_on_viewport_size_changed)
-	disc = get_node("PlayerDisc") as DiscController
-	ui = get_node("UI") as UIManager
-	level_manager = LevelManager.new()
-	score_manager = ScoreManager.new()
+	disc = get_node("Shooter")
+	ui = get_node("UI")
+	level_manager = LevelScript.new()
+	score_manager = ScoreScript.new()
 	add_child(level_manager)
 	add_child(score_manager)
+	pucks_root = Node3D.new()
+	pucks_root.name = "Pucks"
+	add_child(pucks_root)
+	_setup_view()
 	disc.aim_changed.connect(_on_disc_aim_changed)
 	disc.bias_changed.connect(_on_disc_bias_changed)
 	disc.shot_started.connect(_on_disc_shot_started)
-	disc.shot_stopped.connect(_on_disc_shot_stopped)
 	ui.reset_requested.connect(_on_reset_requested)
 	ui.next_level_requested.connect(_on_next_level_requested)
 	ui.bias_cycle_requested.connect(_on_bias_cycle_requested)
-	_on_viewport_size_changed()
 	_load_level(0)
-	queue_redraw()
 
-func _on_viewport_size_changed() -> void:
-	screen_size = get_viewport_rect().size
-	queue_redraw()
+func _setup_view() -> void:
+	var environment := Environment.new()
+	environment.background_mode = Environment.BG_COLOR
+	environment.background_color = Color("#7eb6e8")
+	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	environment.ambient_light_color = Color("#c4b49a")
+	environment.ambient_light_energy = 0.62
+	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	environment.tonemap_exposure = 0.92
+	environment.glow_enabled = true
+	environment.glow_intensity = 0.18
+	environment.glow_strength = 0.45
+	environment.glow_bloom = 0.02
+	environment.glow_hdr_threshold = 1.25
+	var world := WorldEnvironment.new()
+	world.environment = environment
+	add_child(world)
 
-func _process(_delta: float) -> void:
-	queue_redraw()
+	camera = Camera3D.new()
+	camera.name = "Camera3D"
+	camera.fov = 42.0
+	camera.near = 0.04
+	camera.far = 40.0
+	camera.current = true
+	add_child(camera)
+	# The round board stays whole above the controls, and the long rink
+	# sits behind it up to the clubhouse.
+	camera.position = Vector3(0.0, 3.05, 2.42)
+	camera.look_at(Vector3(0.0, 0.0, -0.28), Vector3.UP)
+
+	var key := DirectionalLight3D.new()
+	key.rotation_degrees = Vector3(-52.0, -28.0, 0.0)
+	key.light_color = Color("#fff3e4")
+	key.light_energy = 0.95
+	key.shadow_enabled = true
+	key.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
+	key.directional_shadow_max_distance = 8.0
+	key.shadow_bias = 0.04
+	key.shadow_normal_bias = 1.1
+	add_child(key)
+
+	var fill := OmniLight3D.new()
+	fill.position = Vector3(0.2, 1.5, 0.9)
+	fill.light_color = Color("#ffe8d0")
+	fill.light_energy = 0.22
+	fill.omni_range = 4.5
+	add_child(fill)
+
+func _physics_process(delta: float) -> void:
+	if not resolving:
+		return
+	var remaining := delta
+	while remaining > 0.00001:
+		var step := minf(1.0 / 120.0, remaining)
+		_substep(step)
+		remaining -= step
+	if _all_stopped():
+		resolving = false
+		_on_table_settled()
+
+func _substep(delta: float) -> void:
+	for puck in pucks:
+		if puck.sunk or not puck.moving:
+			continue
+		var speed: float = Vector2(puck.velocity.x, puck.velocity.z).length()
+		if speed > Metrics.STOP_SPEED and absf(puck.shot_bias) > 0.01:
+			var slowdown := clampf(1.0 - speed / Metrics.MAX_SPEED, 0.0, 1.0)
+			var turn_rate := lerpf(0.1, 0.7, slowdown)
+			var turned: Vector3 = puck.velocity.rotated(Vector3.UP, -puck.shot_bias * turn_rate * delta)
+			puck.velocity = Vector3(turned.x, 0.0, turned.z)
+		var friction: float = Metrics.DITCH_FRICTION if bool(puck.in_ditch) else Metrics.SURFACE_FRICTION
+		puck.velocity *= pow(friction, delta)
+		puck.position += puck.velocity * delta
+		puck.spin(delta)
+		_update_surface(puck)
+		if Vector2(puck.velocity.x, puck.velocity.z).length() <= Metrics.STOP_SPEED:
+			puck.velocity = Vector3.ZERO
+			puck.stop_timer += delta
+			if puck.stop_timer >= 0.08:
+				puck.moving = false
+				puck.shot_bias = 0.0
+		else:
+			puck.stop_timer = 0.0
+	for _iteration in 4:
+		_solve_pegs()
+		_solve_pucks()
+		_solve_rail()
+	_solve_holes()
+
+func _update_surface(puck) -> void:
+	if puck.sunk:
+		return
+	var distance: float = puck.flat().length()
+	if not puck.in_ditch and distance > Metrics.SURFACE_RADIUS - Metrics.DISC_RADIUS * 0.25:
+		puck.in_ditch = true
+	if puck.in_ditch:
+		puck.position.y = Metrics.DITCH_Y
+	else:
+		puck.position.y = Metrics.DISC_CENTER_Y
+
+func _solve_pegs() -> void:
+	for puck in pucks:
+		if puck.sunk or puck.in_ditch:
+			continue
+		var spot: Vector2 = puck.flat()
+		for peg in Metrics.peg_positions():
+			var peg_flat := Vector2(peg.x, peg.z)
+			var offset := spot - peg_flat
+			var distance := offset.length()
+			var minimum := Metrics.DISC_RADIUS + Metrics.PEG_RADIUS
+			if distance >= minimum or distance <= 0.0001:
+				continue
+			var normal := offset / distance
+			spot = peg_flat + normal * minimum
+			puck.set_flat(spot)
+			var velocity := Vector2(puck.velocity.x, puck.velocity.z)
+			var into := velocity.dot(normal)
+			if into < 0.0:
+				velocity -= normal * into * (1.0 + Metrics.PEG_RESTITUTION)
+				puck.velocity = Vector3(velocity.x, 0.0, velocity.y)
+				puck.moving = true
+				puck.stop_timer = 0.0
+
+func _solve_pucks() -> void:
+	for index in pucks.size():
+		var first = pucks[index]
+		if first.sunk:
+			continue
+		for other_index in range(index + 1, pucks.size()):
+			var second = pucks[other_index]
+			if second.sunk:
+				continue
+			if first.in_ditch != second.in_ditch:
+				continue
+			var delta: Vector2 = second.flat() - first.flat()
+			var distance := delta.length()
+			var minimum := Metrics.DISC_RADIUS * 2.0
+			if distance >= minimum or distance <= 0.0001:
+				continue
+			var normal := delta / distance
+			var overlap := minimum - distance
+			first.set_flat(first.flat() - normal * overlap * 0.5)
+			second.set_flat(second.flat() + normal * overlap * 0.5)
+			var relative := Vector2(first.velocity.x - second.velocity.x, first.velocity.z - second.velocity.z)
+			var approach := relative.dot(normal)
+			if approach > 0.0:
+				var impulse := approach * (1.0 + Metrics.DISC_RESTITUTION) * 0.5
+				first.velocity -= Vector3(normal.x, 0.0, normal.y) * impulse
+				second.velocity += Vector3(normal.x, 0.0, normal.y) * impulse
+				first.moving = true
+				second.moving = true
+				first.stop_timer = 0.0
+				second.stop_timer = 0.0
+
+func _solve_rail() -> void:
+	var limit := Metrics.DITCH_OUTER - Metrics.DISC_RADIUS
+	for puck in pucks:
+		if puck.sunk:
+			continue
+		var spot: Vector2 = puck.flat()
+		if spot.length() <= limit or spot.length() <= 0.0001:
+			continue
+		var normal := spot.normalized()
+		puck.set_flat(normal * limit)
+		if not puck.in_ditch:
+			puck.in_ditch = true
+			puck.position.y = Metrics.DITCH_Y
+		var velocity := Vector2(puck.velocity.x, puck.velocity.z)
+		var outward := velocity.dot(normal)
+		if outward > 0.0:
+			velocity -= normal * outward * (1.0 + Metrics.RAIL_RESTITUTION)
+			puck.velocity = Vector3(velocity.x, 0.0, velocity.y)
+			puck.moving = true
+			puck.stop_timer = 0.0
+
+func _solve_holes() -> void:
+	for puck in pucks:
+		if puck.sunk or puck.in_ditch:
+			continue
+		var speed: float = Vector2(puck.velocity.x, puck.velocity.z).length()
+		if puck.flat().length() <= Metrics.HOLE_RADIUS * 0.78 and speed < 1.05:
+			puck.sink_into_hole()
+
+func _all_stopped() -> bool:
+	for puck in pucks:
+		if puck.moving and not puck.sunk:
+			return false
+	return true
+
+func _side_total(player_side: bool) -> int:
+	var total := 0
+	for puck in pucks:
+		if bool(puck.is_player) != player_side:
+			continue
+		total += int(puck.ring_points())
+	return total
+
+func _side_items(player_side: bool) -> Array:
+	var items: Array = []
+	for puck in pucks:
+		if bool(puck.is_player) != player_side:
+			continue
+		var value: int = puck.ring_points()
+		if value > 0:
+			items.append(value)
+	items.sort()
+	items.reverse()
+	return items
+
+func _sum(items: Array) -> int:
+	var total := 0
+	for value in items:
+		total += int(value)
+	return total
 
 func _unhandled_input(event: InputEvent) -> void:
+	if disc.shot_in_progress or disc.is_aiming or not _is_press(event):
+		return
+	_pointer_down(_event_position(event))
+
+func _input(event: InputEvent) -> void:
+	if not disc.is_aiming:
+		return
+	if _is_drag(event):
+		_pointer_move(_event_position(event))
+		get_viewport().set_input_as_handled()
+	elif _is_release(event):
+		_pointer_up(_event_position(event))
+		get_viewport().set_input_as_handled()
+
+func _is_press(event: InputEvent) -> bool:
 	if event is InputEventScreenTouch:
-		if event.pressed:
-			disc.begin_aim(event.position)
-		else:
-			disc.release_aim(event.position)
-	elif event is InputEventScreenDrag:
-		disc.update_aim(event.position)
-	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		if event.pressed:
-			disc.begin_aim(event.position)
-		else:
-			disc.release_aim(event.position)
-	elif event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
-		disc.update_aim(event.position)
+		return event.pressed
+	return event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed
 
-func _draw() -> void:
-	var scale_factor: float = minf(screen_size.x / DESIGN_SIZE.x, screen_size.y / DESIGN_SIZE.y)
-	var offset: Vector2 = (screen_size - DESIGN_SIZE * scale_factor) * 0.5
-	draw_set_transform(offset, 0.0, Vector2.ONE * scale_factor)
+func _is_release(event: InputEvent) -> bool:
+	if event is InputEventScreenTouch:
+		return not event.pressed
+	return event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed
 
-	_draw_background()
-	_draw_header()
-	_draw_rink()
-	_draw_jack()
-	_draw_footer_hint()
+func _is_drag(event: InputEvent) -> bool:
+	if event is InputEventScreenDrag:
+		return true
+	return event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
 
-func _draw_background() -> void:
-	draw_texture_rect_region(
-		COURSE_BACKGROUND,
-		Rect2(Vector2.ZERO, DESIGN_SIZE),
-		Rect2(96.0, 0.0, 432.0, 768.0),
-		Color(1.0, 1.0, 1.0, 0.96)
-	)
-	draw_rect(Rect2(0.0, 0.0, DESIGN_SIZE.x, 138.0), Color(0.02, 0.08, 0.13, 0.68))
-	draw_rect(Rect2(0.0, 848.0, DESIGN_SIZE.x, 112.0), Color(0.02, 0.08, 0.12, 0.16))
+func _event_position(event: InputEvent) -> Vector2:
+	if event is InputEventMouse or event is InputEventScreenTouch or event is InputEventScreenDrag:
+		return event.position
+	return Vector2.ZERO
 
-func _draw_header() -> void:
-	draw_string(
-		ThemeDB.fallback_font,
-		Vector2(30.0, 48.0),
-		"DISC QUEST",
-		HORIZONTAL_ALIGNMENT_LEFT,
-		-1.0,
-		27,
-		WHITE
-	)
-	draw_string(
-		ThemeDB.fallback_font,
-		Vector2(32.0, 72.0),
-		"LONG LINE • PRECISION SPORT",
-		HORIZONTAL_ALIGNMENT_LEFT,
-		-1.0,
-		11,
-		MUTED_WHITE
-	)
+func _pointer_down(screen_position: Vector2) -> void:
+	if active_puck == null or resolving or not _pointer_hits_disc(screen_position):
+		return
+	disc.begin_aim(_board_point(screen_position))
 
-	draw_style_box(
-		_make_panel_style(Color(0.03, 0.13, 0.20, 0.92), Color(0.30, 0.70, 0.71, 0.60), 14.0),
-		Rect2(174.0, 32.0, 164.0, 55.0)
-	)
-	draw_string(
-		ThemeDB.fallback_font,
-		Vector2(185.0, 55.0),
-		"RIVERSIDE DISC CLUB",
-		HORIZONTAL_ALIGNMENT_CENTER,
-		142.0,
-		11,
-		WHITE
-	)
-	draw_string(
-		ThemeDB.fallback_font,
-		Vector2(185.0, 72.0),
-		"CLASSIC RINK   •   •   •",
-		HORIZONTAL_ALIGNMENT_CENTER,
-		142.0,
-		9,
-		ACCENT_BLUE
-	)
+func _pointer_move(screen_position: Vector2) -> void:
+	if disc.is_aiming:
+		disc.update_aim(_board_point(screen_position))
 
-	draw_style_box(
-		_make_panel_style(Color(0.03, 0.12, 0.18, 0.80), Color(0.48, 0.84, 0.75, 0.28), 12.0),
-		Rect2(24.0, 91.0, 164.0, 43.0)
-	)
+func _pointer_up(screen_position: Vector2) -> void:
+	if disc.is_aiming:
+		disc.release_aim(_board_point(screen_position))
 
-	# Small status pill reserved for the level and throw counter.
-	draw_style_box(
-		_make_panel_style(Color(0.05, 0.15, 0.21, 0.96), Color(0.25, 0.70, 0.69, 0.7), 14.0),
-		Rect2(354.0, 32.0, 162.0, 55.0)
-	)
-	draw_string(
-		ThemeDB.fallback_font,
-		Vector2(371.0, 56.0),
-		"LEVEL %02d" % (current_level_index + 1),
-		HORIZONTAL_ALIGNMENT_LEFT,
-		-1.0,
-		14,
-		WHITE
-	)
-	draw_string(
-		ThemeDB.fallback_font,
-		Vector2(371.0, 75.0),
-		"%d THROWS" % throws_left,
-		HORIZONTAL_ALIGNMENT_LEFT,
-		-1.0,
-		11,
-		ACCENT_BLUE
-	)
+func _pointer_hits_disc(screen_position: Vector2) -> bool:
+	if active_puck == null:
+		return false
+	var disc_screen := camera.unproject_position(active_puck.global_position)
+	var edge_screen := camera.unproject_position(active_puck.global_position + Vector3(Metrics.DISC_RADIUS * 2.4, 0.0, 0.0))
+	var grab_radius := maxf(disc_screen.distance_to(edge_screen), 72.0)
+	return disc_screen.distance_to(screen_position) <= grab_radius
 
-func _draw_rink() -> void:
-	var outer_lane := PackedVector2Array([
-		_lane_point(LANE_TOP_Y - 10.0, 0.0, 46.0),
-		_lane_point(LANE_TOP_Y - 10.0, 1.0, 46.0),
-		_lane_point(LANE_BOTTOM_Y + 10.0, 1.0, 46.0),
-		_lane_point(LANE_BOTTOM_Y + 10.0, 0.0, 46.0),
-	])
-	var shadow_lane := PackedVector2Array([
-		outer_lane[0] + Vector2(0.0, 14.0),
-		outer_lane[1] + Vector2(0.0, 14.0),
-		outer_lane[2] + Vector2(0.0, 14.0),
-		outer_lane[3] + Vector2(0.0, 14.0),
-	])
-	draw_colored_polygon(shadow_lane, Color(0.0, 0.0, 0.0, 0.42))
-	draw_colored_polygon(outer_lane, RINK_RAIL)
-	draw_polyline(outer_lane, RINK_EDGE, 3.0)
+func _board_point(screen_position: Vector2) -> Vector3:
+	var origin := camera.project_ray_origin(screen_position)
+	var direction := camera.project_ray_normal(screen_position)
+	if absf(direction.y) < 0.00001:
+		return active_puck.global_position if active_puck != null else Vector3.ZERO
+	var distance := (0.0 - origin.y) / direction.y
+	if distance < 0.0:
+		return active_puck.global_position if active_puck != null else Vector3.ZERO
+	return origin + direction * distance
 
-	var surface := PackedVector2Array([
-		_lane_point(LANE_TOP_Y, 0.0, 24.0),
-		_lane_point(LANE_TOP_Y, 1.0, 24.0),
-		_lane_point(LANE_BOTTOM_Y, 1.0, 24.0),
-		_lane_point(LANE_BOTTOM_Y, 0.0, 24.0),
-	])
-	draw_colored_polygon(surface, Color(0.10, 0.52, 0.36, 0.24))
-	draw_polyline(surface, Color(0.52, 0.92, 0.77, 0.58), 2.0)
+func _clear_pucks() -> void:
+	for puck in pucks:
+		puck.queue_free()
+	pucks.clear()
+	active_puck = null
+	disc.bind_puck(null)
 
-	var inner_top := LANE_TOP_Y + 14.0
-	var inner_bottom := LANE_BOTTOM_Y - 14.0
-	for band_index in range(12):
-		var band_y: float = lerpf(inner_top, inner_bottom, float(band_index) / 12.0)
-		var band_color := Color(0.88, 1.0, 0.94, 0.075 if band_index % 2 == 0 else 0.025)
-		draw_line(_lane_point(band_y, 0.03), _lane_point(band_y, 0.97), band_color, 2.0)
+func _spawn_puck(player_disc: bool, spot: Vector2):
+	var puck = PuckScript.new()
+	puck.setup(player_disc)
+	puck.set_flat(spot)
+	puck.add_to_group("crokinole_puck")
+	pucks_root.add_child(puck)
+	pucks.append(puck)
+	return puck
 
-	for lane_index in range(1, 4):
-		var lane_fraction: float = float(lane_index) / 4.0
-		draw_line(
-			_lane_point(inner_top, lane_fraction),
-			_lane_point(inner_bottom, lane_fraction),
-			Color(0.76, 0.96, 0.88, 0.14 if lane_index == 2 else 0.07),
-			2.0
-		)
+func _spot_free(spot: Vector2) -> bool:
+	if spot.length() > Metrics.SURFACE_RADIUS - Metrics.DISC_RADIUS - 0.01:
+		return false
+	for peg in Metrics.peg_positions():
+		if spot.distance_to(Vector2(peg.x, peg.z)) < Metrics.PEG_RADIUS + Metrics.DISC_RADIUS + 0.02:
+			return false
+	for puck in pucks:
+		if puck.sunk:
+			continue
+		if spot.distance_to(puck.flat()) < Metrics.DISC_RADIUS * 2.15:
+			return false
+	return true
 
-	draw_line(_lane_point(inner_top, 0.03), _lane_point(inner_bottom, 0.03), RINK_LINE, 2.0)
-	draw_line(_lane_point(inner_top, 0.97), _lane_point(inner_bottom, 0.97), RINK_LINE, 2.0)
-	_draw_throw_line()
-	_draw_target_zone()
+func _start_spot() -> Vector2:
+	var candidates: Array[Vector2] = [
+		Vector2(0.0, Metrics.PLAYER_START_Z),
+		Vector2(0.14, 0.66),
+		Vector2(-0.14, 0.66),
+		Vector2(0.26, 0.62),
+		Vector2(-0.26, 0.62),
+		Vector2(0.36, 0.64),
+		Vector2(-0.36, 0.64),
+	]
+	for candidate in candidates:
+		if _spot_free(candidate):
+			return candidate
+	return candidates[0]
 
-func _draw_target_zone() -> void:
-	var target_top := LANE_TOP_Y + 18.0
-	var target_bottom := LANE_TOP_Y + 160.0
-	var target_zone := PackedVector2Array([
-		_lane_point(target_top, 0.06),
-		_lane_point(target_top, 0.94),
-		_lane_point(target_bottom, 0.94),
-		_lane_point(target_bottom, 0.06),
-	])
-	draw_colored_polygon(target_zone, Color(0.04, 0.31, 0.29, 0.42))
-	draw_polyline(target_zone, Color(0.77, 0.95, 0.84, 0.30), 2.0)
-	draw_arc(
-		Vector2(270.0, target_bottom - 34.0),
-		102.0,
-		PI,
-		TAU,
-		32,
-		Color(0.93, 0.78, 0.37, 0.24),
-		2.0
-	)
-	draw_string(
-		ThemeDB.fallback_font,
-		Vector2(120.0, target_bottom - 18.0),
-		"JACK ZONE",
-		HORIZONTAL_ALIGNMENT_CENTER,
-		300.0,
-		11,
-		Color(0.90, 1.0, 0.92, 0.72)
-	)
-
-func _draw_throw_line() -> void:
-	var throw_y: float = LANE_BOTTOM_Y - 48.0
-	draw_line(
-		_lane_point(throw_y, 0.04),
-		_lane_point(throw_y, 0.96),
-		Color(0.95, 0.80, 0.39, 0.78),
-		2.0
-	)
-	draw_string(
-		ThemeDB.fallback_font,
-		Vector2(80.0, throw_y + 24.0),
-		"THROW LINE",
-		HORIZONTAL_ALIGNMENT_CENTER,
-		380.0,
-		10,
-		Color(0.97, 0.86, 0.53, 0.78)
-	)
-
-func _lane_point(y: float, across: float, inset: float = 0.0) -> Vector2:
-	var depth: float = clampf((y - LANE_TOP_Y) / (LANE_BOTTOM_Y - LANE_TOP_Y), 0.0, 1.0)
-	var left: float = lerpf(LANE_TOP_LEFT, LANE_BOTTOM_LEFT, depth) + inset
-	var right: float = lerpf(LANE_TOP_RIGHT, LANE_BOTTOM_RIGHT, depth) - inset
-	return Vector2(lerpf(left, right, clampf(across, 0.0, 1.0)), y)
-
-func _draw_jack() -> void:
-	# Shadow
-	draw_circle(jack_position + Vector2(0.0, 9.0), JACK_RADIUS + 3.0, Color(0.0, 0.12, 0.07, 0.30))
-	# Dark lower rim, gold body, and a small highlight make the target easy to
-	# read without needing a texture.
-	draw_circle(jack_position, JACK_RADIUS + 2.0, JACK_GOLD_DARK)
-	draw_circle(jack_position + Vector2(0.0, -2.0), JACK_RADIUS, JACK_GOLD)
-	draw_circle(jack_position + Vector2(-5.0, -7.0), 5.0, Color(1.0, 0.98, 0.72, 0.78))
-	draw_arc(jack_position + Vector2(0.0, -2.0), JACK_RADIUS - 4.0, 0.0, TAU, 32, Color(1.0, 0.95, 0.65, 0.34), 2.0)
-	draw_string(
-		ThemeDB.fallback_font,
-		jack_position + Vector2(-28.0, -34.0),
-		"JACK",
-		HORIZONTAL_ALIGNMENT_CENTER,
-		56.0,
-		11,
-		Color(0.97, 1.0, 0.92, 0.82)
-	)
-
-func _draw_footer_hint() -> void:
-	draw_style_box(
-		_make_panel_style(Color(0.02, 0.12, 0.16, 0.88), Color(0.33, 0.72, 0.71, 0.48), 11.0),
-		Rect2(164.0, 884.0, 212.0, 25.0)
-	)
-	draw_string(
-		ThemeDB.fallback_font,
-		Vector2(174.0, 901.0),
-		"POWER",
-		HORIZONTAL_ALIGNMENT_LEFT,
-		45.0,
-		9,
-		Color(0.68, 0.88, 0.82, 0.90)
-	)
-	draw_rect(Rect2(224.0, 893.0, 138.0, 7.0), Color(0.02, 0.06, 0.09, 0.90))
-	draw_rect(Rect2(224.0, 893.0, 138.0 * current_power_ratio, 7.0), ACCENT_BLUE)
-	draw_circle(Vector2(224.0 + 138.0 * current_power_ratio, 896.5), 5.0, Color(0.94, 1.0, 0.85, 0.90))
-
-func _make_panel_style(fill: Color, border: Color, corner_radius: float) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = fill
-	style.border_color = border
-	style.set_border_width_all(2 if border.a > 0.0 else 0)
-	style.set_corner_radius_all(int(corner_radius))
-	return style
+func _arm_next_disc(announce := true) -> void:
+	if discs_left <= 0:
+		active_puck = null
+		disc.bind_puck(null)
+		return
+	active_puck = _spawn_puck(true, _start_spot())
+	disc.bind_puck(active_puck)
+	_show_board(int(current_level["number"]), discs_left)
+	if announce:
+		ui.show_ready(int(current_level["number"]), discs_left, str(current_level["difficulty"]), _side_total(true), _side_total(false), match_you, match_them)
 
 func _load_level(level_index: int) -> void:
-	current_level_index = clampi(level_index, 0, level_manager.get_level_count() - 1)
+	var clamped := clampi(level_index, 0, level_manager.get_level_count() - 1)
+	if clamped == current_level_index and end_applied:
+		match_you = maxi(0, match_you - last_award_you)
+		match_them = maxi(0, match_them - last_award_them)
+	resolving = false
+	end_applied = false
+	last_award_you = 0
+	last_award_them = 0
+	current_level_index = clamped
 	current_level = level_manager.get_level(current_level_index)
-	jack_position = current_level["jack_position"]
-	throws_left = current_level["throws"]
-	current_power_ratio = 0.0
-	score_manager.reset()
-	disc.start_position = DISC_POSITION
-	disc.set_rink_bounds(RINK_RECT)
-	disc.reset_to_start()
-	ui.show_ready(current_level["number"], throws_left)
-	queue_redraw()
+	discs_left = int(current_level["discs"])
+	_clear_pucks()
+	for opponent in current_level["opponents"]:
+		var spot: Vector2 = opponent
+		if _spot_free(spot):
+			_spawn_puck(false, spot)
+	_arm_next_disc()
 
-func _on_disc_aim_changed(_direction: Vector2, power_ratio: float) -> void:
-	current_power_ratio = power_ratio
+func _on_disc_aim_changed(_direction: Vector3, power_ratio: float) -> void:
+	ui.show_power(power_ratio)
 	if power_ratio > 0.0:
 		ui.show_aiming(power_ratio)
 
 func _on_disc_bias_changed(bias_ratio: float) -> void:
 	ui.show_bias(bias_ratio)
+	if disc.is_aiming:
+		ui.show_aiming(disc.power_ratio)
 
 func _on_bias_cycle_requested() -> void:
-	disc.cycle_bias()
+	if not resolving:
+		disc.cycle_bias()
 
 func _on_disc_shot_started() -> void:
-	current_power_ratio = 0.0
-	throws_left -= 1
+	discs_left -= 1
+	resolving = true
+	ui.show_power(0.0)
 	ui.show_in_motion()
-	queue_redraw()
+	_show_board(int(current_level["number"]), discs_left)
 
-func _on_disc_shot_stopped() -> void:
-	current_power_ratio = 0.0
-	var distance := disc.position.distance_to(jack_position)
-	score_manager.record_throw(distance)
-	if throws_left > 0:
-		disc.reset_to_start()
-		ui.show_throw_result(distance, throws_left)
+func _on_table_settled() -> void:
+	disc.mark_shot_finished()
+	var shot_points := 0
+	var sunk := false
+	var ditched := false
+	if active_puck != null and active_puck.is_player:
+		shot_points = int(active_puck.ring_points())
+		sunk = bool(active_puck.sunk)
+		ditched = bool(active_puck.in_ditch)
+	if discs_left > 0:
+		ui.show_landed(shot_points, sunk, ditched)
+		_show_board(int(current_level["number"]), discs_left)
+		_arm_next_disc(false)
 	else:
-		ui.show_level_complete(
-			score_manager.get_score(),
-			score_manager.get_closest_distance(),
-			current_level_index < level_manager.get_level_count() - 1
-		)
-	queue_redraw()
+		_present_end()
+		active_puck = null
+		disc.bind_puck(null)
+
+func _show_board(level_number: int, remaining: int) -> void:
+	ui.show_match_status(level_number, remaining, _side_total(true), _side_total(false), match_you, match_them)
+
+func _present_end() -> void:
+	var you_items := _side_items(true)
+	var them_items := _side_items(false)
+	var you := _sum(you_items)
+	var them := _sum(them_items)
+	var award_you := 0
+	var award_them := 0
+	if you > them:
+		award_you = you - them
+	elif them > you:
+		award_them = them - you
+	if not end_applied:
+		match_you += award_you
+		match_them += award_them
+		last_award_you = award_you
+		last_award_them = award_them
+		end_applied = true
+	var has_next: bool = current_level_index < level_manager.get_level_count() - 1
+	ui.show_end_overview(int(current_level["number"]), str(current_level["difficulty"]), you_items, them_items, award_you, award_them, match_you, match_them, MATCH_TARGET, has_next)
+	_show_board(int(current_level["number"]), 0)
 
 func _on_reset_requested() -> void:
 	_load_level(current_level_index)

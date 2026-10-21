@@ -1,63 +1,59 @@
 class_name DiscController
-extends RigidBody2D
+extends Node3D
 
-signal aim_changed(direction: Vector2, power_ratio: float)
+## Aiming for the button currently in hand. Drag back and release to flick.
+## The button itself is a CrokinolePuck; this node only draws the guide.
+
+signal aim_changed(direction: Vector3, power_ratio: float)
 signal bias_changed(bias_ratio: float)
 signal shot_started
 signal shot_stopped
 
-const DISC_RADIUS := 27.0
-const MAX_DRAG_DISTANCE := 230.0
-const MAX_SPEED := 1050.0
-const FRICTION_PER_SECOND := 0.30
-const STOP_SPEED := 14.0
-const STOP_GRACE_SECONDS := 0.12
+const Metrics = preload("res://scripts/table_metrics.gd")
 
-const DISC_BLUE := Color("#6bd9e6")
-const DISC_BLUE_DARK := Color("#125a79")
-const DISC_HIGHLIGHT := Color(0.88, 0.98, 1.0, 0.82)
-
-var start_position := Vector2.ZERO
-var rink_bounds := Rect2()
+var active_puck
 var is_aiming := false
 var shot_in_progress := false
-var aim_direction := Vector2.UP
+var aim_direction := Vector3(0.0, 0.0, -1.0)
 var power_ratio := 0.0
 var bias_ratio := 0.0
-var shot_bias := 0.0
-var stop_timer := 0.0
-var spin_angle := 0.0
+
+var _guide_mesh := ImmediateMesh.new()
+var _guide_instance: MeshInstance3D
+var _end_marker: MeshInstance3D
+var _idle_ring: MeshInstance3D
+var _guide_has_surface := false
 
 func _ready() -> void:
-	start_position = position
-	freeze = true
-	queue_redraw()
+	_build_guide()
 
-func _physics_process(delta: float) -> void:
-	if shot_in_progress:
-		var speed: float = linear_velocity.length()
-		if speed > STOP_SPEED:
-			var slowdown_ratio: float = clampf(1.0 - speed / MAX_SPEED, 0.0, 1.0)
-			var turn_rate: float = lerpf(0.10, 0.75, slowdown_ratio)
-			linear_velocity = linear_velocity.rotated(shot_bias * turn_rate * delta)
-			var spin_direction: float = -1.0 if shot_bias < 0.0 else 1.0
-			spin_angle += spin_direction * lerpf(3.0, 16.0, speed / MAX_SPEED) * delta
-		linear_velocity *= pow(FRICTION_PER_SECOND, delta)
-		_keep_inside_rink()
-		if linear_velocity.length() <= STOP_SPEED:
-			linear_velocity = Vector2.ZERO
-			stop_timer += delta
-			if stop_timer >= STOP_GRACE_SECONDS:
-				shot_in_progress = false
-				emit_signal("shot_stopped")
-		else:
-			stop_timer = 0.0
-	queue_redraw()
+func bind_puck(puck: Node3D) -> void:
+	active_puck = puck
+	shot_in_progress = false
+	is_aiming = false
+	power_ratio = 0.0
+	if puck != null:
+		global_position = puck.global_position
+	_clear_guide()
+
+func _process(_delta: float) -> void:
+	var show_ring := active_puck != null and not shot_in_progress and not is_aiming
+	if _idle_ring != null:
+		_idle_ring.visible = show_ring
+		if show_ring:
+			global_position = active_puck.global_position
+			var pulse := 1.0 + sin(float(Time.get_ticks_msec()) * 0.004) * 0.08
+			_idle_ring.scale = Vector3(pulse, 1.0, pulse)
+	if is_aiming:
+		_rebuild_guide()
+	elif _guide_has_surface and not is_aiming:
+		_clear_guide()
 
 func set_bias(value: float) -> void:
 	bias_ratio = clampf(value, -1.0, 1.0)
-	emit_signal("bias_changed", bias_ratio)
-	queue_redraw()
+	bias_changed.emit(bias_ratio)
+	if is_aiming:
+		_rebuild_guide()
 
 func cycle_bias() -> void:
 	if bias_ratio < -0.5:
@@ -67,120 +63,173 @@ func cycle_bias() -> void:
 	else:
 		set_bias(1.0)
 
-func begin_aim(pointer_position: Vector2) -> bool:
-	if shot_in_progress or pointer_position.distance_to(global_position) > DISC_RADIUS + 30.0:
+func begin_aim(world_point: Vector3) -> bool:
+	if shot_in_progress or active_puck == null:
 		return false
 	is_aiming = true
-	update_aim(pointer_position)
+	global_position = active_puck.global_position
+	update_aim(world_point)
 	return true
 
-func update_aim(pointer_position: Vector2) -> void:
+func update_aim(world_point: Vector3) -> void:
 	if not is_aiming:
 		return
-	var pull: Vector2 = pointer_position - global_position
-	var drag_distance: float = minf(pull.length(), MAX_DRAG_DISTANCE)
-	power_ratio = drag_distance / MAX_DRAG_DISTANCE
-	if drag_distance > 1.0:
-		aim_direction = -pull.normalized()
-	emit_signal("aim_changed", aim_direction, power_ratio)
-	queue_redraw()
+	var pull := world_point - global_position
+	pull.y = 0.0
+	var pull_length := pull.length()
+	power_ratio = minf(pull_length, Metrics.MAX_DRAG_DISTANCE) / Metrics.MAX_DRAG_DISTANCE
+	if pull_length > 0.01:
+		aim_direction = -pull / pull_length
+	aim_changed.emit(aim_direction, power_ratio)
+	_rebuild_guide()
 
-func release_aim(pointer_position: Vector2) -> void:
+func release_aim(world_point: Vector3) -> void:
 	if not is_aiming:
 		return
-	update_aim(pointer_position)
+	update_aim(world_point)
 	is_aiming = false
-	if power_ratio < 0.08:
+	_clear_guide()
+	if power_ratio < 0.05 or active_puck == null:
 		power_ratio = 0.0
-		emit_signal("aim_changed", aim_direction, power_ratio)
-		queue_redraw()
+		aim_changed.emit(aim_direction, 0.0)
 		return
-	launch()
+	_launch()
 
-func launch() -> void:
-	freeze = false
-	shot_bias = bias_ratio
-	linear_velocity = aim_direction * lerpf(150.0, MAX_SPEED, power_ratio)
+func _launch() -> void:
+	var speed := lerpf(Metrics.MIN_SPEED, Metrics.MAX_SPEED, power_ratio)
+	active_puck.velocity = aim_direction * speed
+	active_puck.velocity.y = 0.0
+	active_puck.moving = true
+	active_puck.played = true
+	active_puck.shot_bias = bias_ratio
+	active_puck.stop_timer = 0.0
 	shot_in_progress = true
-	stop_timer = 0.0
-	emit_signal("shot_started")
-	queue_redraw()
+	shot_started.emit()
 
-func reset_to_start() -> void:
-	freeze = true
-	linear_velocity = Vector2.ZERO
-	angular_velocity = 0.0
-	position = start_position
-	is_aiming = false
+func mark_shot_finished() -> void:
 	shot_in_progress = false
-	power_ratio = 0.0
-	stop_timer = 0.0
-	shot_bias = 0.0
-	spin_angle = 0.0
-	queue_redraw()
+	shot_stopped.emit()
 
-func set_rink_bounds(bounds: Rect2) -> void:
-	rink_bounds = bounds
+func _build_guide() -> void:
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.vertex_color_use_as_albedo = true
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	material.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	_guide_instance = MeshInstance3D.new()
+	_guide_instance.mesh = _guide_mesh
+	_guide_instance.material_override = material
+	_guide_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_guide_instance)
 
-func _keep_inside_rink() -> void:
-	if rink_bounds.size == Vector2.ZERO:
+	var marker := TorusMesh.new()
+	marker.inner_radius = 0.03
+	marker.outer_radius = 0.048
+	marker.rings = 24
+	marker.ring_segments = 8
+	var marker_material := StandardMaterial3D.new()
+	marker_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	marker_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	marker_material.albedo_color = Color(0.98, 0.9, 0.62, 0.9)
+	_end_marker = Metrics.add_mesh(self, marker, marker_material, Vector3(0.0, 0.03, 0.0))
+	_end_marker.visible = false
+	_end_marker.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+	var ring := TorusMesh.new()
+	ring.inner_radius = Metrics.DISC_RADIUS * 1.35
+	ring.outer_radius = Metrics.DISC_RADIUS * 1.85
+	ring.rings = 28
+	ring.ring_segments = 8
+	var ring_material := StandardMaterial3D.new()
+	ring_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	ring_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	ring_material.albedo_color = Color(0.65, 1.0, 1.0, 0.9)
+	_idle_ring = Metrics.add_mesh(self, ring, ring_material, Vector3(0.0, 0.012, 0.0))
+	_idle_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_idle_ring.visible = false
+
+func _clear_guide() -> void:
+	if _guide_has_surface:
+		_guide_mesh.clear_surfaces()
+		_guide_has_surface = false
+	if _end_marker != null:
+		_end_marker.visible = false
+
+func _blocked(flat: Vector2) -> bool:
+	for peg in Metrics.peg_positions():
+		if flat.distance_to(Vector2(peg.x, peg.z)) <= Metrics.PEG_RADIUS + Metrics.DISC_RADIUS * 0.92:
+			return true
+	for node in get_tree().get_nodes_in_group("crokinole_puck"):
+		if node == active_puck:
+			continue
+		var puck := node as Node3D
+		if puck == null or bool(puck.get("sunk")):
+			continue
+		if flat.distance_to(Vector2(puck.position.x, puck.position.z)) <= Metrics.DISC_RADIUS * 1.9:
+			return true
+	return false
+
+func _rebuild_guide() -> void:
+	if _guide_has_surface:
+		_guide_mesh.clear_surfaces()
+		_guide_has_surface = false
+	if not is_aiming or power_ratio <= 0.0:
+		_end_marker.visible = false
 		return
-	var min_x := rink_bounds.position.x + DISC_RADIUS
-	var max_x := rink_bounds.end.x - DISC_RADIUS
-	var min_y := rink_bounds.position.y + DISC_RADIUS
-	var max_y := rink_bounds.end.y - DISC_RADIUS
-	var clamped_position := Vector2(
-		clampf(position.x, min_x, max_x),
-		clampf(position.y, min_y, max_y)
-	)
-	if clamped_position != position:
-		position = clamped_position
-		linear_velocity *= Vector2(
-			-0.18 if position.x == min_x or position.x == max_x else 1.0,
-			-0.18 if position.y == min_y or position.y == max_y else 1.0
-		)
+	var length := lerpf(0.35, 1.85, power_ratio)
+	var steps := 32
+	var points: Array[Vector3] = [Vector3.ZERO]
+	var point := Vector3.ZERO
+	var direction := aim_direction
+	direction.y = 0.0
+	if direction.length() < 0.001:
+		direction = Vector3(0.0, 0.0, -1.0)
+	direction = direction.normalized()
+	var limit := Metrics.DITCH_OUTER - Metrics.DISC_RADIUS
+	for step_index in range(1, steps + 1):
+		var progress := float(step_index) / float(steps)
+		direction = direction.rotated(Vector3.UP, -bias_ratio * 0.07 * (1.0 - progress))
+		direction.y = 0.0
+		if direction.length() < 0.001:
+			break
+		direction = direction.normalized()
+		var next_point := point + direction * (length / float(steps))
+		var flat := Vector2(global_position.x + next_point.x, global_position.z + next_point.z)
+		if flat.length() > limit or _blocked(flat):
+			if flat.length() > limit:
+				var clipped := flat.normalized() * limit
+				next_point = Vector3(clipped.x - global_position.x, 0.0, clipped.y - global_position.z)
+			points.append(next_point)
+			break
+		point = next_point
+		points.append(point)
+	if points.size() < 2:
+		_end_marker.visible = false
+		return
 
-func _draw() -> void:
-	var depth: float = clampf((global_position.y - 156.0) / 716.0, 0.0, 1.0)
-	var visual_scale: float = lerpf(0.80, 1.16, depth)
-	var lift: float = clampf(linear_velocity.length() / MAX_SPEED, 0.0, 1.0) * 10.0
-	var disc_center := Vector2(0.0, -3.0 - lift)
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE * visual_scale)
-	draw_circle(Vector2(0.0, 11.0 + lift * 0.35), DISC_RADIUS + 3.0, Color(0.0, 0.10, 0.17, 0.30))
-	draw_circle(Vector2(0.0, 13.0 + lift * 0.35), DISC_RADIUS + 8.0, Color(0.42, 0.95, 0.90, 0.08))
-	draw_set_transform(Vector2.ZERO, spin_angle, Vector2.ONE * visual_scale)
-	draw_circle(disc_center + Vector2(0.0, 3.0), DISC_RADIUS + 3.0, DISC_BLUE_DARK)
-	draw_circle(disc_center, DISC_RADIUS, DISC_BLUE)
-	draw_circle(disc_center + Vector2(-9.0, -8.0), 7.0, DISC_HIGHLIGHT)
-	draw_arc(disc_center, DISC_RADIUS - 5.0, 0.0, TAU, 40, Color(0.88, 0.98, 1.0, 0.45), 2.0)
-	for spoke_index in range(4):
-		var spoke_angle: float = float(spoke_index) * PI * 0.5
-		var spoke_direction := Vector2.from_angle(spoke_angle)
-		draw_line(
-			disc_center + spoke_direction * 5.0,
-			disc_center + spoke_direction * 17.0,
-			Color(0.90, 1.0, 0.98, 0.62),
-			2.0
-		)
-
-	if is_aiming and power_ratio > 0.0:
-		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE * visual_scale)
-		var guide_length: float = lerpf(150.0, 565.0, power_ratio)
-		var guide_start := Vector2(0.0, -lift)
-		var current_point := guide_start
-		var current_direction := aim_direction
-		var path_points := PackedVector2Array([current_point])
-		var markers := PackedVector2Array()
-		for path_index in range(1, 25):
-			var progress: float = float(path_index) / 24.0
-			current_direction = current_direction.rotated(bias_ratio * 0.07 * (1.0 - progress))
-			current_point += current_direction * (guide_length / 24.0)
-			path_points.append(current_point)
-			if path_index % 4 == 0:
-				markers.append(current_point)
-		draw_polyline(path_points, Color(0.86, 1.0, 0.95, 0.24), 9.0)
-		draw_polyline(path_points, Color(0.90, 0.98, 0.96, 0.88), 3.0)
-		for marker_position in markers:
-			draw_circle(marker_position, 4.0, Color(0.92, 1.0, 0.96, 0.64))
-		draw_circle(current_point, 9.0, Color(0.92, 1.0, 0.96, 0.30))
-		draw_arc(current_point, 15.0, 0.0, TAU, 24, Color(0.92, 1.0, 0.96, 0.70), 2.0)
+	var material: Material = _guide_instance.material_override
+	_guide_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP, material)
+	for point_index in points.size():
+		var center: Vector3 = points[point_index]
+		var forward := Vector3(0.0, 0.0, -1.0)
+		if point_index + 1 < points.size():
+			forward = points[point_index + 1] - center
+		elif point_index > 0:
+			forward = center - points[point_index - 1]
+		forward.y = 0.0
+		if forward.length() < 0.0001:
+			forward = Vector3(0.0, 0.0, -1.0)
+		forward = forward.normalized()
+		var side := Vector3(-forward.z, 0.0, forward.x)
+		var width := lerpf(0.01, 0.03, 1.0 - float(point_index) / float(points.size()))
+		var alpha := lerpf(0.95, 0.12, float(point_index) / float(points.size()))
+		var lifted := Vector3(center.x, 0.03, center.z)
+		_guide_mesh.surface_set_color(Color(1.0, 0.94, 0.72, alpha))
+		_guide_mesh.surface_add_vertex(lifted + side * width)
+		_guide_mesh.surface_add_vertex(lifted - side * width)
+	_guide_mesh.surface_end()
+	_guide_has_surface = true
+	var last: Vector3 = points[points.size() - 1]
+	_end_marker.position = Vector3(last.x, 0.03, last.z)
+	_end_marker.visible = true
