@@ -6,11 +6,11 @@ The first Godot 4 prototype for a portrait mobile sports puzzle game.
 
 The prototype now includes:
 
-- A real 3D lawn-bowls rink, 38 m long by 5.8 m wide, viewed in perspective from behind the mat.
+- A real 3D lawn-bowls rink, 68 m long by 11 m wide, viewed in perspective from behind the mat.
 - Mowed green, timber banks, ditch, center line, delivery mat, and a bullseye head.
 - Clubhouse, trees, hedges, benches, and paths around the green.
-- A 52 m by 11 m green, wide enough for a full-length draw.
-- The jack is thrown first. Where it stops is the length for that end.
+- A 68 m by 11 m green. Choose a short jack (14–28 m) or a long jack (44 m or more).
+- Banks rebound by default. DITCH ON opens a narrow ditch on each side and at the far end. A bowl that crosses the line is dead. If the jack is knocked in, it is re-spotted on the centre line and one of the two spare dots on the back bank is used.
 - Three bowl types, narrow, medium, and wide. Each has its own bias and draws inward as it slows. A longer shot takes a wider line.
 - Every bowl stays on the green. Later bowls knock earlier bowls and the jack on every level.
 - Touch or mouse drag-to-aim controls, with haptic pulses and synthesized hit, roll, and settle sounds.
@@ -60,13 +60,14 @@ can open it). Serve that folder over HTTP and drag the disc with the mouse.
 
 ## Test the MVP
 
-1. Throw the jack first. Drag back from the mat and release. It must pass the minimum distance and stay on the rink.
-2. Touch the bowl and drag backwards. The guide shows the wide line and the inward draw.
-3. Release. The bowl stays where it stops, and the next bowl can hit it or the jack.
-4. Tap the hand button to switch FOREHAND and BACKHAND. Each bowl type has its own bias.
-5. Wait for it to stop. The distance to the Jack is recorded automatically.
-6. Repeat until all three throws are used.
-7. Use **RESET** to replay the current level or **NEXT LEVEL** after a
+1. Choose SHORT JACK or LONG JACK, and REBOUND or DITCH ON.
+2. Throw the jack. A short jack must stop between 14 m and 28 m. A long jack must reach 44 m and stay out of the ditch.
+3. Touch the bowl and drag backwards. The guide shows the wide line and the inward draw.
+4. Release. With banks, a bowl rebounds. With ditches, a bowl that crosses the side or the far end is dead. A jack knocked into the ditch is replaced from the spare dots.
+5. Tap the hand button to switch FOREHAND and BACKHAND. Each bowl type has its own bias.
+6. Wait for it to stop. A bowl in the ditch does not count. The closest bowl still on the green is the score.
+7. Repeat until all three bowls are used.
+8. Use **RESET** to replay the current level or **NEXT LEVEL** after a
    completed level.
 
 On desktop, use the left mouse button in place of touch.

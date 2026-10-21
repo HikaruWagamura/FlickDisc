@@ -11,13 +11,13 @@ signal impacted(speed: float, hit_jack: bool, hit_bank: bool)
 
 const DISC_RADIUS := 0.42
 const MAX_DRAG_PIXELS := 160.0
-const MAX_SPEED := 32.0
-const MIN_SPEED := 4.2
+const MAX_SPEED := 45.0
+const MIN_SPEED := 4.5
 const FRICTION_PER_SECOND := 0.52
 const STOP_SPEED := 0.15
 const STOP_GRACE_SECONDS := 0.15
-const TURN_FAST := 0.007
-const TURN_DRAW := 0.30
+const TURN_FAST := 0.006
+const TURN_DRAW := 0.26
 const PICK_RADIUS_PX := 88.0
 const GUIDE_DOTS := 16
 
@@ -35,6 +35,8 @@ var bias_ratio := 0.0
 var shot_bias := 0.0
 var shot_power := 0.0
 var delivering_jack := false
+var ditch_mode := false
+var in_ditch := false
 var bowl_bias := 0.95
 var hand_sign := -1.0
 var velocity := Vector3.ZERO
@@ -79,7 +81,7 @@ func _physics_process(delta: float) -> void:
 	for _sub in substeps:
 		_advance(self, step, true)
 		for body in obstacles:
-			if body.moving:
+			if body.moving and not body.in_ditch:
 				_advance(body, step, false)
 		_resolve_pairs()
 	_settle_frame(delta)
@@ -200,7 +202,7 @@ func _delivery_velocity(aim: Vector3, bias: float, power: float) -> Vector3:
 		planar = Vector2(0.0, -1.0)
 	if absf(bias) > 0.001:
 		# Start wide of the line. The late draw rolls the bowl back inward.
-		var shoulder := absf(bias) * 0.13 * (0.18 + 0.82 * power)
+		var shoulder := absf(bias) * 0.09 * (0.18 + 0.82 * power)
 		planar = planar.rotated(-signf(bias) * shoulder)
 	planar = planar.normalized() * speed
 	return Vector3(planar.x, 0.0, planar.y)
@@ -209,6 +211,7 @@ func _delivery_velocity(aim: Vector3, bias: float, power: float) -> Vector3:
 func reset_to_start() -> void:
 	velocity = Vector3.ZERO
 	global_position = start_position
+	in_ditch = false
 	is_aiming = false
 	shot_in_progress = false
 	power_ratio = 0.0
@@ -238,9 +241,24 @@ func set_green(bounds_min: Vector2, bounds_max: Vector2) -> void:
 
 
 func _advance(body, delta: float, use_shot_bias: bool) -> void:
+	if body.in_ditch:
+		return
 	var bias := shot_bias if use_shot_bias else 0.0
 	var length_power := shot_power if use_shot_bias else 0.0
 	var moved := _move_planar(body.global_position, body.velocity, body.radius, bias, use_shot_bias, delta, length_power)
+	var fell: bool = moved[3]
+	if fell:
+		body.in_ditch = true
+		body.velocity = Vector3.ZERO
+		body.global_position = moved[0]
+		if body != self:
+			body.moving = false
+		var fall_speed: float = moved[2]
+		if fall_speed > _impact_speed:
+			_impact_speed = fall_speed
+			_impact_jack = body.is_jack
+			_impact_bank = true
+		return
 	body.global_position = moved[0]
 	body.velocity = moved[1]
 	var wall_hit: float = moved[2]
@@ -293,6 +311,8 @@ func _resolve_pairs() -> void:
 
 
 func _bounce(a, b) -> void:
+	if a.in_ditch or b.in_ditch:
+		return
 	var jack_hit: bool = a.is_jack or b.is_jack
 	var resolved: Dictionary = BowlScript.resolve(
 		a.global_position, a.velocity, a.radius, a.mass,
@@ -337,6 +357,10 @@ func _move_planar(pos: Vector3, vel: Vector3, body_radius: float, bias: float, u
 	var before := vel
 	pos += vel * delta
 	pos.y = 0.0
+	# In ditch mode the side strings and the far end are open. Crossing the
+	# line drops the bowl in. The near end still rebounds.
+	if ditch_mode and (pos.x < green_min.x + body_radius or pos.x > green_max.x - body_radius or pos.z < green_min.y + body_radius):
+		return [_ditch_park(pos), Vector3.ZERO, before.length(), true]
 	var min_x := green_min.x + body_radius
 	var max_x := green_max.x - body_radius
 	var min_z := green_min.y + body_radius
@@ -358,7 +382,20 @@ func _move_planar(pos: Vector3, vel: Vector3, body_radius: float, bias: float, u
 		pos.z = max_z
 		wall = maxf(wall, absf(before.z))
 		vel.z = -absf(vel.z) * 0.18
-	return [pos, vel, wall]
+	return [pos, vel, wall, false]
+
+
+func _ditch_park(pos: Vector3) -> Vector3:
+	var parked := pos
+	var near_side := absf(parked.x) > green_max.x - 0.7
+	if near_side and parked.x < 0.0:
+		parked.x = green_min.x - 0.44
+	elif near_side and parked.x > 0.0:
+		parked.x = green_max.x + 0.44
+	if parked.z < green_min.y + 0.7:
+		parked.z = green_min.y - 0.44
+	parked.y = -0.12
+	return parked
 
 
 func _curve_and_damp(vel: Vector3, bias: float, delta: float, length_power: float) -> Vector3:
@@ -429,12 +466,15 @@ func _predict_path() -> PackedVector3Array:
 	var vel := _delivery_velocity(aim_direction, bias_ratio, power_ratio)
 	var ghosts: Array = []
 	for body in obstacles:
+		if body.in_ditch:
+			continue
 		ghosts.append({
 			"pos": body.global_position,
 			"vel": body.velocity,
 			"radius": body.radius,
 			"mass": body.mass,
 			"is_jack": body.is_jack,
+			"live": true,
 		})
 	points.append(pos)
 	var step := 0.02
@@ -442,11 +482,22 @@ func _predict_path() -> PackedVector3Array:
 		var moved := _move_planar(pos, vel, radius, bias_ratio, true, step, power_ratio)
 		pos = moved[0]
 		vel = moved[1]
+		var fell: bool = moved[3]
+		if fell:
+			points.append(pos)
+			break
 		for ghost in ghosts:
+			if not ghost["live"]:
+				continue
 			if ghost["vel"].length() > STOP_SPEED:
 				var ghost_moved := _move_planar(ghost["pos"], ghost["vel"], ghost["radius"], 0.0, false, step)
 				ghost["pos"] = ghost_moved[0]
 				ghost["vel"] = ghost_moved[1]
+				if ghost_moved[3]:
+					ghost["live"] = false
+					ghost["vel"] = Vector3.ZERO
+			if not ghost["live"]:
+				continue
 			var resolved: Dictionary = BowlScript.resolve(
 				pos, vel, radius, mass,
 				ghost["pos"], ghost["vel"], ghost["radius"], ghost["mass"],
@@ -460,6 +511,8 @@ func _predict_path() -> PackedVector3Array:
 			for b in range(a + 1, ghosts.size()):
 				var left: Dictionary = ghosts[a]
 				var right: Dictionary = ghosts[b]
+				if not left["live"] or not right["live"]:
+					continue
 				var pair: Dictionary = BowlScript.resolve(
 					left["pos"], left["vel"], left["radius"], left["mass"],
 					right["pos"], right["vel"], right["radius"], right["mass"],

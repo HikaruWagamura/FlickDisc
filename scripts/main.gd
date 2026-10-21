@@ -23,7 +23,9 @@ var throw_index := 0
 var shot_token := 0
 var delivering_jack := true
 var hand_sign := -1.0
-var min_jack_m := 18.0
+var long_jack := false
+var ditch_mode := false
+var jack_length := 0.0
 
 
 func _ready() -> void:
@@ -57,6 +59,7 @@ func _ready() -> void:
 	ui.reset_requested.connect(_on_reset_requested)
 	ui.next_level_requested.connect(_on_next_level_requested)
 	ui.bias_cycle_requested.connect(_on_bias_cycle_requested)
+	ui.ditch_option_requested.connect(_on_ditch_option_requested)
 	_lock_portrait_on_device()
 	_load_level(0)
 
@@ -102,27 +105,31 @@ func _load_level(level_index: int) -> void:
 	shot_token += 1
 	current_level_index = clampi(level_index, 0, level_manager.get_level_count() - 1)
 	current_level = level_manager.get_level(current_level_index)
-	min_jack_m = float(current_level["min_jack_m"])
 	delivering_jack = true
+	jack_length = 0.0
 	rink.set_head_visible(false)
+	rink.set_ditch_mode(ditch_mode)
+	rink.reset_spares()
 	_clear_settled()
 	jack.visible = false
 	jack.velocity = Vector3.ZERO
 	jack.moving = false
+	jack.in_ditch = false
 	throws_left = current_level["throws"]
 	throw_index = 0
 	score_manager.reset()
 	disc.start_position = Vector3(0.0, 0.0, RinkScript.DISC_Z)
+	disc.ditch_mode = ditch_mode
 	disc.set_green(
 		Vector2(-RinkScript.HALF_WIDTH, RinkScript.FAR_Z),
-		Vector2(RinkScript.HALF_WIDTH, RinkScript.NEAR_Z - 0.2)
+		Vector2(RinkScript.HALF_WIDTH, RinkScript.NEAR_Z)
 	)
 	disc.obstacles = []
 	disc.configure_jack()
 	disc.reset_to_start()
 	ui.set_power_ratio(0.0)
-	ui.show_hand(hand_sign < 0.0, "JACK")
-	ui.show_jack_prompt(current_level["number"], str(current_level["difficulty"]), min_jack_m)
+	ui.show_ditch_mode(ditch_mode)
+	ui.show_jack_prompt(current_level["number"], str(current_level["difficulty"]), long_jack)
 
 
 func _clear_settled() -> void:
@@ -145,7 +152,7 @@ func _on_disc_aim_changed(_direction: Vector2, power_ratio: float) -> void:
 	if power_ratio <= 0.0:
 		return
 	if delivering_jack:
-		ui.show_jack_aim(power_ratio)
+		ui.show_jack_aim(power_ratio, long_jack)
 	else:
 		ui.show_aiming(power_ratio)
 
@@ -158,9 +165,23 @@ func _on_disc_bias_changed(_bias_ratio: float) -> void:
 func _on_bias_cycle_requested() -> void:
 	feel.tap()
 	if delivering_jack:
+		long_jack = not long_jack
+		ui.show_jack_length(long_jack)
+		ui.show_jack_prompt(current_level["number"], str(current_level["difficulty"]), long_jack)
 		return
 	disc.toggle_hand()
 	hand_sign = disc.hand_sign
+
+
+func _on_ditch_option_requested() -> void:
+	if disc.shot_in_progress or throw_index > 0:
+		return
+	feel.tap()
+	ditch_mode = not ditch_mode
+	disc.ditch_mode = ditch_mode
+	rink.set_ditch_mode(ditch_mode)
+	rink.reset_spares()
+	ui.show_ditch_mode(ditch_mode)
 
 
 func _on_disc_shot_started() -> void:
@@ -195,11 +216,20 @@ func _finish_shot(token: int) -> void:
 	thrown.name = "Bowl%d" % (throw_index + 1)
 	thrown.setup_disc(disc.palette_index, hand_sign)
 	add_child(thrown)
-	thrown.rest_at(rest_pos)
+	var bowl_ditched: bool = disc.in_ditch
+	if bowl_ditched:
+		thrown.drop_in_ditch(rest_pos)
+	else:
+		thrown.rest_at(rest_pos)
 	thrown.spin_angle = disc.spin_angle
 	thrown.present(0.0)
 	settled.append(thrown)
 	throw_index += 1
+	var respotted := false
+	var spares: int = rink.spares_remaining()
+	if jack.in_ditch:
+		spares = _respot_jack()
+		respotted = true
 	disc.reset_to_start()
 	if throws_left > 0:
 		disc.configure_bowl(throw_index, hand_sign)
@@ -208,36 +238,54 @@ func _finish_shot(token: int) -> void:
 	var jack_pos: Vector3 = jack.global_position
 	var distances: Array[float] = []
 	for body in settled:
+		if body.in_ditch:
+			continue
 		distances.append(_distance(body.global_position, jack_pos))
 	score_manager.set_table(distances)
 	var disc_distance := _distance(rest_pos, jack_pos)
 	var closest: float = score_manager.get_closest_distance()
 	var jack_moved: bool = jack_pos.distance_to(jack_home) > 0.2
-	feel.settled(closest)
+	feel.settled(closest if closest >= 0.0 else 9.0)
 	ui.set_power_ratio(0.0)
 	if throws_left > 0:
-		ui.show_throw_result(disc_distance, closest, throws_left, jack_moved)
+		ui.show_throw_result(disc_distance, closest, throws_left, jack_moved, bowl_ditched, respotted, spares)
 	else:
 		disc.visible = false
 		ui.show_level_complete(
 			score_manager.get_score(),
 			closest,
 			current_level_index < level_manager.get_level_count() - 1,
-			jack_moved
+			jack_moved,
+			respotted,
+			spares
 		)
 
 
 func _finish_jack(rest_pos: Vector3) -> void:
 	var travelled := _distance(rest_pos, disc.start_position)
-	var ditched := absf(rest_pos.x) > RinkScript.HALF_WIDTH - 0.55 or rest_pos.z < RinkScript.FAR_Z + 0.75
-	if travelled < min_jack_m or ditched:
+	var ditched: bool = disc.in_ditch
+	var reason := ""
+	var detail := ""
+	if ditched:
+		reason = "JACK IN THE DITCH"
+		detail = "THROW AGAIN"
+	elif long_jack and travelled < RinkScript.LONG_MIN:
+		reason = "TOO SHORT FOR A LONG JACK"
+		detail = "NEEDS %.0f m" % RinkScript.LONG_MIN
+	elif not long_jack and travelled < RinkScript.SHORT_MIN:
+		reason = "JACK TOO SHORT"
+		detail = "NEEDS %.0f m" % RinkScript.SHORT_MIN
+	elif not long_jack and travelled > RinkScript.SHORT_MAX:
+		reason = "TOO LONG FOR A SHORT JACK"
+		detail = "KEEP IT UNDER %.0f m" % RinkScript.SHORT_MAX
+	if reason != "":
 		feel.settled(9.0)
 		disc.configure_jack()
 		disc.reset_to_start()
-		var reason := "JACK IN THE DITCH" if ditched else "JACK TOO SHORT"
-		ui.show_jack_illegal(reason, travelled, min_jack_m)
+		ui.show_jack_illegal(reason, travelled, detail)
 		return
 	delivering_jack = false
+	jack_length = travelled
 	jack_home = Vector3(rest_pos.x, 0.0, rest_pos.z)
 	jack.rest_at(jack_home)
 	jack.visible = true
@@ -247,6 +295,35 @@ func _finish_jack(rest_pos: Vector3) -> void:
 	disc.obstacles = _table()
 	ui.show_hand(hand_sign < 0.0, _bowl_name(0))
 	ui.show_jack_set(travelled, _bowl_name(0), throws_left)
+
+
+func _respot_jack() -> int:
+	var spares: int = rink.take_spare()
+	var spot := Vector3(0.0, 0.0, disc.start_position.z - jack_length)
+	spot = _clear_spot(spot)
+	jack.in_ditch = false
+	jack.rest_at(spot)
+	jack.visible = true
+	jack_home = spot
+	rink.place_head(Vector2(spot.x, spot.z))
+	return spares
+
+
+func _clear_spot(spot: Vector3) -> Vector3:
+	var guard := 0
+	while guard < 14:
+		var blocked := false
+		for body in settled:
+			if body.in_ditch:
+				continue
+			if _distance(body.global_position, spot) < body.radius + jack.radius + 0.08:
+				blocked = true
+				break
+		if not blocked:
+			return spot
+		spot.z += 0.75
+		guard += 1
+	return spot
 
 
 func _bowl_name(index: int) -> String:

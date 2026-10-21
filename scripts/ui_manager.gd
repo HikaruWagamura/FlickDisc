@@ -4,6 +4,7 @@ extends CanvasLayer
 signal reset_requested
 signal next_level_requested
 signal bias_cycle_requested
+signal ditch_option_requested
 
 var status_label: Label
 var score_label: Label
@@ -12,6 +13,7 @@ var throws_label: Label
 var reset_button: Button
 var next_button: Button
 var bias_button: Button
+var ditch_button: Button
 var power_fill: ColorRect
 var current_bias := 0.0
 
@@ -37,6 +39,10 @@ func _ready() -> void:
 	level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	throws_label = _make_label(Vector2(340.0, 44.0), Vector2(180.0, 22.0), 13, Color(0.55, 0.86, 0.9))
 	throws_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+
+	ditch_button = _make_button("REBOUND", Vector2(372.0, 70.0), Vector2(148.0, 34.0))
+	ditch_button.add_theme_font_size_override("font_size", 12)
+	ditch_button.pressed.connect(func() -> void: ditch_option_requested.emit())
 
 	status_label = _make_label(Vector2(22.0, 820.0), Vector2(496.0, 20.0), 13, Color(0.95, 0.99, 0.96))
 	score_label = _make_label(Vector2(22.0, 838.0), Vector2(496.0, 18.0), 12, Color(0.78, 0.92, 0.86))
@@ -73,19 +79,33 @@ func set_power_ratio(power_ratio: float) -> void:
 	power_fill.size.x = POWER_WIDTH * clampf(power_ratio, 0.0, 1.0)
 
 
-func show_jack_prompt(level_number: int, difficulty: String, min_jack_m: float) -> void:
+func show_jack_prompt(level_number: int, difficulty: String, long_jack: bool) -> void:
 	level_label.text = "LEVEL %02d" % level_number
 	throws_label.text = "JACK"
-	status_label.text = "THROW THE JACK TO SET THE LENGTH"
-	score_label.text = "%s  •  MINIMUM %.0f m" % [difficulty.to_upper(), min_jack_m]
+	status_label.text = "THROW A %s JACK" % ("LONG" if long_jack else "SHORT")
+	var band := "14–28 m"
+	if long_jack:
+		band = "44 m OR MORE"
+	score_label.text = "%s  •  %s" % [difficulty.to_upper(), band]
 	reset_button.visible = true
 	next_button.visible = false
-	bias_button.text = "JACK"
+	bias_button.text = "LONG JACK" if long_jack else "SHORT JACK"
 	set_power_ratio(0.0)
 
 
-func show_jack_aim(power_ratio: float) -> void:
-	status_label.text = "AIMING JACK  •  %d%%  •  JUDGE THE LENGTH" % roundi(power_ratio * 100.0)
+func show_jack_length(long_jack: bool) -> void:
+	bias_button.text = "LONG JACK" if long_jack else "SHORT JACK"
+
+
+func show_ditch_mode(enabled: bool) -> void:
+	ditch_button.text = "DITCH ON" if enabled else "REBOUND"
+
+
+func show_jack_aim(power_ratio: float, long_jack: bool) -> void:
+	var length_name := "SHORT"
+	if long_jack:
+		length_name = "LONG"
+	status_label.text = "AIMING %s JACK  •  %d%%" % [length_name, roundi(power_ratio * 100.0)]
 	set_power_ratio(power_ratio)
 
 
@@ -94,10 +114,10 @@ func show_jack_running() -> void:
 	score_label.text = "LET IT STOP TO READ THE LENGTH"
 
 
-func show_jack_illegal(reason: String, travelled: float, min_jack_m: float) -> void:
+func show_jack_illegal(reason: String, travelled: float, detail: String) -> void:
 	throws_label.text = "JACK"
 	status_label.text = reason
-	score_label.text = "%.1f m  •  NEEDS %.0f m" % [travelled, min_jack_m]
+	score_label.text = "%.1f m  •  %s" % [travelled, detail]
 
 
 func show_jack_set(travelled: float, bowl_name: String, throws_left: int) -> void:
@@ -122,18 +142,35 @@ func show_contact(hit_jack: bool) -> void:
 	status_label.text = "JACK STRUCK" if hit_jack else "DISCS MEET"
 
 
-func show_throw_result(disc_distance: float, closest: float, throws_left: int, jack_moved: bool) -> void:
-	throws_label.text = "%d THROWS" % throws_left
-	status_label.text = "AT REST  •  THIS DISC %.2f m" % disc_distance
-	var jack_note := "  •  JACK MOVED" if jack_moved else ""
-	score_label.text = "CLOSEST %.2f m%s" % [closest, jack_note]
+func show_throw_result(disc_distance: float, closest: float, throws_left: int, jack_moved: bool, in_ditch: bool, respotted: bool, spares: int) -> void:
+	throws_label.text = "%d BOWLS" % throws_left
+	if in_ditch:
+		status_label.text = "IN THE DITCH"
+	else:
+		status_label.text = "AT REST  •  THIS BOWL %.2f m" % disc_distance
+	var note := ""
+	if respotted:
+		note = "  •  JACK RE-SPOTTED  •  SPARES %d" % spares
+	elif jack_moved:
+		note = "  •  JACK MOVED"
+	if closest < 0.0:
+		score_label.text = "NO BOWL ON THE GREEN%s" % note
+	else:
+		score_label.text = "CLOSEST %.2f m%s" % [closest, note]
 
 
-func show_level_complete(score: int, closest_distance: float, has_next_level: bool, jack_moved: bool) -> void:
-	throws_label.text = "0 THROWS"
+func show_level_complete(score: int, closest_distance: float, has_next_level: bool, jack_moved: bool, respotted: bool, spares: int) -> void:
+	throws_label.text = "0 BOWLS"
 	status_label.text = "LEVEL COMPLETE  •  SCORE %04d" % score
-	var jack_note := "  •  JACK MOVED" if jack_moved else ""
-	score_label.text = "BEST LINE  %.2f m%s" % [closest_distance, jack_note]
+	var note := ""
+	if respotted:
+		note = "  •  JACK RE-SPOTTED  •  SPARES %d" % spares
+	elif jack_moved:
+		note = "  •  JACK MOVED"
+	if closest_distance < 0.0:
+		score_label.text = "NO BOWL ON THE GREEN%s" % note
+	else:
+		score_label.text = "BEST LINE  %.2f m%s" % [closest_distance, note]
 	reset_button.visible = true
 	next_button.visible = has_next_level
 

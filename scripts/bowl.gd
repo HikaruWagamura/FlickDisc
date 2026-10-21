@@ -19,6 +19,7 @@ var is_jack := false
 var spin_angle := 0.0
 var stop_timer := 0.0
 var punch := 0.0
+var in_ditch := false
 var palette_index := 0
 
 var _spin: Node3D
@@ -104,7 +105,18 @@ func setup_jack() -> void:
 
 
 func rest_at(where: Vector3) -> void:
+	in_ditch = false
 	global_position = Vector3(where.x, 0.0, where.z)
+	velocity = Vector3.ZERO
+	moving = false
+	stop_timer = 0.0
+	punch = 0.0
+	present(0.0)
+
+
+func drop_in_ditch(where: Vector3) -> void:
+	in_ditch = true
+	global_position = where
 	velocity = Vector3.ZERO
 	moving = false
 	stop_timer = 0.0

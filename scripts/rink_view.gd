@@ -1,18 +1,25 @@
 class_name RinkView
 extends Node3D
 
-## Long lawn-bowls rink built as a real 3D green.
-## Playing surface is 52 m by 11 m, wide enough for a full-length draw.
-## The camera sits behind the mat and looks down the length.
+## Long lawn-bowls rink. The playing surface is 68 m by 11 m.
+## Banks rebound unless ditch mode is on. Then a narrow ditch at each side
+## and at the far end can take a bowl, and two spare jacks sit on the back bank.
 
-const LENGTH := 52.0
+const LENGTH := 68.0
 const HALF_WIDTH := 5.5
+const DITCH_W := 0.88
+const SHORT_MIN := 14.0
+const SHORT_MAX := 28.0
+const LONG_MIN := 44.0
 const NEAR_Z := 0.0
 const FAR_Z := -LENGTH
 const DISC_Z := -1.65
 const SURFACE_Y := 0.0
 
 var head: Node3D
+var _rebound_frame: Node3D
+var _ditch_frame: Node3D
+var _spare_dots: Array[MeshInstance3D] = []
 
 var _grass_shader: Shader
 var _wood_shader: Shader
@@ -144,7 +151,7 @@ func _build_lights() -> void:
 	sun.shadow_normal_bias = 1.4
 	sun.shadow_blur = 1.15
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
-	sun.directional_shadow_max_distance = 120.0
+	sun.directional_shadow_max_distance = 150.0
 	sun.directional_shadow_blend_splits = true
 	sun.look_at_from_position(Vector3.ZERO, Vector3(0.42, -1.05, 0.48), Vector3.UP)
 	add_child(sun)
@@ -161,11 +168,11 @@ func _build_lights() -> void:
 func _build_camera() -> void:
 	var camera := Camera3D.new()
 	camera.name = "GameCamera"
-	camera.fov = 48.0
+	camera.fov = 49.0
 	camera.near = 0.08
-	camera.far = 220.0
-	camera.position = Vector3(0.0, 8.4, 9.6)
-	camera.look_at_from_position(camera.position, Vector3(0.0, 0.35, -12.0), Vector3.UP)
+	camera.far = 240.0
+	camera.position = Vector3(0.0, 9.2, 10.8)
+	camera.look_at_from_position(camera.position, Vector3(0.0, 0.28, -18.0), Vector3.UP)
 	camera.current = true
 	add_child(camera)
 
@@ -180,16 +187,16 @@ func _build_grounds() -> void:
 	)
 	var ground := MeshInstance3D.new()
 	var plane := PlaneMesh.new()
-	plane.size = Vector2(96.0, 130.0)
+	plane.size = Vector2(100.0, 160.0)
 	ground.mesh = plane
-	ground.position = Vector3(0.0, -0.04, -40.0)
+	ground.position = Vector3(0.0, -0.04, -48.0)
 	ground.material_override = outfield
 	ground.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(ground)
 
-	_hill(Vector3(-18.0, -4.5, -78.0), 16.0, Color(0.45, 0.58, 0.62))
-	_hill(Vector3(2.0, -6.0, -86.0), 18.0, Color(0.40, 0.55, 0.50))
-	_hill(Vector3(20.0, -5.0, -76.0), 15.0, Color(0.50, 0.62, 0.66))
+	_hill(Vector3(-18.0, -4.5, -96.0), 16.0, Color(0.45, 0.58, 0.62))
+	_hill(Vector3(2.0, -6.0, -104.0), 18.0, Color(0.40, 0.55, 0.50))
+	_hill(Vector3(20.0, -5.0, -94.0), 15.0, Color(0.50, 0.62, 0.66))
 
 
 func _build_playing_surface() -> void:
@@ -210,7 +217,7 @@ func _build_playing_surface() -> void:
 	add_child(surface)
 
 	_timber_frame()
-	_ditch()
+	_build_ditch_option()
 	_markings()
 
 
@@ -220,25 +227,88 @@ func _timber_frame() -> void:
 	var y := rail_h * 0.5
 	var side_len := LENGTH + 0.36
 	var side_z := -LENGTH * 0.5
-	_box(self, Vector3(HALF_WIDTH + rail_w * 0.35, y, side_z), Vector3(rail_w, rail_h, side_len), _wood_mat)
-	_box(self, Vector3(-HALF_WIDTH - rail_w * 0.35, y, side_z), Vector3(rail_w, rail_h, side_len), _wood_mat)
+	# The near bank always rebounds. Side and far banks are the rebound option.
 	var end_w := HALF_WIDTH * 2.0 + rail_w * 1.7
 	_box(self, Vector3(0.0, y, 0.12), Vector3(end_w, rail_h, rail_w), _wood_mat)
-	_box(self, Vector3(0.0, y, FAR_Z - 0.12), Vector3(end_w, rail_h, rail_w), _wood_mat)
-	# Pale cap so the kerb catches the light.
+	_rebound_frame = Node3D.new()
+	_rebound_frame.name = "ReboundBanks"
+	add_child(_rebound_frame)
+	_box(_rebound_frame, Vector3(HALF_WIDTH + rail_w * 0.35, y, side_z), Vector3(rail_w, rail_h, side_len), _wood_mat)
+	_box(_rebound_frame, Vector3(-HALF_WIDTH - rail_w * 0.35, y, side_z), Vector3(rail_w, rail_h, side_len), _wood_mat)
+	_box(_rebound_frame, Vector3(0.0, y, FAR_Z - 0.12), Vector3(end_w, rail_h, rail_w), _wood_mat)
 	var cap := _lit(Color(0.94, 0.86, 0.68), 0.55)
 	var cap_y := rail_h + 0.012
-	_box(self, Vector3(HALF_WIDTH + rail_w * 0.35, cap_y, side_z), Vector3(rail_w * 0.72, 0.025, side_len), cap, Vector3.ZERO, false)
-	_box(self, Vector3(-HALF_WIDTH - rail_w * 0.35, cap_y, side_z), Vector3(rail_w * 0.72, 0.025, side_len), cap, Vector3.ZERO, false)
+	_box(_rebound_frame, Vector3(HALF_WIDTH + rail_w * 0.35, cap_y, side_z), Vector3(rail_w * 0.72, 0.025, side_len), cap, Vector3.ZERO, false)
+	_box(_rebound_frame, Vector3(-HALF_WIDTH - rail_w * 0.35, cap_y, side_z), Vector3(rail_w * 0.72, 0.025, side_len), cap, Vector3.ZERO, false)
 
 
-func _ditch() -> void:
-	var ditch_mat := _lit(Color(0.40, 0.34, 0.22), 0.95)
-	var side_len := LENGTH + 0.2
-	_box(self, Vector3(HALF_WIDTH + 0.55, -0.07, -LENGTH * 0.5), Vector3(0.42, 0.1, side_len), ditch_mat, Vector3.ZERO, false)
-	_box(self, Vector3(-HALF_WIDTH - 0.55, -0.07, -LENGTH * 0.5), Vector3(0.42, 0.1, side_len), ditch_mat, Vector3.ZERO, false)
-	_box(self, Vector3(0.0, -0.07, 0.42), Vector3(HALF_WIDTH * 2.0 + 0.4, 0.1, 0.4), ditch_mat, Vector3.ZERO, false)
-	_box(self, Vector3(0.0, -0.07, FAR_Z - 0.42), Vector3(HALF_WIDTH * 2.0 + 0.4, 0.1, 0.46), ditch_mat, Vector3.ZERO, false)
+func _build_ditch_option() -> void:
+	_ditch_frame = Node3D.new()
+	_ditch_frame.name = "DitchOption"
+	_ditch_frame.visible = false
+	add_child(_ditch_frame)
+	var ditch_mat := _lit(Color(0.18, 0.13, 0.08), 0.98)
+	var side_len := LENGTH + DITCH_W
+	var side_z := -LENGTH * 0.5 - DITCH_W * 0.35
+	_box(_ditch_frame, Vector3(HALF_WIDTH + DITCH_W * 0.5, -0.16, side_z), Vector3(DITCH_W, 0.08, side_len), ditch_mat, Vector3.ZERO, false)
+	_box(_ditch_frame, Vector3(-HALF_WIDTH - DITCH_W * 0.5, -0.16, side_z), Vector3(DITCH_W, 0.08, side_len), ditch_mat, Vector3.ZERO, false)
+	_box(_ditch_frame, Vector3(0.0, -0.16, FAR_Z - DITCH_W * 0.5), Vector3(HALF_WIDTH * 2.0 + DITCH_W * 2.0, 0.08, DITCH_W), ditch_mat, Vector3.ZERO, false)
+	var rail_h := 0.15
+	var rail_w := 0.22
+	var y := rail_h * 0.5
+	var outer := HALF_WIDTH + DITCH_W + rail_w * 0.5
+	_box(_ditch_frame, Vector3(outer, y, side_z), Vector3(rail_w, rail_h, side_len), _wood_mat)
+	_box(_ditch_frame, Vector3(-outer, y, side_z), Vector3(rail_w, rail_h, side_len), _wood_mat)
+	var end_w := HALF_WIDTH * 2.0 + DITCH_W * 2.0 + rail_w * 2.0
+	_box(_ditch_frame, Vector3(0.0, y, FAR_Z - DITCH_W - rail_w * 0.45), Vector3(end_w, rail_h, rail_w), _wood_mat)
+	_build_spare_dots()
+
+
+func _build_spare_dots() -> void:
+	var plank := _lit(Color(0.62, 0.46, 0.28), 0.6)
+	var spot_z := FAR_Z - DITCH_W - 0.08
+	_box(_ditch_frame, Vector3(0.0, 0.18, spot_z), Vector3(1.7, 0.04, 0.36), plank, Vector3.ZERO, false)
+	for side in [-0.48, 0.48]:
+		var dot := MeshInstance3D.new()
+		var mesh := SphereMesh.new()
+		mesh.radius = 0.2
+		mesh.height = 0.4
+		mesh.radial_segments = 16
+		mesh.rings = 10
+		dot.mesh = mesh
+		dot.position = Vector3(side, 0.42, spot_z)
+		var mat := _lit(Color(0.98, 0.82, 0.28), 0.28, 0.55, Color(0.7, 0.48, 0.1), 0.2)
+		dot.material_override = mat
+		_ditch_frame.add_child(dot)
+		_spare_dots.append(dot)
+
+
+func set_ditch_mode(enabled: bool) -> void:
+	if _rebound_frame != null:
+		_rebound_frame.visible = not enabled
+	if _ditch_frame != null:
+		_ditch_frame.visible = enabled
+
+
+func reset_spares() -> void:
+	for dot in _spare_dots:
+		dot.visible = true
+
+
+func take_spare() -> int:
+	for dot in _spare_dots:
+		if dot.visible:
+			dot.visible = false
+			break
+	return spares_remaining()
+
+
+func spares_remaining() -> int:
+	var count := 0
+	for dot in _spare_dots:
+		if dot.visible:
+			count += 1
+	return count
 
 
 func _markings() -> void:
@@ -268,22 +338,22 @@ func _markings() -> void:
 
 func _build_surrounds() -> void:
 	var path_w := 0.72
-	var path_x := HALF_WIDTH + 1.05
+	var path_x := HALF_WIDTH + DITCH_W + 0.95
 	var path_len := LENGTH + 1.4
 	_box(self, Vector3(path_x, 0.025, -LENGTH * 0.5 + 0.2), Vector3(path_w, 0.05, path_len), _path_mat, Vector3.ZERO, false)
 	_box(self, Vector3(-path_x, 0.025, -LENGTH * 0.5 + 0.2), Vector3(path_w, 0.05, path_len), _path_mat, Vector3.ZERO, false)
 	# Approach from the far ditch up to the clubhouse door.
-	_box(self, Vector3(0.0, 0.03, FAR_Z - 1.55), Vector3(2.1, 0.05, 2.5), _path_mat, Vector3.ZERO, false)
+	_box(self, Vector3(0.0, 0.03, FAR_Z - DITCH_W - 1.9), Vector3(2.1, 0.05, 2.0), _path_mat, Vector3.ZERO, false)
 
 	var hedge := _leaf_mats[1]
-	_hedge(HALF_WIDTH + 1.55, -2.4, FAR_Z + 1.0, hedge)
-	_hedge(-HALF_WIDTH - 1.55, -2.4, FAR_Z + 1.0, hedge)
+	_hedge(HALF_WIDTH + DITCH_W + 1.45, -2.4, FAR_Z + 1.0, hedge)
+	_hedge(-HALF_WIDTH - DITCH_W - 1.45, -2.4, FAR_Z + 1.0, hedge)
 
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 4041
-	var tree_x := HALF_WIDTH + 2.15
-	for i in 13:
-		var z := -4.5 - float(i) * 3.6
+	var tree_x := HALF_WIDTH + DITCH_W + 1.85
+	for i in 16:
+		var z := -4.2 - float(i) * 3.9
 		var scale_a := rng.randf_range(0.86, 1.16)
 		var scale_b := rng.randf_range(0.86, 1.16)
 		_tree(self, Vector3(tree_x, 0.0, z), scale_a, rng)
@@ -300,10 +370,10 @@ func _build_surrounds() -> void:
 	# Outer row fills the upper corners once the green narrows.
 	for i in 6:
 		var z := -14.0 - float(i) * 5.2
-		_tree(self, Vector3(7.4, 0.0, z), rng.randf_range(1.05, 1.35), rng)
-		_tree(self, Vector3(-7.6, 0.0, z + 1.6), rng.randf_range(1.05, 1.35), rng)
+		_tree(self, Vector3(9.4, 0.0, z), rng.randf_range(1.05, 1.35), rng)
+		_tree(self, Vector3(-9.6, 0.0, z + 1.6), rng.randf_range(1.05, 1.35), rng)
 
-	var banner_x := HALF_WIDTH + 0.15
+	var banner_x := HALF_WIDTH + DITCH_W + 0.35
 	_banner(self, Vector3(banner_x, 0.0, -LENGTH * 0.36), "PLAY\nSLIDE\nCOMPETE", Color(0.11, 0.32, 0.58))
 	_banner(self, Vector3(-banner_x, 0.0, -LENGTH * 0.36), "PLAY\nSLIDE\nCOMPETE", Color(0.11, 0.32, 0.58))
 	_banner(self, Vector3(banner_x, 0.0, -LENGTH * 0.58), "DISC\nQUEST", Color(0.08, 0.24, 0.46))
