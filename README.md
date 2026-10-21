@@ -32,8 +32,9 @@ window may appear as a narrow portrait game window. That is expected.
 
 ## Native app
 
-This is a Godot native project, not a web build. Phones get a portrait APK.
-iOS uses the same project, exported from Godot on macOS.
+The phone build is still the native app. A Web preset exists only so the same
+game can be played in a browser without installing an APK. iOS uses the same
+project, exported from Godot on macOS.
 
 Android (debug APK):
 
@@ -51,7 +52,8 @@ x86_64, APK (not AAB). On a device, drag with a finger. The desktop mouse path
 stays separate so a touch is not launched twice.
 
 A Linux preset exports `build/disc-quest.x86_64` for a desktop native check.
-There is no HTML5 preset.
+The Web preset exports `build/web/index.html` (no threads, so a normal browser
+can open it). Serve that folder over HTTP and drag the disc with the mouse.
 
 ## Test the MVP
 
