@@ -30,6 +30,29 @@ multiplayer, and generated level systems are not part of this MVP.
 The project is set up for a 540 x 960 portrait viewport. On a desktop, the
 window may appear as a narrow portrait game window. That is expected.
 
+## Native app
+
+This is a Godot native project, not a web build. Phones get a portrait APK.
+iOS uses the same project, exported from Godot on macOS.
+
+Android (debug APK):
+
+1. Install Godot 4.5 export templates (Editor → Manage Export Templates).
+2. Install the Android SDK (platform 35, build-tools 35) and JDK 17 or 21.
+3. In Editor Settings → Export → Android, set the Android SDK path, the Java
+   SDK path, and a debug keystore (`androiddebugkey` / `android`).
+4. Project → Install Android Build Template. That copies the Gradle project
+   into `android/build` (generated, not committed).
+5. Project → Export, choose the **Android** preset, and export
+   `build/disc-quest.apk`.
+
+The Android preset is `com.discquest.app`, portrait, immersive, arm64-v8a and
+x86_64, APK (not AAB). On a device, drag with a finger. The desktop mouse path
+stays separate so a touch is not launched twice.
+
+A Linux preset exports `build/disc-quest.x86_64` for a desktop native check.
+There is no HTML5 preset.
+
 ## Test the MVP
 
 1. Touch and hold the blue disc near the bottom of the rink.

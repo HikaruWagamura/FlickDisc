@@ -38,23 +38,32 @@ func _ready() -> void:
 	ui.reset_requested.connect(_on_reset_requested)
 	ui.next_level_requested.connect(_on_next_level_requested)
 	ui.bias_cycle_requested.connect(_on_bias_cycle_requested)
+	_lock_portrait_on_device()
 	_load_level(0)
 
 
+func _lock_portrait_on_device() -> void:
+	if OS.has_feature("android") or OS.has_feature("ios"):
+		DisplayServer.screen_set_orientation(DisplayServer.SCREEN_PORTRAIT)
+
+
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventScreenTouch:
+	# On a phone, Godot also synthesizes mouse events from touches. Handling
+	# both would start and release the same shot twice.
+	var on_device := OS.has_feature("android") or OS.has_feature("ios")
+	if on_device and event is InputEventScreenTouch:
 		if event.pressed:
 			disc.begin_aim(event.position)
 		else:
 			disc.release_aim(event.position)
-	elif event is InputEventScreenDrag:
+	elif on_device and event is InputEventScreenDrag:
 		disc.update_aim(event.position)
-	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+	elif not on_device and event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:
 			disc.begin_aim(event.position)
 		else:
 			disc.release_aim(event.position)
-	elif event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+	elif not on_device and event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 		disc.update_aim(event.position)
 
 
