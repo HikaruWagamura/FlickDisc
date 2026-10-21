@@ -15,7 +15,7 @@ const DISC_RADIUS := 0.050
 const DISC_HEIGHT := 0.026
 const DISC_CENTER_Y := 0.014
 const DITCH_Y := -0.006
-const PLAYER_START_Z := 0.76
+const PLAYER_START_Z := 0.68
 const DISCS_PER_ROUND := 8
 
 const MIN_SPEED := 1.15

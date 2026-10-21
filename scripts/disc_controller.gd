@@ -144,7 +144,7 @@ func _build_guide() -> void:
 	var ring_material := StandardMaterial3D.new()
 	ring_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	ring_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	ring_material.albedo_color = Color(0.55, 0.95, 1.0, 0.55)
+	ring_material.albedo_color = Color(0.65, 1.0, 1.0, 0.9)
 	_idle_ring = Metrics.add_mesh(self, ring, ring_material, Vector3(0.0, 0.012, 0.0))
 	_idle_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_idle_ring.visible = false

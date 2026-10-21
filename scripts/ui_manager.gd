@@ -20,7 +20,7 @@ func _ready() -> void:
 	_make_scrim(Rect2(0.0, 848.0, 540.0, 112.0), Color(0.03, 0.02, 0.04, 0.78))
 
 	_make_label(Vector2(22.0, 8.0), Vector2(280.0, 28.0), 24, Color("#f7fbff"), "DISC QUEST")
-	_make_label(Vector2(24.0, 36.0), Vector2(280.0, 18.0), 11, Color("#ff8ec4"), "CROKINOLE  •  8 PEGS")
+	_make_label(Vector2(24.0, 36.0), Vector2(280.0, 18.0), 11, Color("#ff8ec4"), "ROUND BOARD  •  LONG RINK")
 	level_label = _make_label(Vector2(300.0, 10.0), Vector2(216.0, 22.0), 16, Color("#f7fbff"), "LEVEL 01")
 	level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	throws_label = _make_label(Vector2(300.0, 34.0), Vector2(216.0, 18.0), 12, Color("#8fd7ea"), "8 DISCS")

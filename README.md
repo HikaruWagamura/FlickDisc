@@ -4,7 +4,7 @@ Portrait crokinole game. The table is a 3D board viewed from the player's seat.
 
 ## Current step
 
-The board fills the portrait frame. Eight pegs stand on the 15-point circle, and buttons stay where they stop.
+The Flick Disc artwork is printed on the round board. From the overview you also see the long club rink and its jack behind the table. Eight pegs stand on the 15-point circle, and buttons stay where they stop.
 
 - Wooden surface, recessed ditch, outer rail, and a center 20-hole.
 - Scoring rings: 20 in the hole, 15 inside the pegs, 10, then 5 on the outer wood. The ditch scores nothing.

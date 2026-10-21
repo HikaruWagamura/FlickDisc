@@ -43,10 +43,10 @@ func _ready() -> void:
 func _setup_view() -> void:
 	var environment := Environment.new()
 	environment.background_mode = Environment.BG_COLOR
-	environment.background_color = Color("#100c10")
+	environment.background_color = Color("#7eb6e8")
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.ambient_light_color = Color("#6e5648")
-	environment.ambient_light_energy = 0.38
+	environment.ambient_light_color = Color("#c4b49a")
+	environment.ambient_light_energy = 0.62
 	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	environment.tonemap_exposure = 0.92
 	environment.glow_enabled = true
@@ -60,14 +60,15 @@ func _setup_view() -> void:
 
 	camera = Camera3D.new()
 	camera.name = "Camera3D"
-	camera.fov = 43.0
+	camera.fov = 42.0
 	camera.near = 0.04
+	camera.far = 40.0
 	camera.current = true
 	add_child(camera)
-	# The whole rail stays inside the portrait frame, and the wood still
-	# fills the space between the score bar and the buttons.
-	camera.position = Vector3(0.0, 2.42, 2.38)
-	camera.look_at(Vector3(0.0, 0.0, 0.0), Vector3.UP)
+	# The round board stays whole above the controls, and the long rink
+	# sits behind it up to the clubhouse.
+	camera.position = Vector3(0.0, 3.05, 2.42)
+	camera.look_at(Vector3(0.0, 0.0, -0.28), Vector3.UP)
 
 	var key := DirectionalLight3D.new()
 	key.rotation_degrees = Vector3(-52.0, -28.0, 0.0)
@@ -287,7 +288,9 @@ func _pointer_hits_disc(screen_position: Vector2) -> bool:
 	if active_puck == null:
 		return false
 	var disc_screen := camera.unproject_position(active_puck.global_position)
-	return disc_screen.distance_to(screen_position) <= 110.0
+	var edge_screen := camera.unproject_position(active_puck.global_position + Vector3(Metrics.DISC_RADIUS * 2.4, 0.0, 0.0))
+	var grab_radius := maxf(disc_screen.distance_to(edge_screen), 72.0)
+	return disc_screen.distance_to(screen_position) <= grab_radius
 
 func _board_point(screen_position: Vector2) -> Vector3:
 	var origin := camera.project_ray_origin(screen_position)
@@ -331,10 +334,10 @@ func _spot_free(spot: Vector2) -> bool:
 func _start_spot() -> Vector2:
 	var candidates: Array[Vector2] = [
 		Vector2(0.0, Metrics.PLAYER_START_Z),
-		Vector2(0.14, 0.74),
-		Vector2(-0.14, 0.74),
-		Vector2(0.26, 0.7),
-		Vector2(-0.26, 0.7),
+		Vector2(0.14, 0.66),
+		Vector2(-0.14, 0.66),
+		Vector2(0.26, 0.62),
+		Vector2(-0.26, 0.62),
 		Vector2(0.36, 0.64),
 		Vector2(-0.36, 0.64),
 	]

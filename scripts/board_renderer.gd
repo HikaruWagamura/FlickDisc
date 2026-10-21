@@ -4,8 +4,12 @@ extends Node3D
 
 const Metrics = preload("res://scripts/table_metrics.gd")
 
+const LOGO_PATH := "res://assets/flick_disc_logo.png"
+const COURSE_PATH := "res://assets/course_background.png"
+
 func _ready() -> void:
 	_build_room()
+	_build_club_rink()
 	_build_body()
 	_build_surface()
 	_build_rail()
@@ -13,9 +17,9 @@ func _ready() -> void:
 
 func _build_room() -> void:
 	var floor_material := StandardMaterial3D.new()
-	floor_material.albedo_color = Color("#120e12")
-	floor_material.roughness = 0.94
-	Metrics.add_mesh(self, _box(Vector3(8.0, 0.04, 8.0)), floor_material, Vector3(0.0, -0.62, 0.0))
+	floor_material.albedo_color = Color("#1a6b3c")
+	floor_material.roughness = 0.92
+	Metrics.add_mesh(self, _box(Vector3(18.0, 0.04, 22.0)), floor_material, Vector3(0.0, -0.64, -4.0))
 	var rug := StandardMaterial3D.new()
 	rug.albedo_color = Color("#241018")
 	rug.roughness = 0.9
@@ -50,11 +54,20 @@ func _build_body() -> void:
 	Metrics.add_mesh(self, skirt, skirt_material, Vector3(0.0, -0.05, 0.0))
 
 func _build_surface() -> void:
-	var texture := _make_surface_texture()
+	var images := _make_board_images()
+	var albedo: Image = images[0]
+	var emission: Image = images[1]
+	albedo.generate_mipmaps()
+	emission.generate_mipmaps()
+	var texture := ImageTexture.create_from_image(albedo)
+	var emission_texture := ImageTexture.create_from_image(emission)
 	var wood := StandardMaterial3D.new()
 	wood.albedo_texture = texture
-	wood.roughness = 0.42
-	wood.metallic = 0.04
+	wood.emission_enabled = true
+	wood.emission_texture = emission_texture
+	wood.emission_energy_multiplier = 0.7
+	wood.roughness = 0.38
+	wood.metallic = 0.12
 	wood.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
 	wood.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	var surface := MeshInstance3D.new()
@@ -103,7 +116,7 @@ func _build_rail() -> void:
 	inlay.outer_radius = Metrics.DITCH_OUTER + 0.065
 	inlay.rings = 72
 	inlay.ring_segments = 10
-	Metrics.add_mesh(self, inlay, Metrics.plastic(Color("#ff4f86"), 0.22, 0.85), Vector3(0.0, 0.028, 0.0))
+	Metrics.add_mesh(self, inlay, Metrics.plastic(Color("#ff2f9a"), 0.18, 1.15), Vector3(0.0, 0.028, 0.0))
 
 func _build_pegs() -> void:
 	for peg_position in Metrics.peg_positions():
@@ -205,7 +218,71 @@ func _box(size: Vector3) -> BoxMesh:
 	mesh.size = size
 	return mesh
 
-func _make_surface_texture() -> Texture2D:
+func _build_club_rink() -> void:
+	var lane_material := StandardMaterial3D.new()
+	lane_material.albedo_color = Color("#1f8f4c")
+	lane_material.roughness = 0.78
+	var lane := BoxMesh.new()
+	lane.size = Vector3(2.35, 0.045, 1.7)
+	Metrics.add_mesh(self, lane, lane_material, Vector3(0.0, -0.55, -2.28))
+
+	var rail_material := StandardMaterial3D.new()
+	rail_material.albedo_color = Color("#d7e7df")
+	rail_material.roughness = 0.45
+	for side in [-1.0, 1.0]:
+		var boundary := BoxMesh.new()
+		boundary.size = Vector3(0.035, 0.028, 1.55)
+		Metrics.add_mesh(self, boundary, rail_material, Vector3(side * 1.08, -0.515, -2.28))
+	var center_line := BoxMesh.new()
+	center_line.size = Vector3(0.016, 0.012, 1.35)
+	var center_material := StandardMaterial3D.new()
+	center_material.albedo_color = Color(1.0, 1.0, 1.0, 0.7)
+	center_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	center_material.roughness = 0.4
+	Metrics.add_mesh(self, center_line, center_material, Vector3(0.0, -0.52, -2.35))
+
+	var jack_ring := TorusMesh.new()
+	jack_ring.inner_radius = 0.14
+	jack_ring.outer_radius = 0.2
+	jack_ring.rings = 28
+	jack_ring.ring_segments = 8
+	Metrics.add_mesh(self, jack_ring, Metrics.plastic(Color("#f4f7f2"), 0.35, 0.08), Vector3(0.0, -0.51, -2.85))
+	var jack := SphereMesh.new()
+	jack.radius = 0.05
+	jack.height = 0.065
+	jack.radial_segments = 16
+	jack.rings = 8
+	Metrics.add_mesh(self, jack, Metrics.plastic(Color("#f3bd56"), 0.28, 0.25), Vector3(0.0, -0.48, -2.85))
+
+	var backdrop := PlaneMesh.new()
+	backdrop.size = Vector2(6.8, 3.4)
+	var backdrop_material := StandardMaterial3D.new()
+	backdrop_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	backdrop_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var course := Image.load_from_file(COURSE_PATH)
+	if course != null and not course.is_empty():
+		var crop_y := int(course.get_height() * 0.30)
+		var crop_h := int(course.get_height() * 0.16)
+		var crop := course.get_region(Rect2i(0, crop_y, course.get_width(), crop_h))
+		crop.flip_y()
+		backdrop_material.albedo_texture = ImageTexture.create_from_image(crop)
+	backdrop_material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	var backdrop_mesh := MeshInstance3D.new()
+	backdrop_mesh.mesh = backdrop
+	backdrop_mesh.material_override = backdrop_material
+	backdrop_mesh.position = Vector3(0.0, 0.35, -3.45)
+	backdrop_mesh.rotation_degrees = Vector3(-58.0, 0.0, 0.0)
+	add_child(backdrop_mesh)
+
+	var lamp_material := Metrics.plastic(Color("#1c2430"), 0.4, 0.0)
+	var glow_material := Metrics.plastic(Color("#ffe6b0"), 0.2, 2.4)
+	for side in [-1.0, 1.0]:
+		for lamp_z in [-1.9, -2.7]:
+			var post := Metrics.cylinder(0.03, 0.95, 10)
+			Metrics.add_mesh(self, post, lamp_material, Vector3(side * 1.62, -0.08, lamp_z))
+			Metrics.add_mesh(self, Metrics.cylinder(0.07, 0.07, 12), glow_material, Vector3(side * 1.62, 0.42, lamp_z))
+
+func _make_board_images() -> Array:
 	var size := 1024
 	var bytes := PackedByteArray()
 	bytes.resize(size * size * 4)
@@ -217,16 +294,90 @@ func _make_surface_texture() -> Texture2D:
 			var dx := (float(x) - center) / center
 			var radius := sqrt(dx * dx + dy * dy)
 			var color := _wood_color(dx, dy, radius)
-			color = _apply_rings(color, dx, dy, radius)
 			var index := row + x * 4
 			bytes[index] = _byte(color.r)
 			bytes[index + 1] = _byte(color.g)
 			bytes[index + 2] = _byte(color.b)
 			bytes[index + 3] = 255
-	_stamp_marks(bytes, size)
-	var image := Image.create_from_data(size, size, false, Image.FORMAT_RGBA8, bytes)
-	image.generate_mipmaps()
-	return ImageTexture.create_from_image(image)
+	var albedo := Image.create_from_data(size, size, false, Image.FORMAT_RGBA8, bytes)
+	var emission := Image.create(size, size, false, Image.FORMAT_RGBA8)
+	emission.fill(Color(0.0, 0.0, 0.0, 1.0))
+	_apply_logo(albedo, emission)
+	_paint_play_lines(albedo)
+	return [albedo, emission]
+
+func _apply_logo(albedo: Image, emission: Image) -> void:
+	var logo := Image.load_from_file(LOGO_PATH)
+	if logo == null or logo.is_empty():
+		push_warning("Flick Disc logo could not be loaded")
+		return
+	logo.convert(Image.FORMAT_RGBA8)
+	var diameter := 940
+	logo.resize(diameter, diameter, Image.INTERPOLATE_LANCZOS)
+	var origin := (albedo.get_width() - diameter) / 2
+	var half := float(diameter) * 0.5
+	for y in diameter:
+		for x in diameter:
+			var dx := float(x) + 0.5 - half
+			var dy := float(y) + 0.5 - half
+			var radius := sqrt(dx * dx + dy * dy) / half
+			if radius > 0.96:
+				continue
+			var fade := 1.0 if radius < 0.9 else (0.96 - radius) / 0.06
+			var src := logo.get_pixel(x, y)
+			var kept := albedo.get_pixel(origin + x, origin + y)
+			albedo.set_pixel(origin + x, origin + y, kept.lerp(Color(src.r, src.g, src.b), fade))
+			var neon := src.r > 0.45 and src.r > src.b and src.g < src.r * 1.05
+			var chrome := src.r > 0.78 and src.g > 0.78 and src.b > 0.78
+			if fade > 0.35 and (neon or chrome):
+				emission.set_pixel(origin + x, origin + y, Color(src.r, src.g, src.b, fade))
+
+func _paint_play_lines(albedo: Image) -> void:
+	var center := (float(albedo.get_width()) - 1.0) * 0.5
+	var hole := 0.117 * center
+	_fill_disc(albedo, center, hole + 11.0, Color("#f0c56a"))
+	_fill_disc(albedo, center, hole, Color("#12080c"))
+	for ring_radius in [0.435, 0.696, 0.93]:
+		_stroke_circle(albedo, center, ring_radius * center, center * 0.011, Color("#fff6fc"))
+	_stroke_cross(albedo, center, Color(1.0, 0.92, 0.96))
+
+func _fill_disc(albedo: Image, center: float, radius: float, color: Color) -> void:
+	var min_pixel := int(floor(center - radius))
+	var max_pixel := int(ceil(center + radius))
+	var limit := albedo.get_width() - 1
+	for y in range(maxi(min_pixel, 0), mini(max_pixel, limit) + 1):
+		for x in range(maxi(min_pixel, 0), mini(max_pixel, limit) + 1):
+			var dx := float(x) - center
+			var dy := float(y) - center
+			if dx * dx + dy * dy <= radius * radius:
+				albedo.set_pixel(x, y, color)
+
+func _stroke_circle(albedo: Image, center: float, radius: float, width: float, color: Color) -> void:
+	var pad := width + 1.0
+	var min_pixel := int(floor(center - radius - pad))
+	var max_pixel := int(ceil(center + radius + pad))
+	var limit := albedo.get_width() - 1
+	for y in range(maxi(min_pixel, 0), mini(max_pixel, limit) + 1):
+		for x in range(maxi(min_pixel, 0), mini(max_pixel, limit) + 1):
+			var dx := float(x) - center
+			var dy := float(y) - center
+			if absf(sqrt(dx * dx + dy * dy) - radius) <= width:
+				albedo.set_pixel(x, y, albedo.get_pixel(x, y).lerp(color, 0.88))
+
+func _stroke_cross(albedo: Image, center: float, color: Color) -> void:
+	var size := albedo.get_width()
+	var inner := center * 0.16
+	var outer := center * 0.95
+	for axis in size:
+		var distance := absf(float(axis) - center)
+		if distance < inner or distance > outer:
+			continue
+		for offset in range(-2, 3):
+			var across := int(center) + offset
+			if across < 0 or across >= size:
+				continue
+			albedo.set_pixel(across, axis, albedo.get_pixel(across, axis).lerp(color, 0.75))
+			albedo.set_pixel(axis, across, albedo.get_pixel(axis, across).lerp(color, 0.75))
 
 func _wood_color(dx: float, dy: float, radius: float) -> Color:
 	var grain := 0.5 + 0.5 * sin(dx * 28.0 + sin(dy * 4.0) * 2.2)

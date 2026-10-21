@@ -59,9 +59,10 @@ func sink_into_hole() -> void:
 func _build_visual() -> void:
 	_visual = Node3D.new()
 	add_child(_visual)
-	var body_color := Color("#9d2748") if is_player else Color("#f3e6cf")
-	var rim_color := Color("#5c1228") if is_player else Color("#c4a574")
-	var center_color := Color("#ffe7ef") if is_player else Color("#6b3e28")
+	var body_color := Color("#141414") if is_player else Color("#f3e6cf")
+	var rim_color := Color("#2a2a2e") if is_player else Color("#c4a574")
+	var center_color := Color("#ff3d9a") if is_player else Color("#6b3e28")
+	var ring_color := Color("#ff2f9a") if is_player else Color("#f0d48a")
 
 	var body := CylinderMesh.new()
 	body.top_radius = Metrics.DISC_RADIUS
@@ -78,7 +79,7 @@ func _build_visual() -> void:
 	ring.outer_radius = Metrics.DISC_RADIUS * 0.6
 	ring.rings = 28
 	ring.ring_segments = 8
-	Metrics.add_mesh(_visual, ring, Metrics.plastic(Color("#f0d48a"), 0.28, 0.15), Vector3(0.0, Metrics.DISC_HEIGHT * 0.5, 0.0))
+	Metrics.add_mesh(_visual, ring, Metrics.plastic(ring_color, 0.22, 0.85 if is_player else 0.12), Vector3(0.0, Metrics.DISC_HEIGHT * 0.5, 0.0))
 
 	var cap := Metrics.cylinder(Metrics.DISC_RADIUS * 0.32, 0.007, 24)
 	Metrics.add_mesh(_visual, cap, Metrics.plastic(center_color, 0.2, 0.08), Vector3(0.0, Metrics.DISC_HEIGHT * 0.55, 0.0))
