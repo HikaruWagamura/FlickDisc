@@ -1,10 +1,13 @@
 class_name DiscController
 extends Node3D
 
+const BowlScript := preload("res://scripts/bowl.gd")
+
 signal aim_changed(direction: Vector2, power_ratio: float)
 signal bias_changed(bias_ratio: float)
 signal shot_started
 signal shot_stopped
+signal impacted(speed: float, hit_jack: bool, hit_bank: bool)
 
 const DISC_RADIUS := 0.42
 const MAX_DRAG_PIXELS := 160.0
@@ -19,10 +22,11 @@ const PICK_RADIUS_PX := 88.0
 const GUIDE_DOTS := 16
 
 var start_position := Vector3.ZERO
-var min_x := -2.4
-var max_x := 2.4
-var min_z := -37.5
-var max_z := -0.5
+var green_min := Vector2(-2.9, -38.0)
+var green_max := Vector2(2.9, -0.2)
+var radius := DISC_RADIUS
+var mass := 1.0
+var is_jack := false
 var is_aiming := false
 var shot_in_progress := false
 var aim_direction := Vector3(0.0, 0.0, -1.0)
@@ -32,6 +36,17 @@ var shot_bias := 0.0
 var velocity := Vector3.ZERO
 var stop_timer := 0.0
 var spin_angle := 0.0
+var punch := 0.0
+var palette_index := 0
+var obstacles: Array = []
+
+var _rim_mat: StandardMaterial3D
+var _body_mat: StandardMaterial3D
+var _cap_mat: StandardMaterial3D
+var _mark_mat: StandardMaterial3D
+var _impact_speed := 0.0
+var _impact_jack := false
+var _impact_bank := false
 
 var _visual: Node3D
 var _spin: Node3D
@@ -50,23 +65,24 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if not shot_in_progress:
 		return
-	var step := _integrate(global_position, velocity, shot_bias, delta)
-	global_position = step[0]
-	velocity = step[1]
-	var speed := velocity.length()
-	if speed > STOP_SPEED:
-		var spin_sign := -1.0 if shot_bias < 0.0 else 1.0
-		spin_angle += spin_sign * lerpf(2.2, 13.0, speed / MAX_SPEED) * delta
-		stop_timer = 0.0
-	else:
-		velocity = Vector3.ZERO
-		stop_timer += delta
-		if stop_timer >= STOP_GRACE_SECONDS:
-			shot_in_progress = false
-			_apply_visual(0.0)
-			shot_stopped.emit()
-			return
-	_apply_visual(speed)
+	_impact_speed = 0.0
+	_impact_jack = false
+	_impact_bank = false
+	var substeps := 4
+	var step := delta / float(substeps)
+	for _sub in substeps:
+		_advance(self, step, true)
+		for body in obstacles:
+			if body.moving:
+				_advance(body, step, false)
+		_resolve_pairs()
+	_settle_frame(delta)
+	_apply_visual(velocity.length())
+	for body in obstacles:
+		if body.has_method("present"):
+			body.present(body.velocity.length())
+	if _impact_speed > 0.45:
+		impacted.emit(_impact_speed, _impact_jack, _impact_bank)
 
 
 func set_bias(value: float) -> void:
@@ -84,7 +100,7 @@ func cycle_bias() -> void:
 
 
 func begin_aim(pointer_position: Vector2) -> bool:
-	if shot_in_progress:
+	if shot_in_progress or not visible:
 		return false
 	var camera := get_viewport().get_camera_3d()
 	if camera == null:
@@ -149,34 +165,149 @@ func reset_to_start() -> void:
 	stop_timer = 0.0
 	shot_bias = 0.0
 	spin_angle = 0.0
+	punch = 0.0
+	visible = true
 	_hide_guide()
 	_apply_visual(0.0)
 
 
-func set_rink_bounds(bounds_min: Vector2, bounds_max: Vector2) -> void:
-	min_x = bounds_min.x + DISC_RADIUS
-	max_x = bounds_max.x - DISC_RADIUS
-	min_z = bounds_min.y + DISC_RADIUS
-	max_z = bounds_max.y - DISC_RADIUS
+func set_palette(index: int) -> void:
+	palette_index = index % 3
+	if _rim_mat == null:
+		return
+	var colors: Array = BowlScript.palette(palette_index)
+	_rim_mat.albedo_color = colors[0]
+	_body_mat.albedo_color = colors[1]
+	_cap_mat.albedo_color = colors[2]
+	_mark_mat.albedo_color = colors[3]
 
 
-func _integrate(pos: Vector3, vel: Vector3, bias: float, delta: float) -> Array:
-	vel = _curve_and_damp(vel, bias, delta)
+func set_green(bounds_min: Vector2, bounds_max: Vector2) -> void:
+	green_min = bounds_min
+	green_max = bounds_max
+
+
+func _advance(body, delta: float, use_shot_bias: bool) -> void:
+	var bias := shot_bias if use_shot_bias else 0.0
+	var moved := _move_planar(body.global_position, body.velocity, body.radius, bias, use_shot_bias, delta)
+	body.global_position = moved[0]
+	body.velocity = moved[1]
+	var wall_hit: float = moved[2]
+	if wall_hit > 1.2 and wall_hit > _impact_speed:
+		_impact_speed = wall_hit
+		_impact_jack = false
+		_impact_bank = true
+	var speed: float = body.velocity.length()
+	if speed > STOP_SPEED:
+		var spin_sign := -1.0 if bias < 0.0 else 1.0
+		body.spin_angle += spin_sign * lerpf(2.2, 13.0, speed / MAX_SPEED) * delta
+	else:
+		body.velocity = Vector3.ZERO
+
+
+func _settle_frame(delta: float) -> void:
+	if velocity.length() <= STOP_SPEED:
+		velocity = Vector3.ZERO
+		stop_timer += delta
+	else:
+		stop_timer = 0.0
+	for body in obstacles:
+		if not body.moving:
+			continue
+		if body.velocity.length() <= STOP_SPEED:
+			body.stop_timer += delta
+			if body.stop_timer >= STOP_GRACE_SECONDS:
+				body.moving = false
+				body.velocity = Vector3.ZERO
+		else:
+			body.stop_timer = 0.0
+	if stop_timer >= STOP_GRACE_SECONDS and _obstacles_resting():
+		shot_in_progress = false
+		shot_stopped.emit()
+
+
+func _obstacles_resting() -> bool:
+	for body in obstacles:
+		if body.moving:
+			return false
+	return true
+
+
+func _resolve_pairs() -> void:
+	for body in obstacles:
+		_bounce(self, body)
+	for i in obstacles.size():
+		for j in range(i + 1, obstacles.size()):
+			_bounce(obstacles[i], obstacles[j])
+
+
+func _bounce(a, b) -> void:
+	var jack_hit: bool = a.is_jack or b.is_jack
+	var resolved: Dictionary = BowlScript.resolve(
+		a.global_position, a.velocity, a.radius, a.mass,
+		b.global_position, b.velocity, b.radius, b.mass,
+		BowlScript.restitution_for(jack_hit)
+	)
+	a.global_position = resolved["a_pos"]
+	a.velocity = resolved["a_vel"]
+	b.global_position = resolved["b_pos"]
+	b.velocity = resolved["b_vel"]
+	var impact: float = resolved["impact"]
+	if impact <= 0.2:
+		return
+	if a != self:
+		a.moving = true
+		a.stop_timer = 0.0
+	if b != self:
+		b.moving = true
+		b.stop_timer = 0.0
+	if impact > _impact_speed:
+		_impact_speed = impact
+		_impact_jack = jack_hit
+		_impact_bank = false
+	var hit_punch := clampf(impact / 10.0, 0.2, 1.0)
+	_punch(a, hit_punch)
+	_punch(b, hit_punch)
+
+
+func _punch(body, amount: float) -> void:
+	if body == self:
+		punch = maxf(punch, amount)
+	elif body.has_method("add_punch"):
+		body.add_punch(amount)
+
+
+func _move_planar(pos: Vector3, vel: Vector3, body_radius: float, bias: float, use_bias: bool, delta: float) -> Array:
+	if use_bias:
+		vel = _curve_and_damp(vel, bias, delta)
+	else:
+		vel *= pow(FRICTION_PER_SECOND, delta)
+		vel.y = 0.0
+	var before := vel
 	pos += vel * delta
 	pos.y = 0.0
+	var min_x := green_min.x + body_radius
+	var max_x := green_max.x - body_radius
+	var min_z := green_min.y + body_radius
+	var max_z := green_max.y - body_radius
+	var wall := 0.0
 	if pos.x < min_x:
 		pos.x = min_x
+		wall = maxf(wall, absf(before.x))
 		vel.x = absf(vel.x) * 0.18
 	elif pos.x > max_x:
 		pos.x = max_x
+		wall = maxf(wall, absf(before.x))
 		vel.x = -absf(vel.x) * 0.18
 	if pos.z < min_z:
 		pos.z = min_z
+		wall = maxf(wall, absf(before.z))
 		vel.z = absf(vel.z) * 0.18
 	elif pos.z > max_z:
 		pos.z = max_z
+		wall = maxf(wall, absf(before.z))
 		vel.z = -absf(vel.z) * 0.18
-	return [pos, vel]
+	return [pos, vel, wall]
 
 
 func _curve_and_damp(vel: Vector3, bias: float, delta: float) -> Vector3:
@@ -208,8 +339,9 @@ func _ground_point(screen_pos: Vector2) -> Vector3:
 func _apply_visual(speed: float) -> void:
 	if _visual == null:
 		return
+	punch = move_toward(punch, 0.0, 0.08)
 	var lift := clampf(speed / MAX_SPEED, 0.0, 1.0)
-	_visual.position.y = lift * 0.05
+	_visual.position.y = lift * 0.05 + punch * 0.07
 	_visual.rotation.z = shot_bias * 0.2 * lift
 	_spin.rotation.y = spin_angle
 	_shadow.position = Vector3(0.1 + lift * 0.08, 0.012, 0.06)
@@ -242,13 +374,49 @@ func _predict_path() -> PackedVector3Array:
 	var pos := global_position
 	var vel := aim_direction * lerpf(MIN_SPEED, MAX_SPEED, power_ratio)
 	vel.y = 0.0
+	var ghosts: Array = []
+	for body in obstacles:
+		ghosts.append({
+			"pos": body.global_position,
+			"vel": body.velocity,
+			"radius": body.radius,
+			"mass": body.mass,
+			"is_jack": body.is_jack,
+		})
 	points.append(pos)
-	var step := 0.08
-	for i in 90:
-		var integrated: Array = _integrate(pos, vel, bias_ratio, step)
-		pos = integrated[0]
-		vel = integrated[1]
-		if i % 2 == 1:
+	var step := 0.02
+	for i in 360:
+		var moved := _move_planar(pos, vel, radius, bias_ratio, true, step)
+		pos = moved[0]
+		vel = moved[1]
+		for ghost in ghosts:
+			if ghost["vel"].length() > STOP_SPEED:
+				var ghost_moved := _move_planar(ghost["pos"], ghost["vel"], ghost["radius"], 0.0, false, step)
+				ghost["pos"] = ghost_moved[0]
+				ghost["vel"] = ghost_moved[1]
+			var resolved: Dictionary = BowlScript.resolve(
+				pos, vel, radius, mass,
+				ghost["pos"], ghost["vel"], ghost["radius"], ghost["mass"],
+				BowlScript.restitution_for(ghost["is_jack"])
+			)
+			pos = resolved["a_pos"]
+			vel = resolved["a_vel"]
+			ghost["pos"] = resolved["b_pos"]
+			ghost["vel"] = resolved["b_vel"]
+		for a in ghosts.size():
+			for b in range(a + 1, ghosts.size()):
+				var left: Dictionary = ghosts[a]
+				var right: Dictionary = ghosts[b]
+				var pair: Dictionary = BowlScript.resolve(
+					left["pos"], left["vel"], left["radius"], left["mass"],
+					right["pos"], right["vel"], right["radius"], right["mass"],
+					BowlScript.restitution_for(left["is_jack"] or right["is_jack"])
+				)
+				left["pos"] = pair["a_pos"]
+				left["vel"] = pair["a_vel"]
+				right["pos"] = pair["b_pos"]
+				right["vel"] = pair["b_vel"]
+		if i % 4 == 3:
 			points.append(pos)
 		if vel.length() <= STOP_SPEED:
 			points.append(pos)
@@ -278,20 +446,20 @@ func _build_visual() -> void:
 	_spin = Node3D.new()
 	_visual.add_child(_spin)
 
-	var rim_mat := _disc_mat(Color(0.40, 0.06, 0.10), 0.4, 0.15)
-	var body_mat := _disc_mat(Color(0.82, 0.12, 0.18), 0.32, 0.18)
-	var cap_mat := _disc_mat(Color(0.93, 0.22, 0.26), 0.28, 0.08)
-	var mark_mat := StandardMaterial3D.new()
-	mark_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mark_mat.albedo_color = Color(0.97, 0.96, 0.93)
+	_rim_mat = _disc_mat(Color(0.40, 0.06, 0.10), 0.4, 0.15)
+	_body_mat = _disc_mat(Color(0.82, 0.12, 0.18), 0.32, 0.18)
+	_cap_mat = _disc_mat(Color(0.93, 0.22, 0.26), 0.28, 0.08)
+	_mark_mat = StandardMaterial3D.new()
+	_mark_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_mark_mat.albedo_color = Color(0.97, 0.96, 0.93)
 
-	_add_cylinder(_spin, Vector3(0.0, 0.03, 0.0), 0.43, 0.40, 0.05, rim_mat)
-	_add_cylinder(_spin, Vector3(0.0, 0.068, 0.0), 0.39, 0.34, 0.058, body_mat)
-	_add_cylinder(_spin, Vector3(0.0, 0.1, 0.0), 0.26, 0.26, 0.014, cap_mat)
+	_add_cylinder(_spin, Vector3(0.0, 0.03, 0.0), 0.43, 0.40, 0.05, _rim_mat)
+	_add_cylinder(_spin, Vector3(0.0, 0.068, 0.0), 0.39, 0.34, 0.058, _body_mat)
+	_add_cylinder(_spin, Vector3(0.0, 0.1, 0.0), 0.26, 0.26, 0.014, _cap_mat)
 	var ring := MeshInstance3D.new()
 	ring.mesh = _annulus(0.16, 0.21, 28)
 	ring.position = Vector3(0.0, 0.11, 0.0)
-	ring.material_override = mark_mat
+	ring.material_override = _mark_mat
 	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_spin.add_child(ring)
 	for spoke in 4:
@@ -302,7 +470,7 @@ func _build_visual() -> void:
 		var angle := float(spoke) * TAU / 4.0
 		bar.position = Vector3(cos(angle) * 0.1, 0.112, sin(angle) * 0.1)
 		bar.rotation.y = angle
-		bar.material_override = mark_mat
+		bar.material_override = _mark_mat
 		bar.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_spin.add_child(bar)
 

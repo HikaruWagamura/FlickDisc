@@ -394,18 +394,8 @@ func _build_head() -> void:
 	_ring(head, 1.32, 1.16, white)
 	_ring(head, 1.02, 0.84, blue)
 	_ring(head, 0.70, 0.48, red)
-
-	var jack := MeshInstance3D.new()
-	jack.name = "Jack"
-	var ball := SphereMesh.new()
-	ball.radius = 0.16
-	ball.height = 0.32
-	ball.radial_segments = 24
-	ball.rings = 12
-	jack.mesh = ball
-	jack.position = Vector3(0.0, 0.17, 0.0)
-	jack.material_override = _lit(Color(0.98, 0.84, 0.32), 0.22, 0.62, Color(1.0, 0.9, 0.45), 0.18)
-	head.add_child(jack)
+	# The gold ring marks where the jack was delivered. The jack itself is a
+	# live bowl and can be knocked off this mark.
 	_ring(head, 0.34, 0.29, _gold)
 
 

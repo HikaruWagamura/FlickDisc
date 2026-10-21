@@ -12,6 +12,12 @@ func record_throw(distance: float) -> void:
 	throw_distances.append(distance)
 
 
+func set_table(distances: Array) -> void:
+	throw_distances.clear()
+	for distance in distances:
+		throw_distances.append(float(distance))
+
+
 func get_closest_distance() -> float:
 	if throw_distances.is_empty():
 		return -1.0

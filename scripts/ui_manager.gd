@@ -77,7 +77,7 @@ func show_ready(level_number: int, throws_left: int, difficulty: String) -> void
 	level_label.text = "LEVEL %02d" % level_number
 	throws_label.text = "%d THROWS" % throws_left
 	status_label.text = "LEVEL %02d  •  TOUCH YOUR DISC" % level_number
-	score_label.text = "%s  •  %d THROWS REMAINING" % [difficulty.to_upper(), throws_left]
+	score_label.text = "%s  •  BOWLS STAY AND COLLIDE" % difficulty.to_upper()
 	reset_button.visible = true
 	next_button.visible = false
 	set_power_ratio(0.0)
@@ -94,16 +94,22 @@ func show_in_motion(throws_left: int) -> void:
 	score_label.text = "%d THROWS REMAINING" % throws_left
 
 
-func show_throw_result(distance: float, throws_left: int) -> void:
+func show_contact(hit_jack: bool) -> void:
+	status_label.text = "JACK STRUCK" if hit_jack else "DISCS MEET"
+
+
+func show_throw_result(disc_distance: float, closest: float, throws_left: int, jack_moved: bool) -> void:
 	throws_label.text = "%d THROWS" % throws_left
-	status_label.text = "SHOT COMPLETE  •  %.2f m TO JACK" % distance
-	score_label.text = "%d THROWS REMAINING" % throws_left
+	status_label.text = "AT REST  •  THIS DISC %.2f m" % disc_distance
+	var jack_note := "  •  JACK MOVED" if jack_moved else ""
+	score_label.text = "CLOSEST %.2f m%s" % [closest, jack_note]
 
 
-func show_level_complete(score: int, closest_distance: float, has_next_level: bool) -> void:
+func show_level_complete(score: int, closest_distance: float, has_next_level: bool, jack_moved: bool) -> void:
 	throws_label.text = "0 THROWS"
 	status_label.text = "LEVEL COMPLETE  •  SCORE %04d" % score
-	score_label.text = "BEST LINE  %.2f m TO JACK" % closest_distance
+	var jack_note := "  •  JACK MOVED" if jack_moved else ""
+	score_label.text = "BEST LINE  %.2f m%s" % [closest_distance, jack_note]
 	reset_button.visible = true
 	next_button.visible = has_next_level
 
