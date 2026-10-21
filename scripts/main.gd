@@ -15,10 +15,18 @@ var score_manager
 var feel
 var jack
 var settled: Array = []
-var current_level_index := 0
-var current_level: Dictionary
 var jack_home := Vector3.ZERO
-var throws_left := 3
+const BOWLS_PER_END := 4
+const SHOT_METRES := 2.0
+const MATCHES := [
+	{"ends": 2, "points": 0, "label": "2 ENDS"},
+	{"ends": 4, "points": 0, "label": "4 ENDS"},
+	{"ends": 6, "points": 0, "label": "6 ENDS"},
+	{"ends": 0, "points": 11, "label": "TO 11"},
+	{"ends": 0, "points": 21, "label": "TO 21"},
+]
+
+var throws_left := BOWLS_PER_END
 var throw_index := 0
 var shot_token := 0
 var delivering_jack := true
@@ -26,6 +34,11 @@ var hand_sign := -1.0
 var long_jack := false
 var ditch_mode := false
 var jack_length := 0.0
+var match_index := 1
+var end_number := 1
+var match_points := 0
+var match_complete := false
+var rack: Array = []
 
 
 func _ready() -> void:
@@ -60,8 +73,10 @@ func _ready() -> void:
 	ui.next_level_requested.connect(_on_next_level_requested)
 	ui.bias_cycle_requested.connect(_on_bias_cycle_requested)
 	ui.ditch_option_requested.connect(_on_ditch_option_requested)
+	ui.match_cycle_requested.connect(_on_match_cycle_requested)
 	_lock_portrait_on_device()
-	_load_level(0)
+	_build_rack()
+	_new_match()
 
 
 func _process(_delta: float) -> void:
@@ -101,12 +116,19 @@ func _unhandled_input(event: InputEvent) -> void:
 		disc.update_aim(event.position)
 
 
-func _load_level(level_index: int) -> void:
+func _new_match() -> void:
+	end_number = 1
+	match_points = 0
+	match_complete = false
+	_begin_end()
+
+
+func _begin_end() -> void:
 	shot_token += 1
-	current_level_index = clampi(level_index, 0, level_manager.get_level_count() - 1)
-	current_level = level_manager.get_level(current_level_index)
 	delivering_jack = true
 	jack_length = 0.0
+	match_complete = false
+	rink.release_head()
 	rink.set_head_visible(false)
 	rink.set_ditch_mode(ditch_mode)
 	rink.reset_spares()
@@ -115,7 +137,7 @@ func _load_level(level_index: int) -> void:
 	jack.velocity = Vector3.ZERO
 	jack.moving = false
 	jack.in_ditch = false
-	throws_left = current_level["throws"]
+	throws_left = BOWLS_PER_END
 	throw_index = 0
 	score_manager.reset()
 	disc.start_position = Vector3(0.0, 0.0, RinkScript.DISC_Z)
@@ -127,9 +149,46 @@ func _load_level(level_index: int) -> void:
 	disc.obstacles = []
 	disc.configure_jack()
 	disc.reset_to_start()
+	_place_rack()
 	ui.set_power_ratio(0.0)
 	ui.show_ditch_mode(ditch_mode)
-	ui.show_jack_prompt(current_level["number"], str(current_level["difficulty"]), long_jack)
+	ui.show_match(_match_label())
+	ui.show_jack_prompt(end_number, _match_label(), long_jack, match_points)
+
+
+func _build_rack() -> void:
+	for i in BOWLS_PER_END:
+		var bowl = BowlScript.new()
+		bowl.name = "Rack%d" % (i + 1)
+		bowl.setup_disc(i, hand_sign)
+		add_child(bowl)
+		rack.append(bowl)
+
+
+func _place_rack() -> void:
+	for i in rack.size():
+		var bowl = rack[i]
+		bowl.set_hand(hand_sign)
+		bowl.set_scoring(false)
+		var slot := -0.96 + float(i) * 0.64
+		bowl.rest_at(Vector3(slot, 0.0, RinkScript.DISC_Z - 1.15))
+		if delivering_jack:
+			bowl.visible = true
+		else:
+			bowl.visible = i > throw_index
+
+
+func _match_label() -> String:
+	return str(MATCHES[match_index]["label"])
+
+
+func _is_match_over() -> bool:
+	var fmt: Dictionary = MATCHES[match_index]
+	var ends_target := int(fmt["ends"])
+	var points_target := int(fmt["points"])
+	if points_target > 0:
+		return match_points >= points_target
+	return end_number >= ends_target
 
 
 func _clear_settled() -> void:
@@ -158,8 +217,9 @@ func _on_disc_aim_changed(_direction: Vector2, power_ratio: float) -> void:
 
 
 func _on_disc_bias_changed(_bias_ratio: float) -> void:
-	var bowl_name := "JACK" if delivering_jack else _bowl_name(throw_index)
-	ui.show_hand(hand_sign < 0.0, bowl_name)
+	if delivering_jack:
+		return
+	ui.show_hand(hand_sign < 0.0, _bowl_name(throw_index))
 
 
 func _on_bias_cycle_requested() -> void:
@@ -167,10 +227,11 @@ func _on_bias_cycle_requested() -> void:
 	if delivering_jack:
 		long_jack = not long_jack
 		ui.show_jack_length(long_jack)
-		ui.show_jack_prompt(current_level["number"], str(current_level["difficulty"]), long_jack)
+		ui.show_jack_prompt(end_number, _match_label(), long_jack, match_points)
 		return
 	disc.toggle_hand()
 	hand_sign = disc.hand_sign
+	_place_rack()
 
 
 func _on_ditch_option_requested() -> void:
@@ -182,6 +243,15 @@ func _on_ditch_option_requested() -> void:
 	rink.set_ditch_mode(ditch_mode)
 	rink.reset_spares()
 	ui.show_ditch_mode(ditch_mode)
+
+
+func _on_match_cycle_requested() -> void:
+	if disc.shot_in_progress or not delivering_jack or end_number > 1 or match_points > 0:
+		return
+	feel.tap()
+	match_index = (match_index + 1) % MATCHES.size()
+	ui.show_match(_match_label())
+	ui.show_jack_prompt(end_number, _match_label(), long_jack, match_points)
 
 
 func _on_disc_shot_started() -> void:
@@ -234,6 +304,7 @@ func _finish_shot(token: int) -> void:
 	if throws_left > 0:
 		disc.configure_bowl(throw_index, hand_sign)
 		ui.show_hand(hand_sign < 0.0, _bowl_name(throw_index))
+	_place_rack()
 	disc.obstacles = _table()
 	var jack_pos: Vector3 = jack.global_position
 	var distances: Array[float] = []
@@ -245,20 +316,19 @@ func _finish_shot(token: int) -> void:
 	var disc_distance := _distance(rest_pos, jack_pos)
 	var closest: float = score_manager.get_closest_distance()
 	var jack_moved: bool = jack_pos.distance_to(jack_home) > 0.2
-	feel.settled(closest if closest >= 0.0 else 9.0)
 	ui.set_power_ratio(0.0)
 	if throws_left > 0:
+		feel.settled(closest if closest >= 0.0 else 9.0)
 		ui.show_throw_result(disc_distance, closest, throws_left, jack_moved, bowl_ditched, respotted, spares)
 	else:
+		var shots := _mark_shots()
+		match_points += shots
+		match_complete = _is_match_over()
 		disc.visible = false
-		ui.show_level_complete(
-			score_manager.get_score(),
-			closest,
-			current_level_index < level_manager.get_level_count() - 1,
-			jack_moved,
-			respotted,
-			spares
-		)
+		_place_rack()
+		rink.focus_head(jack_pos)
+		feel.settled(0.2 if shots > 0 else 9.0)
+		ui.show_end_summary(end_number, shots, closest, match_points, match_complete)
 
 
 func _finish_jack(rest_pos: Vector3) -> void:
@@ -283,6 +353,7 @@ func _finish_jack(rest_pos: Vector3) -> void:
 		disc.configure_jack()
 		disc.reset_to_start()
 		ui.show_jack_illegal(reason, travelled, detail)
+		ui.show_jack_length(long_jack)
 		return
 	delivering_jack = false
 	jack_length = travelled
@@ -294,6 +365,7 @@ func _finish_jack(rest_pos: Vector3) -> void:
 	disc.reset_to_start()
 	disc.obstacles = _table()
 	ui.show_hand(hand_sign < 0.0, _bowl_name(0))
+	_place_rack()
 	ui.show_jack_set(travelled, _bowl_name(0), throws_left)
 
 
@@ -326,6 +398,30 @@ func _clear_spot(spot: Vector3) -> Vector3:
 	return spot
 
 
+func _mark_shots() -> int:
+	var jack_pos: Vector3 = jack.global_position
+	var shots := 0
+	var best := -1.0
+	for body in settled:
+		body.set_scoring(false)
+		if body.in_ditch:
+			continue
+		var dist := _distance(body.global_position, jack_pos)
+		if best < 0.0 or dist < best:
+			best = dist
+		if dist <= SHOT_METRES:
+			body.set_scoring(true)
+			shots += 1
+	if shots == 0:
+		for body in settled:
+			if body.in_ditch:
+				continue
+			if absf(_distance(body.global_position, jack_pos) - best) < 0.001:
+				body.set_scoring(true)
+				break
+	return shots
+
+
 func _bowl_name(index: int) -> String:
 	return str(BowlScript.bowl_type(index)["name"])
 
@@ -336,10 +432,13 @@ func _distance(a: Vector3, b: Vector3) -> float:
 
 func _on_reset_requested() -> void:
 	feel.tap()
-	_load_level(current_level_index)
+	_new_match()
 
 
 func _on_next_level_requested() -> void:
 	feel.tap()
-	if current_level_index < level_manager.get_level_count() - 1:
-		_load_level(current_level_index + 1)
+	if match_complete:
+		_new_match()
+		return
+	end_number += 1
+	_begin_end()

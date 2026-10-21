@@ -4,7 +4,7 @@ extends Node3D
 ## A disc or the jack on the green. Motion is owned by the table in DiscController.
 ## These stay where they stop, and later bowls can knock them.
 
-const DISC_RADIUS := 0.42
+const DISC_RADIUS := 0.26
 const JACK_RADIUS := 0.16
 const DISC_MASS := 1.0
 const JACK_MASS := 0.7
@@ -24,6 +24,8 @@ var palette_index := 0
 
 var _spin: Node3D
 var _shadow: MeshInstance3D
+var _pip: MeshInstance3D
+var _score_ring: MeshInstance3D
 
 
 static func palette(index: int) -> Array:
@@ -31,15 +33,17 @@ static func palette(index: int) -> Array:
 		[Color(0.40, 0.06, 0.10), Color(0.82, 0.12, 0.18), Color(0.93, 0.22, 0.26), Color(0.97, 0.96, 0.93)],
 		[Color(0.55, 0.52, 0.46), Color(0.93, 0.90, 0.82), Color(0.98, 0.96, 0.90), Color(0.12, 0.22, 0.38)],
 		[Color(0.04, 0.08, 0.16), Color(0.10, 0.22, 0.46), Color(0.20, 0.38, 0.72), Color(0.93, 0.78, 0.38)],
+		[Color(0.10, 0.28, 0.16), Color(0.16, 0.46, 0.28), Color(0.55, 0.72, 0.42), Color(0.96, 0.92, 0.72)],
 	]
 	return looks[index % looks.size()]
 
 
 static func bowl_type(index: int) -> Dictionary:
 	var types := [
-		{"name": "NARROW", "bias": 0.62},
-		{"name": "MEDIUM", "bias": 0.95},
-		{"name": "WIDE", "bias": 1.28},
+		{"name": "NARROW", "bias": 0.55},
+		{"name": "MEDIUM", "bias": 0.85},
+		{"name": "WIDE", "bias": 1.15},
+		{"name": "HOOK", "bias": 1.45},
 	]
 	return types[index % types.size()]
 
@@ -139,27 +143,47 @@ func present(speed: float) -> void:
 		_shadow.position = Vector3(0.08 + lift * 0.05, 0.012, 0.05)
 
 
+func set_hand(hand: float) -> void:
+	if _pip == null:
+		return
+	_pip.position = Vector3(signf(hand) * 0.2, 0.055, 0.0)
+
+
+func set_scoring(on: bool) -> void:
+	if _score_ring != null:
+		_score_ring.visible = on
+
+
 func _build_disc(colors: Array, hand: float) -> void:
-	_shadow = _make_shadow(0.4)
+	_shadow = _make_shadow(0.24)
 	add_child(_shadow)
 	_spin = Node3D.new()
 	add_child(_spin)
-	var rim := _mat(colors[0], 0.38, 0.16)
-	var body := _mat(colors[1], 0.3, 0.2)
+	var rim := _mat(colors[0], 0.42, 0.12)
+	var body := _mat(colors[1], 0.34, 0.08)
 	var mark := _flat(colors[3])
-	_round_bowl(_spin, rim, body)
-	var pip := MeshInstance3D.new()
+	_puck(_spin, rim, body)
+	_pip = MeshInstance3D.new()
 	var pip_mesh := SphereMesh.new()
-	pip_mesh.radius = 0.07
-	pip_mesh.height = 0.14
-	pip_mesh.radial_segments = 12
-	pip_mesh.rings = 8
-	pip.mesh = pip_mesh
-	# The pip sits on the bias side. Forehand draws toward -X.
-	pip.position = Vector3(signf(hand) * 0.3, 0.3, 0.0)
-	pip.material_override = mark
-	pip.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_spin.add_child(pip)
+	pip_mesh.radius = 0.035
+	pip_mesh.height = 0.07
+	pip_mesh.radial_segments = 10
+	pip_mesh.rings = 6
+	_pip.mesh = pip_mesh
+	_pip.material_override = mark
+	_pip.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_spin.add_child(_pip)
+	set_hand(hand)
+	_score_ring = MeshInstance3D.new()
+	_score_ring.mesh = _annulus(0.3, 0.38, 28)
+	_score_ring.position = Vector3(0.0, 0.02, 0.0)
+	var ring_mat := _flat(Color(0.98, 0.84, 0.32))
+	ring_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	ring_mat.albedo_color.a = 0.9
+	_score_ring.material_override = ring_mat
+	_score_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_score_ring.visible = false
+	add_child(_score_ring)
 
 
 func _build_jack() -> void:
@@ -207,39 +231,9 @@ func _make_shadow(size: float) -> MeshInstance3D:
 	return shadow
 
 
-func _round_bowl(parent: Node3D, rim: Material, body: Material) -> void:
-	var shell := MeshInstance3D.new()
-	var mesh := SphereMesh.new()
-	mesh.radius = 0.42
-	mesh.height = 0.84
-	mesh.radial_segments = 32
-	mesh.rings = 16
-	shell.mesh = mesh
-	shell.scale = Vector3(1.0, 0.66, 1.0)
-	shell.position = Vector3(0.0, 0.42 * 0.66, 0.0)
-	shell.material_override = rim
-	parent.add_child(shell)
-	var crown := MeshInstance3D.new()
-	var crown_mesh := SphereMesh.new()
-	crown_mesh.radius = 0.3
-	crown_mesh.height = 0.6
-	crown_mesh.radial_segments = 24
-	crown_mesh.rings = 12
-	crown.mesh = crown_mesh
-	crown.scale = Vector3(1.0, 0.72, 1.0)
-	crown.position = Vector3(0.0, 0.34, 0.0)
-	crown.material_override = body
-	parent.add_child(crown)
-	var belt := MeshInstance3D.new()
-	var belt_mesh := CylinderMesh.new()
-	belt_mesh.top_radius = 0.4
-	belt_mesh.bottom_radius = 0.4
-	belt_mesh.height = 0.045
-	belt_mesh.radial_segments = 28
-	belt.mesh = belt_mesh
-	belt.position = Vector3(0.0, 0.26, 0.0)
-	belt.material_override = body
-	parent.add_child(belt)
+func _puck(parent: Node3D, rim: Material, body: Material) -> void:
+	_cylinder(parent, Vector3(0.0, 0.04, 0.0), 0.26, 0.24, 0.055, rim)
+	_cylinder(parent, Vector3(0.0, 0.072, 0.0), 0.2, 0.2, 0.016, body)
 
 
 func _cylinder(parent: Node3D, pos: Vector3, bottom_r: float, top_r: float, height: float, mat: Material) -> void:

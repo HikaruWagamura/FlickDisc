@@ -5,6 +5,7 @@ signal reset_requested
 signal next_level_requested
 signal bias_cycle_requested
 signal ditch_option_requested
+signal match_cycle_requested
 
 var status_label: Label
 var score_label: Label
@@ -14,6 +15,11 @@ var reset_button: Button
 var next_button: Button
 var bias_button: Button
 var ditch_button: Button
+var match_button: Button
+var summary: Panel
+var summary_title: Label
+var summary_shots: Label
+var summary_detail: Label
 var power_fill: ColorRect
 var current_bias := 0.0
 
@@ -44,6 +50,11 @@ func _ready() -> void:
 	ditch_button.add_theme_font_size_override("font_size", 12)
 	ditch_button.pressed.connect(func() -> void: ditch_option_requested.emit())
 
+	match_button = _make_button("4 ENDS", Vector2(22.0, 74.0), Vector2(156.0, 34.0))
+	match_button.add_theme_font_size_override("font_size", 12)
+	match_button.pressed.connect(func() -> void: match_cycle_requested.emit())
+	_build_summary()
+
 	status_label = _make_label(Vector2(22.0, 820.0), Vector2(496.0, 20.0), 13, Color(0.95, 0.99, 0.96))
 	score_label = _make_label(Vector2(22.0, 838.0), Vector2(496.0, 18.0), 12, Color(0.78, 0.92, 0.86))
 
@@ -68,7 +79,7 @@ func _ready() -> void:
 	bias_button = _make_button("FOREHAND", Vector2(148.0, 898.0), Vector2(200.0, 44.0))
 	bias_button.pressed.connect(func() -> void: bias_cycle_requested.emit())
 
-	next_button = _make_button("NEXT LEVEL", Vector2(360.0, 898.0), Vector2(162.0, 44.0))
+	next_button = _make_button("NEXT END", Vector2(360.0, 898.0), Vector2(162.0, 44.0))
 	next_button.pressed.connect(func() -> void: next_level_requested.emit())
 	next_button.visible = false
 
@@ -79,18 +90,23 @@ func set_power_ratio(power_ratio: float) -> void:
 	power_fill.size.x = POWER_WIDTH * clampf(power_ratio, 0.0, 1.0)
 
 
-func show_jack_prompt(level_number: int, difficulty: String, long_jack: bool) -> void:
-	level_label.text = "LEVEL %02d" % level_number
-	throws_label.text = "JACK"
+func show_jack_prompt(end_number: int, match_label: String, long_jack: bool, match_points: int) -> void:
+	level_label.text = "END %d" % end_number
+	throws_label.text = "%d PTS" % match_points
 	status_label.text = "THROW A %s JACK" % ("LONG" if long_jack else "SHORT")
 	var band := "14–28 m"
 	if long_jack:
 		band = "44 m OR MORE"
-	score_label.text = "%s  •  %s" % [difficulty.to_upper(), band]
+	score_label.text = "%s  •  %s" % [match_label, band]
 	reset_button.visible = true
 	next_button.visible = false
 	bias_button.text = "LONG JACK" if long_jack else "SHORT JACK"
+	hide_summary()
 	set_power_ratio(0.0)
+
+
+func show_match(match_label: String) -> void:
+	match_button.text = match_label
 
 
 func show_jack_length(long_jack: bool) -> void:
@@ -159,20 +175,32 @@ func show_throw_result(disc_distance: float, closest: float, throws_left: int, j
 		score_label.text = "CLOSEST %.2f m%s" % [closest, note]
 
 
-func show_level_complete(score: int, closest_distance: float, has_next_level: bool, jack_moved: bool, respotted: bool, spares: int) -> void:
-	throws_label.text = "0 BOWLS"
-	status_label.text = "LEVEL COMPLETE  •  SCORE %04d" % score
-	var note := ""
-	if respotted:
-		note = "  •  JACK RE-SPOTTED  •  SPARES %d" % spares
-	elif jack_moved:
-		note = "  •  JACK MOVED"
-	if closest_distance < 0.0:
-		score_label.text = "NO BOWL ON THE GREEN%s" % note
+func show_end_summary(end_number: int, shots: int, closest: float, match_points: int, match_over: bool) -> void:
+	summary.visible = true
+	if match_over:
+		summary_title.text = "MATCH"
 	else:
-		score_label.text = "BEST LINE  %.2f m%s" % [closest_distance, note]
+		summary_title.text = "END %d" % end_number
+	if shots == 1:
+		summary_shots.text = "1 SHOT"
+	else:
+		summary_shots.text = "%d SHOTS" % shots
+	var nearest := "NO BOWL ON THE GREEN"
+	if closest >= 0.0:
+		nearest = "CLOSEST  %.2f m" % closest
+	var total := "FINAL  %d" if match_over else "MATCH  %d"
+	summary_detail.text = "%s\n%s" % [nearest, total % match_points]
+	throws_label.text = "%d PTS" % match_points
+	status_label.text = "END COMPLETE"
+	score_label.text = nearest
+	next_button.text = "NEW MATCH" if match_over else "NEXT END"
+	next_button.visible = true
 	reset_button.visible = true
-	next_button.visible = has_next_level
+
+
+func hide_summary() -> void:
+	if summary != null:
+		summary.visible = false
 
 
 func show_hand(forehand: bool, bowl_name: String) -> void:
@@ -182,6 +210,40 @@ func show_hand(forehand: bool, bowl_name: String) -> void:
 
 func _hand_name() -> String:
 	return "FOREHAND" if current_bias < 0.0 else "BACKHAND"
+
+
+func _build_summary() -> void:
+	summary = Panel.new()
+	summary.position = Vector2(70.0, 122.0)
+	summary.size = Vector2(400.0, 156.0)
+	summary.visible = false
+	summary.mouse_filter = Control.MOUSE_FILTER_STOP
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.04, 0.09, 0.12, 0.9)
+	style.border_color = Color(0.9, 0.76, 0.38)
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(14)
+	style.content_margin_left = 16.0
+	style.content_margin_right = 16.0
+	summary.add_theme_stylebox_override("panel", style)
+	add_child(summary)
+	summary_title = _panel_label(Vector2(16.0, 10.0), Vector2(368.0, 24.0), 14, Color(0.78, 0.9, 0.84))
+	summary_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	summary_shots = _panel_label(Vector2(16.0, 36.0), Vector2(368.0, 54.0), 40, Color(0.98, 0.9, 0.55))
+	summary_shots.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	summary_detail = _panel_label(Vector2(16.0, 96.0), Vector2(368.0, 48.0), 14, Color(0.9, 0.96, 0.93))
+	summary_detail.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+
+
+func _panel_label(label_position: Vector2, label_size: Vector2, font_size: int, color: Color) -> Label:
+	var label := Label.new()
+	label.position = label_position
+	label.size = label_size
+	label.add_theme_font_size_override("font_size", font_size)
+	label.add_theme_color_override("font_color", color)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	summary.add_child(label)
+	return label
 
 
 func _make_label(label_position: Vector2, label_size: Vector2, font_size: int, color: Color) -> Label:

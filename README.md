@@ -11,7 +11,9 @@ The prototype now includes:
 - Clubhouse, trees, hedges, benches, and paths around the green.
 - A 68 m by 11 m green. Choose a short jack (14–28 m) or a long jack (44 m or more).
 - Banks rebound by default. DITCH ON opens a narrow ditch on each side and at the far end. A bowl that crosses the line is dead. If the jack is knocked in, it is re-spotted on the centre line and one of the two spare dots on the back bank is used.
-- Three bowl types, narrow, medium, and wide. Each has its own bias and draws inward as it slows. A longer shot takes a wider line.
+- Four small pucks are lined up for each end. Narrow, medium, wide, and hook each draw a different amount.
+- The aim dots show only the opening line, so the rest spot stays yours to judge.
+- After the fourth bowl the view closes in on the head. Every bowl inside 2 m of the jack is a shot. Play a chosen number of ends, or first to 11 or 21.
 - Every bowl stays on the green. Later bowls knock earlier bowls and the jack on every level.
 - Touch or mouse drag-to-aim controls, with haptic pulses and synthesized hit, roll, and settle sounds.
 - Physics-based launch, friction, bias curve, visible spin, and rink boundary limits.
