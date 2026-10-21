@@ -1,26 +1,10 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=3 format=3 uid="uid://discquestmain"]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
-[ext_resource type="Script" path="res://scripts/disc_controller.gd" id="2_disc"]
-[ext_resource type="Script" path="res://scripts/ui_manager.gd" id="3_ui"]
+[ext_resource type="Script" path="res://scripts/ui_manager.gd" id="2_ui"]
 
-[sub_resource type="CircleShape2D" id="CircleShape2D_disc"]
-radius = 27.0
-
-[node name="DiscQuest" type="Node2D"]
+[node name="DiscQuest" type="Node3D"]
 script = ExtResource("1_main")
 
-[node name="PlayerDisc" type="RigidBody2D" parent="."]
-position = Vector2(270, 818)
-lock_rotation = true
-freeze = true
-gravity_scale = 0.0
-linear_damp = 0.0
-angular_damp = 0.0
-script = ExtResource("2_disc")
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="PlayerDisc"]
-shape = SubResource("CircleShape2D_disc")
-
 [node name="UI" type="CanvasLayer" parent="."]
-script = ExtResource("3_ui")
+script = ExtResource("2_ui")

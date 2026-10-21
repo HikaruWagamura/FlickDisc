@@ -6,16 +6,18 @@ The first Godot 4 prototype for a portrait mobile sports puzzle game.
 
 The prototype now includes:
 
-- A portrait rink with a polished 2.5D presentation.
-- A player disc and Jack target.
+- A real 3D lawn-bowls rink, 38 m long by 5.8 m wide, viewed in perspective from behind the mat.
+- Mowed green, timber banks, ditch, center line, delivery mat, and a bullseye head.
+- Clubhouse, trees, hedges, benches, and paths around the green.
+- A player disc and Jack that sit on the green and scale with distance.
 - Touch or mouse drag-to-aim controls.
 - Physics-based launch, friction, bias curve, visible spin, and rink boundary limits.
-- Three throws per level with distance scoring.
-- Five level configurations with different Jack positions.
+- Three throws per level with distance scoring in metres.
+- Five level configurations with different Jack positions on the head.
 - Reset, bias, and next-level controls.
 
 The current disc uses center, left, and right bias. Bias bends the shot more
-as the disc slows, while the disc artwork spins during flight. Obstacles, AI,
+as the disc slows, while the disc spins during flight. Obstacles, AI,
 multiplayer, and generated level systems are not part of this MVP.
 
 ## Run it in Godot
