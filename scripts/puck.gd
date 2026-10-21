@@ -28,12 +28,21 @@ func set_flat(spot: Vector2) -> void:
 	var height := Metrics.DITCH_Y if in_ditch else Metrics.DISC_CENTER_Y
 	position = Vector3(spot.x, height, spot.y)
 
-func points() -> int:
-	if not is_player or not played:
+func ring_points() -> int:
+	if is_player and not played:
 		return 0
 	if moving and not sunk:
 		return 0
-	return Metrics.points_for(flat().length(), sunk)
+	if in_ditch:
+		return 0
+	if sunk:
+		return 20
+	return Metrics.points_for(flat().length(), false)
+
+func points() -> int:
+	if not is_player:
+		return 0
+	return ring_points()
 
 func spin(delta: float) -> void:
 	if _visual == null:

@@ -1,7 +1,8 @@
 extends Node3D
 
-## Crokinole match. Buttons stay on the table, bounce off the eight pegs,
-## and score 20 / 15 / 10 / 5 from the hole outward.
+## Crokinole match. Buttons stay on the table and bounce off the eight pegs.
+## An end is eight discs. Both colors count, a disc on a line scores the
+## lower ring, and only the difference is added to the match.
 
 const Metrics = preload("res://scripts/table_metrics.gd")
 const LevelScript = preload("res://scripts/level_manager.gd")
@@ -20,6 +21,12 @@ var current_level_index := 0
 var current_level: Dictionary
 var discs_left := 0
 var resolving := false
+var match_you := 0
+var match_them := 0
+var end_applied := false
+var last_award_you := 0
+var last_award_them := 0
+const MATCH_TARGET := 100
 
 func _ready() -> void:
 	disc = get_node("Shooter")
@@ -229,11 +236,30 @@ func _all_stopped() -> bool:
 			return false
 	return true
 
-func _player_score() -> int:
+func _side_total(player_side: bool) -> int:
 	var total := 0
 	for puck in pucks:
-		if puck.is_player:
-			total += puck.points()
+		if bool(puck.is_player) != player_side:
+			continue
+		total += int(puck.ring_points())
+	return total
+
+func _side_items(player_side: bool) -> Array:
+	var items: Array = []
+	for puck in pucks:
+		if bool(puck.is_player) != player_side:
+			continue
+		var value: int = puck.ring_points()
+		if value > 0:
+			items.append(value)
+	items.sort()
+	items.reverse()
+	return items
+
+func _sum(items: Array) -> int:
+	var total := 0
+	for value in items:
+		total += int(value)
 	return total
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -353,13 +379,20 @@ func _arm_next_disc(announce := true) -> void:
 		return
 	active_puck = _spawn_puck(true, _start_spot())
 	disc.bind_puck(active_puck)
-	ui.show_match_status(int(current_level["number"]), discs_left, _player_score())
+	_show_board(int(current_level["number"]), discs_left)
 	if announce:
-		ui.show_ready(int(current_level["number"]), discs_left, str(current_level["difficulty"]), _player_score())
+		ui.show_ready(int(current_level["number"]), discs_left, str(current_level["difficulty"]), _side_total(true), _side_total(false), match_you, match_them)
 
 func _load_level(level_index: int) -> void:
+	var clamped := clampi(level_index, 0, level_manager.get_level_count() - 1)
+	if clamped == current_level_index and end_applied:
+		match_you = maxi(0, match_you - last_award_you)
+		match_them = maxi(0, match_them - last_award_them)
 	resolving = false
-	current_level_index = clampi(level_index, 0, level_manager.get_level_count() - 1)
+	end_applied = false
+	last_award_you = 0
+	last_award_them = 0
+	current_level_index = clamped
 	current_level = level_manager.get_level(current_level_index)
 	discs_left = int(current_level["discs"])
 	_clear_pucks()
@@ -387,24 +420,50 @@ func _on_disc_shot_started() -> void:
 	discs_left -= 1
 	resolving = true
 	ui.show_power(0.0)
-	ui.show_in_motion(discs_left, _player_score())
-	ui.show_match_status(int(current_level["number"]), discs_left, _player_score())
+	ui.show_in_motion()
+	_show_board(int(current_level["number"]), discs_left)
 
 func _on_table_settled() -> void:
 	disc.mark_shot_finished()
 	var shot_points := 0
+	var sunk := false
+	var ditched := false
 	if active_puck != null and active_puck.is_player:
-		shot_points = active_puck.points()
-	var total := _player_score()
-	var sunk: bool = active_puck != null and bool(active_puck.sunk)
+		shot_points = int(active_puck.ring_points())
+		sunk = bool(active_puck.sunk)
+		ditched = bool(active_puck.in_ditch)
 	if discs_left > 0:
-		ui.show_landed(shot_points, total, discs_left, sunk)
+		ui.show_landed(shot_points, sunk, ditched)
+		_show_board(int(current_level["number"]), discs_left)
 		_arm_next_disc(false)
 	else:
-		ui.show_round_complete(total, shot_points, current_level_index < level_manager.get_level_count() - 1)
-		ui.show_match_status(int(current_level["number"]), 0, total)
+		_present_end()
 		active_puck = null
 		disc.bind_puck(null)
+
+func _show_board(level_number: int, remaining: int) -> void:
+	ui.show_match_status(level_number, remaining, _side_total(true), _side_total(false), match_you, match_them)
+
+func _present_end() -> void:
+	var you_items := _side_items(true)
+	var them_items := _side_items(false)
+	var you := _sum(you_items)
+	var them := _sum(them_items)
+	var award_you := 0
+	var award_them := 0
+	if you > them:
+		award_you = you - them
+	elif them > you:
+		award_them = them - you
+	if not end_applied:
+		match_you += award_you
+		match_them += award_them
+		last_award_you = award_you
+		last_award_them = award_them
+		end_applied = true
+	var has_next: bool = current_level_index < level_manager.get_level_count() - 1
+	ui.show_end_overview(int(current_level["number"]), str(current_level["difficulty"]), you_items, them_items, award_you, award_them, match_you, match_them, MATCH_TARGET, has_next)
+	_show_board(int(current_level["number"]), 0)
 
 func _on_reset_requested() -> void:
 	_load_level(current_level_index)

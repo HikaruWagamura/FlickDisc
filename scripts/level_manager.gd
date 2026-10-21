@@ -11,8 +11,8 @@ const LEVELS := [
 		"discs": 8,
 		"opponents": [
 			Vector2(0.0, -0.22),
-			Vector2(-0.28, -0.55),
-			Vector2(0.28, -0.55),
+			Vector2(-0.24, -0.48),
+			Vector2(0.24, -0.48),
 		],
 	},
 	{
@@ -23,7 +23,7 @@ const LEVELS := [
 			Vector2(0.0, -0.22),
 			Vector2(-0.11, -0.27),
 			Vector2(0.11, -0.27),
-			Vector2(0.0, -0.62),
+			Vector2(0.0, -0.54),
 		],
 	},
 	{
@@ -33,7 +33,7 @@ const LEVELS := [
 		"opponents": [
 			Vector2(-0.16, -0.48),
 			Vector2(0.16, -0.48),
-			Vector2(0.0, -0.36),
+			Vector2(0.0, -0.30),
 			Vector2(-0.34, -0.66),
 			Vector2(0.34, -0.66),
 		],

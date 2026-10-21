@@ -226,6 +226,18 @@ func _build_club_rink() -> void:
 	lane.size = Vector3(2.35, 0.045, 1.7)
 	Metrics.add_mesh(self, lane, lane_material, Vector3(0.0, -0.55, -2.28))
 
+	var lane_top := PlaneMesh.new()
+	lane_top.size = Vector2(2.35, 1.7)
+	var lane_print := StandardMaterial3D.new()
+	lane_print.albedo_texture = ImageTexture.create_from_image(_paint_lane())
+	lane_print.roughness = 0.78
+	lane_print.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	Metrics.add_mesh(self, lane_top, lane_print, Vector3(0.0, -0.522, -2.28))
+
+	# Faded marks on the grass to either side of the rink's near end.
+	_add_lawn_mark(Vector3(-1.62, -0.608, -1.58), 1.05, 0.72)
+	_add_lawn_mark(Vector3(1.62, -0.608, -1.58), 1.05, 0.72)
+
 	var rail_material := StandardMaterial3D.new()
 	rail_material.albedo_color = Color("#d7e7df")
 	rail_material.roughness = 0.45
@@ -281,6 +293,64 @@ func _build_club_rink() -> void:
 			var post := Metrics.cylinder(0.03, 0.95, 10)
 			Metrics.add_mesh(self, post, lamp_material, Vector3(side * 1.62, -0.08, lamp_z))
 			Metrics.add_mesh(self, Metrics.cylinder(0.07, 0.07, 12), glow_material, Vector3(side * 1.62, 0.42, lamp_z))
+
+func _paint_lane() -> Image:
+	var width := 512
+	var height := 384
+	var image := Image.create(width, height, false, Image.FORMAT_RGBA8)
+	image.fill(Color("#1f8f4c"))
+	for band in range(0, height, 28):
+		image.fill_rect(Rect2i(0, band, width, 14), Color("#239a54"))
+	# High V is the near end of the plane, the start of the rink.
+	_stamp_logo(image, Vector2(256.0, 268.0), 250.0, 0.62, false)
+	return image
+
+func _add_lawn_mark(at: Vector3, width: float, strength: float) -> void:
+	var side := 256
+	var image := Image.create(side, side, false, Image.FORMAT_RGBA8)
+	image.fill(Color(0.0, 0.0, 0.0, 0.0))
+	_stamp_logo(image, Vector2(side * 0.5, side * 0.5), float(side) * 0.94, strength, true)
+	var material := StandardMaterial3D.new()
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.albedo_texture = ImageTexture.create_from_image(image)
+	material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(width, width * 0.72)
+	var mesh := Metrics.add_mesh(self, plane, material, at)
+	mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+func _stamp_logo(image: Image, center: Vector2, diameter: float, strength: float, cutout: bool) -> void:
+	var logo: Image = Image.load_from_file(LOGO_PATH)
+	if logo == null or logo.is_empty():
+		return
+	var copy: Image = logo.duplicate()
+	copy.convert(Image.FORMAT_RGBA8)
+	var side := maxi(int(diameter), 8)
+	copy.resize(side, side, Image.INTERPOLATE_LANCZOS)
+	var origin := Vector2i(int(center.x) - side / 2, int(center.y) - side / 2)
+	for y in side:
+		for x in side:
+			var dest := Vector2i(origin.x + x, origin.y + y)
+			if dest.x < 0 or dest.y < 0 or dest.x >= image.get_width() or dest.y >= image.get_height():
+				continue
+			var pixel: Color = copy.get_pixel(x, y)
+			var luma: float = pixel.r * 0.3 + pixel.g * 0.59 + pixel.b * 0.11
+			var ink := clampf((luma - 0.07) / 0.28, 0.0, 1.0)
+			var nx := (float(x) + 0.5) / float(side) * 2.0 - 1.0
+			var ny := (float(y) + 0.5) / float(side) * 2.0 - 1.0
+			var edge := clampf((0.96 - sqrt(nx * nx + ny * ny)) / 0.34, 0.0, 1.0)
+			var alpha := ink * edge * strength
+			if alpha <= 0.02:
+				continue
+			if cutout:
+				image.set_pixel(dest.x, dest.y, Color(pixel.r, pixel.g, pixel.b, alpha))
+			else:
+				var base: Color = image.get_pixel(dest.x, dest.y)
+				var mixed: Color = base.lerp(Color(pixel.r, pixel.g, pixel.b, 1.0), alpha)
+				mixed.a = 1.0
+				image.set_pixel(dest.x, dest.y, mixed)
 
 func _make_board_images() -> Array:
 	var size := 1024

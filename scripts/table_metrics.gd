@@ -36,13 +36,16 @@ static func peg_positions() -> Array[Vector3]:
 	return points
 
 static func points_for(distance_from_center: float, sunk: bool) -> int:
-	if sunk or distance_from_center <= HOLE_RADIUS:
+	# A disc scores a ring only when it is clear of that ring's line.
+	# Touching the line scores the lower ring. The hole scores only when the disc has dropped.
+	if sunk:
 		return 20
-	if distance_from_center < RING_15:
+	var clear := DISC_RADIUS
+	if distance_from_center <= RING_15 - clear:
 		return 15
-	if distance_from_center < RING_10:
+	if distance_from_center <= RING_10 - clear:
 		return 10
-	if distance_from_center <= RING_5:
+	if distance_from_center <= RING_5 - clear:
 		return 5
 	return 0
 
