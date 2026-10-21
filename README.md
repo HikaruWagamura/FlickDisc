@@ -11,7 +11,7 @@ The prototype now includes:
 - Clubhouse, trees, hedges, benches, and paths around the green.
 - A 68 m by 11 m green. Choose a short jack (14–28 m) or a long jack (44 m or more).
 - Banks rebound by default. DITCH ON opens a narrow ditch on each side and at the far end. A bowl that crosses the line is dead. If the jack is knocked in, it is re-spotted on the centre line and one of the two spare dots on the back bank is used.
-- Four small pucks are lined up for each end. Narrow, medium, wide, and hook each draw a different amount.
+- Four small discs are lined up for each end. For each shot, choose narrow, medium, wide, or hook, and send it forehand or backhand.
 - The aim dots show only the opening line, so the rest spot stays yours to judge.
 - After the fourth bowl the view closes in on the head. Every bowl inside 2 m of the jack is a shot. Play a chosen number of ends, or first to 11 or 21.
 - Every bowl stays on the green. Later bowls knock earlier bowls and the jack on every level.
@@ -66,9 +66,9 @@ can open it). Serve that folder over HTTP and drag the disc with the mouse.
 2. Throw the jack. A short jack must stop between 14 m and 28 m. A long jack must reach 44 m and stay out of the ditch.
 3. Touch the bowl and drag backwards. The guide shows the wide line and the inward draw.
 4. Release. With banks, a bowl rebounds. With ditches, a bowl that crosses the side or the far end is dead. A jack knocked into the ditch is replaced from the spare dots.
-5. Tap the hand button to switch FOREHAND and BACKHAND. Each bowl type has its own bias.
+5. Use the arrows for FOREHAND and BACKHAND. The arrows point the way that bowl will bend. Pick one bias for the shot you are about to play.
 6. Wait for it to stop. A bowl in the ditch does not count. The closest bowl still on the green is the score.
-7. Repeat until all three bowls are used.
+7. Repeat until all four discs are used. A firm pull reaches the far end. A harder pull can fire off the back when the ditch is on.
 8. Use **RESET** to replay the current level or **NEXT LEVEL** after a
    completed level.
 

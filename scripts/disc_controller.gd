@@ -9,10 +9,12 @@ signal shot_started
 signal shot_stopped
 signal impacted(speed: float, hit_jack: bool, hit_bank: bool)
 
-const DISC_RADIUS := 0.26
-const MAX_DRAG_PIXELS := 160.0
-const MAX_SPEED := 45.0
-const MIN_SPEED := 4.5
+const DISC_RADIUS := 0.18
+const MAX_DRAG_PIXELS := 210.0
+const MAX_SPEED := 66.0
+const MIN_SPEED := 5.0
+const AIM_RESPONSE := 11.0
+const AIM_SIDE_PIXELS := 340.0
 const FRICTION_PER_SECOND := 0.52
 const STOP_SPEED := 0.15
 const STOP_GRACE_SECONDS := 0.15
@@ -31,6 +33,8 @@ var is_aiming := false
 var shot_in_progress := false
 var aim_direction := Vector3(0.0, 0.0, -1.0)
 var power_ratio := 0.0
+var _aim_target := Vector3(0.0, 0.0, -1.0)
+var _power_target := 0.0
 var bias_ratio := 0.0
 var shot_bias := 0.0
 var shot_power := 0.0
@@ -67,6 +71,18 @@ func _ready() -> void:
 	start_position = position
 	_build_visual()
 	_build_guide()
+
+
+func _process(delta: float) -> void:
+	if not is_aiming:
+		return
+	var blend := 1.0 - exp(-AIM_RESPONSE * delta)
+	var blended := aim_direction.lerp(_aim_target, blend)
+	if blended.length() > 0.001:
+		aim_direction = blended.normalized()
+	power_ratio = lerpf(power_ratio, _power_target, blend)
+	aim_changed.emit(Vector2(aim_direction.x, aim_direction.z), power_ratio)
+	_update_guide()
 
 
 func _physics_process(delta: float) -> void:
@@ -115,7 +131,7 @@ func configure_bowl(index: int, hand: float) -> void:
 	radius = DISC_RADIUS
 	mass = BowlScript.DISC_MASS
 	is_jack = false
-	set_palette(index)
+	set_palette(0)
 	if _visual != null:
 		_visual.visible = true
 	if _jack_visual != null:
@@ -147,6 +163,9 @@ func begin_aim(pointer_position: Vector2) -> bool:
 	if pointer_position.distance_to(disc_screen) > PICK_RADIUS_PX:
 		return false
 	is_aiming = true
+	_aim_target = aim_direction
+	_power_target = 0.0
+	power_ratio = 0.0
 	update_aim(pointer_position)
 	return true
 
@@ -160,16 +179,16 @@ func update_aim(pointer_position: Vector2) -> void:
 	var disc_screen := camera.unproject_position(global_position + Vector3(0.0, 0.12, 0.0))
 	var pull_px := pointer_position - disc_screen
 	var pull_len := pull_px.length()
-	power_ratio = clampf(pull_len / MAX_DRAG_PIXELS, 0.0, 1.0)
-	if pull_len > 6.0:
-		var from := _ground_point(disc_screen)
-		var to := _ground_point(disc_screen + pull_px)
-		var world_pull := to - from
-		world_pull.y = 0.0
-		if world_pull.length() > 0.04:
-			aim_direction = (-world_pull).normalized()
-	aim_changed.emit(Vector2(aim_direction.x, aim_direction.z), power_ratio)
-	_update_guide()
+	_power_target = clampf(pull_len / MAX_DRAG_PIXELS, 0.0, 1.0)
+	# Horizontal drag sets the line gently. Pulling right aims left, the
+	# slingshot opposite, without the ground-ray whip near the bottom edge.
+	var side_px := pull_px.x
+	if absf(side_px) < 14.0:
+		side_px = 0.0
+	else:
+		side_px -= signf(side_px) * 14.0
+	var side := clampf(-side_px / AIM_SIDE_PIXELS, -0.56, 0.56)
+	_aim_target = Vector3(side, 0.0, -1.0).normalized()
 
 
 func release_aim(pointer_position: Vector2) -> void:
@@ -177,7 +196,10 @@ func release_aim(pointer_position: Vector2) -> void:
 		return
 	update_aim(pointer_position)
 	is_aiming = false
+	aim_direction = _aim_target
+	power_ratio = _power_target
 	_hide_guide()
+	aim_changed.emit(Vector2(aim_direction.x, aim_direction.z), power_ratio)
 	if power_ratio < 0.08:
 		power_ratio = 0.0
 		aim_changed.emit(Vector2(aim_direction.x, aim_direction.z), power_ratio)
@@ -201,7 +223,7 @@ func _delivery_velocity(aim: Vector3, bias: float, power: float) -> Vector3:
 		planar = Vector2(0.0, -1.0)
 	if absf(bias) > 0.001:
 		# Start wide of the line. The late draw rolls the bowl back inward.
-		var shoulder := absf(bias) * 0.09 * (0.18 + 0.82 * power)
+		var shoulder := absf(bias) * 0.18 * (0.25 + 0.75 * power)
 		planar = planar.rotated(-signf(bias) * shoulder)
 	planar = planar.normalized() * speed
 	return Vector3(planar.x, 0.0, planar.y)
@@ -414,18 +436,6 @@ func _curve_and_damp(vel: Vector3, bias: float, delta: float, length_power: floa
 	return vel
 
 
-func _ground_point(screen_pos: Vector2) -> Vector3:
-	var camera := get_viewport().get_camera_3d()
-	var origin := camera.project_ray_origin(screen_pos)
-	var direction := camera.project_ray_normal(screen_pos)
-	if absf(direction.y) < 0.00001:
-		return global_position
-	var t := -origin.y / direction.y
-	if t < 0.0:
-		return global_position
-	return origin + direction * t
-
-
 func _apply_visual(speed: float) -> void:
 	if _visual == null:
 		return
@@ -470,9 +480,10 @@ func _predict_path() -> PackedVector3Array:
 	var pos := global_position
 	var vel := _delivery_velocity(aim_direction, bias_ratio, power_ratio)
 	var launch := vel.length()
+	var origin := pos
 	points.append(pos)
 	var step := 0.02
-	for i in 80:
+	for i in 120:
 		var moved := _move_planar(pos, vel, radius, bias_ratio, true, step, power_ratio)
 		pos = moved[0]
 		vel = moved[1]
@@ -480,7 +491,8 @@ func _predict_path() -> PackedVector3Array:
 			break
 		if i % 3 == 2:
 			points.append(pos)
-		if vel.length() < launch * 0.62:
+		# Show the opening and the start of the draw, not the resting spot.
+		if pos.distance_to(origin) > 16.0 or vel.length() < launch * 0.5:
 			break
 	return points
 
@@ -488,8 +500,8 @@ func _predict_path() -> PackedVector3Array:
 func _build_visual() -> void:
 	_shadow = MeshInstance3D.new()
 	var shadow_mesh := CylinderMesh.new()
-	shadow_mesh.top_radius = 0.24
-	shadow_mesh.bottom_radius = 0.24
+	shadow_mesh.top_radius = 0.16
+	shadow_mesh.bottom_radius = 0.16
 	shadow_mesh.height = 0.008
 	shadow_mesh.radial_segments = 24
 	_shadow.mesh = shadow_mesh
@@ -514,12 +526,12 @@ func _build_visual() -> void:
 	_mark_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_mark_mat.albedo_color = Color(0.97, 0.96, 0.93)
 
-	_add_cylinder(_spin, Vector3(0.0, 0.04, 0.0), 0.26, 0.24, 0.055, _rim_mat)
-	_add_cylinder(_spin, Vector3(0.0, 0.072, 0.0), 0.2, 0.2, 0.016, _body_mat)
+	_add_cylinder(_spin, Vector3(0.0, 0.014, 0.0), 0.18, 0.172, 0.02, _rim_mat)
+	_add_cylinder(_spin, Vector3(0.0, 0.026, 0.0), 0.132, 0.132, 0.006, _body_mat)
 	_bias_pip = MeshInstance3D.new()
 	var pip_mesh := SphereMesh.new()
-	pip_mesh.radius = 0.035
-	pip_mesh.height = 0.07
+	pip_mesh.radius = 0.02
+	pip_mesh.height = 0.04
 	pip_mesh.radial_segments = 12
 	pip_mesh.rings = 8
 	_bias_pip.mesh = pip_mesh
@@ -541,7 +553,7 @@ func _build_visual() -> void:
 func _place_pip() -> void:
 	if _bias_pip == null:
 		return
-	_bias_pip.position = Vector3(hand_sign * 0.2, 0.055, 0.0)
+	_bias_pip.position = Vector3(hand_sign * 0.13, 0.02, 0.0)
 
 
 func _build_guide() -> void:

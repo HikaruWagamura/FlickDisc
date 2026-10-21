@@ -4,7 +4,7 @@ extends Node3D
 ## A disc or the jack on the green. Motion is owned by the table in DiscController.
 ## These stay where they stop, and later bowls can knock them.
 
-const DISC_RADIUS := 0.26
+const DISC_RADIUS := 0.18
 const JACK_RADIUS := 0.16
 const DISC_MASS := 1.0
 const JACK_MASS := 0.7
@@ -146,7 +146,7 @@ func present(speed: float) -> void:
 func set_hand(hand: float) -> void:
 	if _pip == null:
 		return
-	_pip.position = Vector3(signf(hand) * 0.2, 0.055, 0.0)
+	_pip.position = Vector3(signf(hand) * 0.13, 0.02, 0.0)
 
 
 func set_scoring(on: bool) -> void:
@@ -155,7 +155,7 @@ func set_scoring(on: bool) -> void:
 
 
 func _build_disc(colors: Array, hand: float) -> void:
-	_shadow = _make_shadow(0.24)
+	_shadow = _make_shadow(0.16)
 	add_child(_shadow)
 	_spin = Node3D.new()
 	add_child(_spin)
@@ -165,8 +165,8 @@ func _build_disc(colors: Array, hand: float) -> void:
 	_puck(_spin, rim, body)
 	_pip = MeshInstance3D.new()
 	var pip_mesh := SphereMesh.new()
-	pip_mesh.radius = 0.035
-	pip_mesh.height = 0.07
+	pip_mesh.radius = 0.02
+	pip_mesh.height = 0.04
 	pip_mesh.radial_segments = 10
 	pip_mesh.rings = 6
 	_pip.mesh = pip_mesh
@@ -175,7 +175,7 @@ func _build_disc(colors: Array, hand: float) -> void:
 	_spin.add_child(_pip)
 	set_hand(hand)
 	_score_ring = MeshInstance3D.new()
-	_score_ring.mesh = _annulus(0.3, 0.38, 28)
+	_score_ring.mesh = _annulus(0.2, 0.26, 28)
 	_score_ring.position = Vector3(0.0, 0.02, 0.0)
 	var ring_mat := _flat(Color(0.98, 0.84, 0.32))
 	ring_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -232,8 +232,8 @@ func _make_shadow(size: float) -> MeshInstance3D:
 
 
 func _puck(parent: Node3D, rim: Material, body: Material) -> void:
-	_cylinder(parent, Vector3(0.0, 0.04, 0.0), 0.26, 0.24, 0.055, rim)
-	_cylinder(parent, Vector3(0.0, 0.072, 0.0), 0.2, 0.2, 0.016, body)
+	_cylinder(parent, Vector3(0.0, 0.014, 0.0), 0.18, 0.172, 0.02, rim)
+	_cylinder(parent, Vector3(0.0, 0.026, 0.0), 0.132, 0.132, 0.006, body)
 
 
 func _cylinder(parent: Node3D, pos: Vector3, bottom_r: float, top_r: float, height: float, mat: Material) -> void:

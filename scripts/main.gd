@@ -31,6 +31,7 @@ var throw_index := 0
 var shot_token := 0
 var delivering_jack := true
 var hand_sign := -1.0
+var bias_index := 1
 var long_jack := false
 var ditch_mode := false
 var jack_length := 0.0
@@ -74,6 +75,8 @@ func _ready() -> void:
 	ui.bias_cycle_requested.connect(_on_bias_cycle_requested)
 	ui.ditch_option_requested.connect(_on_ditch_option_requested)
 	ui.match_cycle_requested.connect(_on_match_cycle_requested)
+	ui.hand_selected.connect(_on_hand_selected)
+	ui.bias_selected.connect(_on_bias_selected)
 	_lock_portrait_on_device()
 	_build_rack()
 	_new_match()
@@ -92,6 +95,24 @@ func _process(_delta: float) -> void:
 func _lock_portrait_on_device() -> void:
 	if OS.has_feature("android") or OS.has_feature("ios"):
 		DisplayServer.screen_set_orientation(DisplayServer.SCREEN_PORTRAIT)
+
+
+func _input(event: InputEvent) -> void:
+	if disc == null or not disc.is_aiming:
+		return
+	var on_device := OS.has_feature("android") or OS.has_feature("ios")
+	if on_device and event is InputEventScreenDrag:
+		disc.update_aim(event.position)
+		get_viewport().set_input_as_handled()
+	elif on_device and event is InputEventScreenTouch and not event.pressed:
+		disc.release_aim(event.position)
+		get_viewport().set_input_as_handled()
+	elif not on_device and event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+		disc.update_aim(event.position)
+		get_viewport().set_input_as_handled()
+	elif not on_device and event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
+		disc.release_aim(event.position)
+		get_viewport().set_input_as_handled()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -140,7 +161,7 @@ func _begin_end() -> void:
 	throws_left = BOWLS_PER_END
 	throw_index = 0
 	score_manager.reset()
-	disc.start_position = Vector3(0.0, 0.0, RinkScript.DISC_Z)
+	disc.start_position = Vector3(0.0, 0.0, RinkScript.DISC_Z - 2.4)
 	disc.ditch_mode = ditch_mode
 	disc.set_green(
 		Vector2(-RinkScript.HALF_WIDTH, RinkScript.FAR_Z),
@@ -160,7 +181,7 @@ func _build_rack() -> void:
 	for i in BOWLS_PER_END:
 		var bowl = BowlScript.new()
 		bowl.name = "Rack%d" % (i + 1)
-		bowl.setup_disc(i, hand_sign)
+		bowl.setup_disc(0, hand_sign)
 		add_child(bowl)
 		rack.append(bowl)
 
@@ -170,7 +191,7 @@ func _place_rack() -> void:
 		var bowl = rack[i]
 		bowl.set_hand(hand_sign)
 		bowl.set_scoring(false)
-		var slot := -0.96 + float(i) * 0.64
+		var slot := -0.69 + float(i) * 0.46
 		bowl.rest_at(Vector3(slot, 0.0, RinkScript.DISC_Z - 1.15))
 		if delivering_jack:
 			bowl.visible = true
@@ -219,7 +240,7 @@ func _on_disc_aim_changed(_direction: Vector2, power_ratio: float) -> void:
 func _on_disc_bias_changed(_bias_ratio: float) -> void:
 	if delivering_jack:
 		return
-	ui.show_hand(hand_sign < 0.0, _bowl_name(throw_index))
+	ui.show_hand(hand_sign < 0.0, _bowl_name(bias_index))
 
 
 func _on_bias_cycle_requested() -> void:
@@ -232,6 +253,26 @@ func _on_bias_cycle_requested() -> void:
 	disc.toggle_hand()
 	hand_sign = disc.hand_sign
 	_place_rack()
+
+
+func _on_hand_selected(forehand: bool) -> void:
+	if delivering_jack or disc.shot_in_progress:
+		return
+	feel.tap()
+	disc.set_hand(-1.0 if forehand else 1.0)
+	hand_sign = disc.hand_sign
+	_place_rack()
+	ui.show_hand(forehand, _bowl_name(bias_index))
+
+
+func _on_bias_selected(index: int) -> void:
+	if delivering_jack or disc.shot_in_progress:
+		return
+	feel.tap()
+	bias_index = clampi(index, 0, 3)
+	disc.configure_bowl(bias_index, hand_sign)
+	ui.show_bias(bias_index)
+	ui.show_hand(hand_sign < 0.0, _bowl_name(bias_index))
 
 
 func _on_ditch_option_requested() -> void:
@@ -261,7 +302,7 @@ func _on_disc_shot_started() -> void:
 	else:
 		throws_left -= 1
 		ui.set_power_ratio(0.0)
-		ui.show_in_motion(throws_left, _bowl_name(throw_index), hand_sign < 0.0)
+		ui.show_in_motion(throws_left, _bowl_name(bias_index), hand_sign < 0.0)
 	feel.release(disc.power_ratio)
 
 
@@ -284,7 +325,7 @@ func _finish_shot(token: int) -> void:
 		return
 	var thrown = BowlScript.new()
 	thrown.name = "Bowl%d" % (throw_index + 1)
-	thrown.setup_disc(disc.palette_index, hand_sign)
+	thrown.setup_disc(0, hand_sign)
 	add_child(thrown)
 	var bowl_ditched: bool = disc.in_ditch
 	if bowl_ditched:
@@ -302,8 +343,9 @@ func _finish_shot(token: int) -> void:
 		respotted = true
 	disc.reset_to_start()
 	if throws_left > 0:
-		disc.configure_bowl(throw_index, hand_sign)
-		ui.show_hand(hand_sign < 0.0, _bowl_name(throw_index))
+		disc.configure_bowl(bias_index, hand_sign)
+		ui.show_bias(bias_index)
+		ui.show_hand(hand_sign < 0.0, _bowl_name(bias_index))
 	_place_rack()
 	disc.obstacles = _table()
 	var jack_pos: Vector3 = jack.global_position
@@ -361,12 +403,13 @@ func _finish_jack(rest_pos: Vector3) -> void:
 	jack.rest_at(jack_home)
 	jack.visible = true
 	rink.place_head(Vector2(rest_pos.x, rest_pos.z))
-	disc.configure_bowl(0, hand_sign)
+	disc.configure_bowl(bias_index, hand_sign)
 	disc.reset_to_start()
 	disc.obstacles = _table()
-	ui.show_hand(hand_sign < 0.0, _bowl_name(0))
+	ui.show_bias(bias_index)
+	ui.show_hand(hand_sign < 0.0, _bowl_name(bias_index))
 	_place_rack()
-	ui.show_jack_set(travelled, _bowl_name(0), throws_left)
+	ui.show_jack_set(travelled, _bowl_name(bias_index), throws_left)
 
 
 func _respot_jack() -> int:
