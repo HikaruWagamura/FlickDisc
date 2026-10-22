@@ -42,7 +42,7 @@ var gesture
 var fan
 var place_x := 0.0
 var aim_lock := 0.0
-const PULL_BACK := 0.28
+const PULL_BACK := 0.1
 const AIM_CONE := 0.58
 const CURSOR_SPAN := 0.09
 
@@ -95,15 +95,15 @@ func _setup_view() -> void:
 
 	camera = Camera3D.new()
 	camera.name = "Camera3D"
-	camera.fov = 30.0
+	camera.fov = 33.0
 	camera.near = 0.04
 	camera.far = 40.0
 	camera.current = true
 	add_child(camera)
 	# Tight on the hole. The rings fill the portrait and the shooting
-	# line stays just above the bottom power bar.
-	camera.position = Vector3(0.0, 1.05, 1.48)
-	camera.look_at(Vector3(0.0, 0.0, 0.02), Vector3.UP)
+	# disc sits clear of the bottom power bar.
+	camera.position = Vector3(0.0, 1.32, 1.34)
+	camera.look_at(Vector3(0.0, 0.0, 0.34), Vector3.UP)
 
 	var key := DirectionalLight3D.new()
 	key.rotation_degrees = Vector3(-52.0, -28.0, 0.0)

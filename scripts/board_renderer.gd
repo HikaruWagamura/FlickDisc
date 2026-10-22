@@ -65,7 +65,7 @@ func _build_surface() -> void:
 	wood.albedo_texture = texture
 	wood.emission_enabled = true
 	wood.emission_texture = emission_texture
-	wood.emission_energy_multiplier = 0.7
+	wood.emission_energy_multiplier = 0.22
 	wood.roughness = 0.38
 	wood.metallic = 0.12
 	wood.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
@@ -424,16 +424,17 @@ func _apply_logo(albedo: Image, emission: Image) -> void:
 			var dx := float(x) + 0.5 - half
 			var dy := float(y) + 0.5 - half
 			var radius := sqrt(dx * dx + dy * dy) / half
-			if radius > 0.96:
+			# Keep the hole and the scoring rings on clear wood. The mark sits in the outer band.
+			if radius < 0.55 or radius > 0.96:
 				continue
-			var fade := 1.0 if radius < 0.9 else (0.96 - radius) / 0.06
+			var fade := 0.16 if radius < 0.9 else (0.96 - radius) / 0.06 * 0.16
 			var src := logo.get_pixel(x, y)
 			var kept := albedo.get_pixel(origin + x, origin + y)
 			albedo.set_pixel(origin + x, origin + y, kept.lerp(Color(src.r, src.g, src.b), fade))
 			var neon := src.r > 0.45 and src.r > src.b and src.g < src.r * 1.05
 			var chrome := src.r > 0.78 and src.g > 0.78 and src.b > 0.78
-			if fade > 0.35 and (neon or chrome):
-				emission.set_pixel(origin + x, origin + y, Color(src.r, src.g, src.b, fade))
+			if fade > 0.2 and (neon or chrome):
+				emission.set_pixel(origin + x, origin + y, Color(src.r, src.g, src.b, fade * 0.35))
 
 func _paint_play_lines(albedo: Image) -> void:
 	var center := (float(albedo.get_width()) - 1.0) * 0.5

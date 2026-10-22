@@ -316,14 +316,14 @@ func _build_power_meter() -> void:
 	power_track.add_child(power_cap)
 	power_label = Label.new()
 	power_label.text = "POWER"
-	power_label.position = Vector2(0.0, 1.0)
-	power_label.size = Vector2(400.0, 26.0)
+	power_label.position = Vector2(70.0, 892.0)
+	power_label.size = Vector2(400.0, 18.0)
 	power_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	power_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	power_label.add_theme_font_size_override("font_size", 11)
 	power_label.add_theme_color_override("font_color", Color(0.98, 0.92, 0.72, 0.95))
 	power_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	power_track.add_child(power_label)
+	add_child(power_label)
 
 
 func _build_aim_dial() -> void:
