@@ -71,18 +71,19 @@ func _ready() -> void:
 	match_button.pressed.connect(func() -> void: match_cycle_requested.emit())
 	_build_summary()
 
-	status_label = _make_label(Vector2(18.0, 688.0), Vector2(300.0, 20.0), 13, Color(0.95, 0.99, 0.96))
-	score_label = _make_label(Vector2(18.0, 708.0), Vector2(300.0, 18.0), 12, Color(0.78, 0.92, 0.86))
+	status_label = _make_label(Vector2(18.0, 116.0), Vector2(504.0, 22.0), 14, Color(0.95, 0.99, 0.96))
+	score_label = _make_label(Vector2(18.0, 140.0), Vector2(504.0, 20.0), 13, Color(0.78, 0.92, 0.86))
 
 	_build_power_meter()
 	_build_aim_dial()
 	_build_bias_row()
 	_build_hand_bar()
 
-	reset_button = _make_button("RESET", Vector2(18.0, 892.0), Vector2(100.0, 44.0))
+	reset_button = _make_button("RESET", Vector2(16.0, 858.0), Vector2(100.0, 40.0))
+	reset_button.add_theme_font_size_override("font_size", 12)
 	reset_button.pressed.connect(func() -> void: reset_requested.emit())
 
-	next_button = _make_button("NEXT END", Vector2(400.0, 892.0), Vector2(124.0, 44.0))
+	next_button = _make_button("NEXT END", Vector2(390.0, 858.0), Vector2(134.0, 40.0))
 	next_button.pressed.connect(func() -> void: next_level_requested.emit())
 	next_button.visible = false
 
@@ -103,7 +104,7 @@ func set_power_ratio(power_ratio: float) -> void:
 func show_jack_prompt(end_number: int, match_label: String, match_points: int) -> void:
 	level_label.text = "END %d" % end_number
 	throws_label.text = "%d PTS" % match_points
-	status_label.text = "TOUCH THE JACK  •  SLIDE IT ON THE LINE"
+	status_label.text = "TOUCH THE JACK  •  SLIDE IT, THEN AIM"
 	score_label.text = match_label
 	reset_button.visible = true
 	next_button.visible = false
@@ -122,16 +123,23 @@ func show_ditch_mode(enabled: bool) -> void:
 
 func show_place_line(jack: bool) -> void:
 	if jack:
-		status_label.text = "TOUCH THE JACK  •  SLIDE IT ON THE LINE"
+		status_label.text = "TOUCH THE JACK  •  SLIDE IT, THEN AIM"
 	else:
-		status_label.text = "TOUCH YOUR DISC  •  SLIDE IT ON THE LINE"
+		status_label.text = "TOUCH YOUR DISC  •  SLIDE IT, THEN AIM"
 
 
 func show_sliding(jack: bool) -> void:
 	if jack:
-		status_label.text = "SLIDE THE JACK  •  RELEASE TO TAKE THE SHOT"
+		status_label.text = "SLIDE TO PLACE  •  DRAG UP TO AIM"
 	else:
-		status_label.text = "SLIDE ON THE LINE  •  RELEASE TO TAKE THE SHOT"
+		status_label.text = "SLIDE TO PLACE  •  DRAG UP TO AIM"
+
+
+func show_aiming_line(jack: bool) -> void:
+	if jack:
+		status_label.text = "AIM THE JACK  •  RELEASE TO LOCK"
+	else:
+		status_label.text = "AIM THE LINE  •  RELEASE TO LOCK"
 
 
 func show_take_shot(_jack: bool = false) -> void:
@@ -267,8 +275,8 @@ func _hand_name() -> String:
 
 func _build_power_meter() -> void:
 	power_track = Panel.new()
-	power_track.position = Vector2(18.0, 744.0)
-	power_track.size = Vector2(360.0, 22.0)
+	power_track.position = Vector2(70.0, 912.0)
+	power_track.size = Vector2(400.0, 28.0)
 	power_track.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var track := StyleBoxFlat.new()
 	track.bg_color = Color(0.03, 0.07, 0.1, 0.92)
@@ -290,14 +298,14 @@ func _build_power_meter() -> void:
 	texture.fill_to = Vector2(1.0, 0.5)
 	power_fill = TextureRect.new()
 	power_fill.position = Vector2(4.0, 4.0)
-	power_fill.size = Vector2(0.0, 14.0)
+	power_fill.size = Vector2(0.0, 20.0)
 	power_fill.texture = texture
 	power_fill.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	power_fill.stretch_mode = TextureRect.STRETCH_SCALE
 	power_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	power_track.add_child(power_fill)
 	power_cap = Panel.new()
-	power_cap.size = Vector2(14.0, 14.0)
+	power_cap.size = Vector2(14.0, 20.0)
 	power_cap.position = Vector2(4.0, 4.0)
 	power_cap.visible = false
 	power_cap.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -309,7 +317,7 @@ func _build_power_meter() -> void:
 	power_label = Label.new()
 	power_label.text = "POWER"
 	power_label.position = Vector2(0.0, 1.0)
-	power_label.size = Vector2(360.0, 20.0)
+	power_label.size = Vector2(400.0, 26.0)
 	power_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	power_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	power_label.add_theme_font_size_override("font_size", 11)
@@ -332,7 +340,7 @@ func _build_aim_dial() -> void:
 func _build_bias_row() -> void:
 	var names := ["NARROW", "MEDIUM", "WIDE", "HOOK"]
 	for i in names.size():
-		var button := _make_button(names[i], Vector2(16.0 + float(i) * 131.0, 844.0), Vector2(123.0, 32.0))
+		var button := _make_button(names[i], Vector2(16.0 + float(i) * 131.0, 804.0), Vector2(123.0, 36.0))
 		button.add_theme_font_size_override("font_size", 11)
 		button.visible = false
 		button.pressed.connect(_emit_bias.bind(i))
@@ -346,8 +354,8 @@ func _emit_bias(index: int) -> void:
 
 func _build_hand_bar() -> void:
 	hand_bar = Panel.new()
-	hand_bar.position = Vector2(16.0, 774.0)
-	hand_bar.size = Vector2(380.0, 60.0)
+	hand_bar.position = Vector2(16.0, 744.0)
+	hand_bar.size = Vector2(508.0, 52.0)
 	hand_bar.visible = false
 	hand_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var style := StyleBoxFlat.new()
@@ -360,16 +368,16 @@ func _build_hand_bar() -> void:
 	style.shadow_offset = Vector2(0.0, 3.0)
 	hand_bar.add_theme_stylebox_override("panel", style)
 	add_child(hand_bar)
-	fore_button = _make_button("FOREHAND", Vector2(26.0, 783.0), Vector2(150.0, 42.0))
+	fore_button = _make_button("FOREHAND", Vector2(28.0, 750.0), Vector2(180.0, 40.0))
 	fore_button.add_theme_font_size_override("font_size", 13)
 	fore_button.visible = false
 	fore_button.pressed.connect(func() -> void: hand_selected.emit(true))
-	back_button = _make_button("BACKHAND", Vector2(236.0, 783.0), Vector2(150.0, 42.0))
+	back_button = _make_button("BACKHAND", Vector2(332.0, 750.0), Vector2(180.0, 40.0))
 	back_button.add_theme_font_size_override("font_size", 13)
 	back_button.visible = false
 	back_button.pressed.connect(func() -> void: hand_selected.emit(false))
 	turn_mark = preload("res://scripts/turn_mark.gd").new()
-	turn_mark.position = Vector2(176.0, 778.0)
+	turn_mark.position = Vector2(230.0, 746.0)
 	turn_mark.size = Vector2(60.0, 52.0)
 	turn_mark.visible = false
 	add_child(turn_mark)

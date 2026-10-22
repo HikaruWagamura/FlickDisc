@@ -41,8 +41,10 @@ var _hit_wait := 0.0
 var gesture
 var fan
 var place_x := 0.0
-const PULL_BACK := 0.34
-const AIM_SPAN := 0.42
+var aim_lock := 0.0
+const PULL_BACK := 0.28
+const AIM_CONE := 0.58
+const CURSOR_SPAN := 0.09
 
 func _ready() -> void:
 	disc = get_node("Shooter")
@@ -93,15 +95,15 @@ func _setup_view() -> void:
 
 	camera = Camera3D.new()
 	camera.name = "Camera3D"
-	camera.fov = 28.0
+	camera.fov = 30.0
 	camera.near = 0.04
 	camera.far = 40.0
 	camera.current = true
 	add_child(camera)
-	# Close over the round board so the hole and pegs fill the portrait.
-	# The near lane stays above the buttons, and the far discs stay under the header.
-	camera.position = Vector3(0.0, 2.5, 2.2)
-	camera.look_at(Vector3(0.0, 0.0, 0.12), Vector3.UP)
+	# Tight on the hole. The rings fill the portrait and the shooting
+	# line stays just above the bottom power bar.
+	camera.position = Vector3(0.0, 1.05, 1.48)
+	camera.look_at(Vector3(0.0, 0.0, 0.02), Vector3.UP)
 
 	var key := DirectionalLight3D.new()
 	key.rotation_degrees = Vector3(-52.0, -28.0, 0.0)
@@ -317,6 +319,7 @@ func _wire_shot() -> void:
 	shot.hit_test = _pointer_hits_disc
 	shot.board_point = _board_point
 	shot.place_at.connect(_on_place_at)
+	shot.aim_set.connect(_on_aim_set)
 	shot.opened_take.connect(_on_take_opened)
 	shot.cancelled_pull.connect(_on_pull_cancelled)
 	shot.fired.connect(_on_shot_fired)
@@ -330,6 +333,11 @@ func _wire_shot() -> void:
 func _on_place_at(spot: Vector3) -> void:
 	place_x = clampf(spot.x, -Metrics.LANE_HALF, Metrics.LANE_HALF)
 	_snap_disc()
+	ui.show_sliding()
+
+
+func _on_aim_set(amount: float) -> void:
+	aim_lock = amount
 	ui.show_sliding()
 
 
@@ -365,7 +373,8 @@ func _aim_from(needle: float) -> Vector3:
 	if toward.length() < 0.001:
 		toward = Vector2(0.0, -1.0)
 	var base := Vector3(toward.x, 0.0, toward.y).normalized()
-	return base.rotated(Vector3.UP, -needle * AIM_SPAN)
+	var turn := aim_lock * AIM_CONE + needle * CURSOR_SPAN
+	return base.rotated(Vector3.UP, -turn)
 
 
 func _facing(origin: Vector3, aim: Vector3) -> float:
@@ -387,7 +396,8 @@ func _sync_fan() -> void:
 	var phase := str(gesture.phase)
 	var live: bool = active_puck != null and not resolving and not bool(disc.shot_in_progress) and phase != "busy"
 	var pulling: bool = phase == "pull"
-	var show_fan: bool = live and (phase == "take" or phase == "hold" or pulling)
+	var show_cursor: bool = live and (phase == "take" or phase == "hold" or pulling)
+	var show_arrow: bool = live and (phase == "idle" or phase == "place")
 	var power: float = gesture.read_power() if pulling else 0.0
 	var needle: float = gesture.read_needle() if pulling else 0.0
 	if live:
@@ -399,15 +409,17 @@ func _sync_fan() -> void:
 			ui.show_aiming(power)
 			if feel != null:
 				feel.aim(power)
-	var anchor := camera.unproject_position(placed + Vector3(0.0, 0.08, 0.0))
-	fan.present(anchor, power, needle, show_fan, _facing(placed, _aim_from(0.0)))
-	var line_a := camera.unproject_position(Vector3(-Metrics.LANE_HALF, 0.03, Metrics.PLAYER_START_Z))
-	var line_b := camera.unproject_position(Vector3(Metrics.LANE_HALF, 0.03, Metrics.PLAYER_START_Z))
-	fan.set_line(line_a, line_b, live)
-	var disc_at := anchor
+	var live_pos: Vector3 = placed
 	if active_puck != null:
-		disc_at = camera.unproject_position(active_puck.global_position + Vector3(0.0, 0.05, 0.0))
-	fan.set_disc(disc_at, live)
+		live_pos = active_puck.global_position
+	var cursor_at := camera.unproject_position(live_pos + Vector3(0.0, 0.06, 0.0))
+	fan.present(cursor_at, power, needle, show_cursor, _facing(live_pos, _aim_from(0.0)))
+	fan.set_line(Vector2.ZERO, Vector2.ZERO, false)
+	var aim_tip := placed + _aim_from(0.0) * 0.36
+	var aim_from := camera.unproject_position(placed + Vector3(0.0, 0.05, 0.0))
+	var aim_to := camera.unproject_position(aim_tip + Vector3(0.0, 0.05, 0.0))
+	fan.set_aim(aim_from, aim_to, show_arrow)
+	fan.set_disc(cursor_at, live)
 
 
 func _clear_pucks() -> void:
@@ -459,6 +471,7 @@ func _start_spot() -> Vector2:
 
 func _begin_ready() -> void:
 	place_x = 0.0
+	aim_lock = 0.0
 	_snap_disc()
 	if gesture != null:
 		gesture.arm()

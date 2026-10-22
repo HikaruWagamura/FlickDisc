@@ -39,8 +39,9 @@ func begin_pull() -> void:
 	if not live:
 		open()
 	pulling = true
-	_phase = 0.0
-	needle = 0.0
+	# Start on the left edge so the mark has to be timed, not tapped.
+	_phase = -PI * 0.5
+	needle = -1.0
 	power = 0.0
 	_target = 0.0
 
@@ -77,7 +78,8 @@ func advance(delta: float) -> void:
 		return
 	var stiffness := lerpf(18.0, 7.5, _target)
 	power = lerpf(power, _target, 1.0 - exp(-stiffness * delta))
-	var cycles := lerpf(0.7, 3.45, power)
+	# Slower than the first strike cursor. A heavy pull still hurries it.
+	var cycles := lerpf(0.48, 1.85, power)
 	_phase += cycles * TAU * delta
 	needle = sin(_phase)
 	changed.emit(power, needle)

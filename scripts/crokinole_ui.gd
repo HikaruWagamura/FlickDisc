@@ -26,7 +26,7 @@ var _count_token := 0
 
 func _ready() -> void:
 	_make_scrim(Rect2(0.0, 0.0, 540.0, 108.0), Color(0.03, 0.02, 0.04, 0.72))
-	_make_scrim(Rect2(0.0, 848.0, 540.0, 112.0), Color(0.03, 0.02, 0.04, 0.78))
+	_make_scrim(Rect2(0.0, 820.0, 540.0, 140.0), Color(0.03, 0.02, 0.04, 0.82))
 
 	var menu_button := _make_button("MENU", Vector2(16.0, 10.0), Vector2(104.0, 32.0))
 	menu_button.add_theme_stylebox_override("normal", _button_style(Color("#ff4d9a"), Color("#ffd0e8")))
@@ -40,30 +40,30 @@ func _ready() -> void:
 	status_label = _make_label(Vector2(22.0, 58.0), Vector2(496.0, 22.0), 13, Color("#d9f5e8"), "")
 	score_label = _make_label(Vector2(22.0, 80.0), Vector2(496.0, 20.0), 11, Color("#8fc9bf"), "")
 
-	_make_label(Vector2(24.0, 864.0), Vector2(70.0, 18.0), 10, Color("#9fd8cc"), "POWER")
-	var track := ColorRect.new()
-	track.position = Vector2(96.0, 868.0)
-	track.size = Vector2(160.0, 8.0)
-	track.color = Color(0.02, 0.05, 0.08, 0.9)
-	track.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(track)
-	power_fill = ColorRect.new()
-	power_fill.position = Vector2(96.0, 868.0)
-	power_fill.size = Vector2(0.0, 8.0)
-	power_fill.color = Color("#6bd9e6")
-	power_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(power_fill)
-
-	reset_button = _make_button("RESET", Vector2(24.0, 900.0), Vector2(112.0, 40.0))
+	reset_button = _make_button("RESET", Vector2(16.0, 836.0), Vector2(120.0, 40.0))
 	reset_button.pressed.connect(func() -> void: reset_requested.emit())
 
-	next_button = _make_button("NEXT LEVEL", Vector2(342.0, 900.0), Vector2(174.0, 40.0))
+	next_button = _make_button("NEXT END", Vector2(392.0, 836.0), Vector2(132.0, 40.0))
 	next_button.pressed.connect(func() -> void: next_level_requested.emit())
 	next_button.visible = false
 
-	bias_button = _make_button("BIAS  CENTER", Vector2(144.0, 900.0), Vector2(174.0, 40.0))
+	bias_button = _make_button("BIAS  CENTER", Vector2(148.0, 836.0), Vector2(232.0, 40.0))
 	bias_button.pressed.connect(func() -> void: bias_cycle_requested.emit())
-	stop_button = _make_button("STOP", Vector2(144.0, 892.0), Vector2(250.0, 52.0))
+	var power_label := _make_label(Vector2(50.0, 886.0), Vector2(440.0, 16.0), 10, Color("#9fd8cc"), "POWER")
+	power_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var track := ColorRect.new()
+	track.position = Vector2(50.0, 908.0)
+	track.size = Vector2(440.0, 18.0)
+	track.color = Color(0.02, 0.05, 0.08, 0.95)
+	track.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(track)
+	power_fill = ColorRect.new()
+	power_fill.position = Vector2(50.0, 908.0)
+	power_fill.size = Vector2(0.0, 18.0)
+	power_fill.color = Color("#ff4d9a")
+	power_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(power_fill)
+	stop_button = _make_button("STOP", Vector2(144.0, 836.0), Vector2(250.0, 40.0))
 	stop_button.add_theme_font_size_override("font_size", 20)
 	stop_button.add_theme_stylebox_override("normal", _button_style(Color("#ff2f86"), Color("#ffd0e8")))
 	stop_button.add_theme_stylebox_override("hover", _button_style(Color("#ff5aa3"), Color("#ffe4f2")))
@@ -78,7 +78,7 @@ func _ready() -> void:
 
 func show_touch(level_number: int, discs_left: int, you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0) -> void:
 	hide_overview()
-	status_label.text = "TOUCH YOUR DISC  •  SLIDE IT ON THE LINE"
+	status_label.text = "TOUCH YOUR DISC  •  SLIDE IT, THEN AIM"
 	show_match_status(level_number, discs_left, you_board, far_board, match_you, match_them)
 	reset_button.text = "RESET"
 	reset_button.visible = true
@@ -87,7 +87,7 @@ func show_touch(level_number: int, discs_left: int, you_board: int = 0, far_boar
 	show_power(0.0)
 
 func show_sliding() -> void:
-	status_label.text = "SLIDE ON THE LINE  •  RELEASE TO TAKE THE SHOT"
+	status_label.text = "SLIDE TO PLACE  •  DRAG UP TO AIM"
 
 func show_take() -> void:
 	status_label.text = "PULL BACK  •  RELEASE ON THE MARK"
@@ -126,7 +126,7 @@ func show_aiming(power_ratio: float) -> void:
 	status_label.text = "RELEASE ON THE MARK  •  %d%%  •  %s" % [roundi(power_ratio * 100.0), _bias_name()]
 
 func show_power(ratio: float) -> void:
-	power_fill.size.x = 160.0 * clampf(ratio, 0.0, 1.0)
+	power_fill.size.x = 440.0 * clampf(ratio, 0.0, 1.0)
 
 func show_in_motion() -> void:
 	_show_stop(false)

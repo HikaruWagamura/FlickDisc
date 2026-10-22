@@ -48,11 +48,13 @@ var rack: Array = []
 var gesture
 var fan
 var place_x := 0.0
+var aim_lock := 0.0
 var line_z := 0.0
 var _return_token := 0
 const PLACE_HALF := 1.65
-const PULL_BACK := 1.45
-const AIM_SPAN := 0.16
+const PULL_BACK := 1.15
+const AIM_CONE := 0.26
+const CURSOR_SPAN := 0.05
 
 
 func _ready() -> void:
@@ -126,6 +128,7 @@ func _wire_shot() -> void:
 	shot.hit_test = _pointer_hits_disc
 	shot.board_point = _board_point
 	shot.place_at.connect(_on_place_at)
+	shot.aim_set.connect(_on_aim_set)
 	shot.opened_take.connect(_on_take_opened)
 	shot.cancelled_pull.connect(_on_pull_cancelled)
 	shot.fired.connect(_on_shot_fired)
@@ -139,6 +142,7 @@ func _wire_shot() -> void:
 func _begin_ready() -> void:
 	line_z = disc.start_position.z
 	place_x = 0.0
+	aim_lock = 0.0
 	disc.start_position = Vector3(0.0, 0.0, line_z)
 	disc.global_position = disc.start_position
 	if gesture != null:
@@ -153,6 +157,11 @@ func _on_place_at(spot: Vector3) -> void:
 	disc.global_position = disc.start_position
 	rink.release_head()
 	ui.show_sliding(delivering_jack)
+
+
+func _on_aim_set(amount: float) -> void:
+	aim_lock = amount
+	ui.show_aiming_line(delivering_jack)
 
 
 func _on_take_opened() -> void:
@@ -176,7 +185,8 @@ func _on_shot_fired(power: float, needle: float) -> void:
 
 
 func _aim_from(needle: float) -> Vector3:
-	return Vector3(0.0, 0.0, -1.0).rotated(Vector3.UP, -needle * AIM_SPAN)
+	var turn := aim_lock * AIM_CONE + needle * CURSOR_SPAN
+	return Vector3(0.0, 0.0, -1.0).rotated(Vector3.UP, -turn)
 
 
 func _pointer_hits_disc(screen_position: Vector2) -> bool:
@@ -228,7 +238,8 @@ func _sync_fan() -> void:
 	var phase := str(gesture.phase)
 	var live: bool = phase != "busy" and bool(disc.visible) and not bool(disc.shot_in_progress)
 	var pulling: bool = phase == "pull"
-	var show_fan: bool = live and (phase == "take" or phase == "hold" or pulling)
+	var show_cursor: bool = live and (phase == "take" or phase == "hold" or pulling)
+	var show_arrow: bool = live and (phase == "idle" or phase == "place")
 	var power: float = gesture.read_power() if pulling else 0.0
 	var needle: float = gesture.read_needle() if pulling else 0.0
 	if live:
@@ -244,13 +255,17 @@ func _sync_fan() -> void:
 				disc.preview_take(_aim_from(needle), power)
 			elif disc.is_aiming:
 				disc.preview_take(Vector3(0.0, 0.0, -1.0), 0.0)
-	var anchor := cam.unproject_position(placed + Vector3(0.0, 0.2, 0.0))
-	fan.present(anchor, power, needle, show_fan, _facing(placed, _aim_from(0.0)))
+	var live_pos: Vector3 = disc.global_position
+	var cursor_at := cam.unproject_position(live_pos + Vector3(0.0, 0.16, 0.0))
+	fan.present(cursor_at, power, needle, show_cursor, _facing(live_pos, _aim_from(0.0)))
 	var line_a := cam.unproject_position(Vector3(-PLACE_HALF, 0.06, line_z))
 	var line_b := cam.unproject_position(Vector3(PLACE_HALF, 0.06, line_z))
-	fan.set_line(line_a, line_b, live)
-	var ring_at := cam.unproject_position(disc.global_position + Vector3(0.0, 0.2, 0.0))
-	fan.set_disc(ring_at, live)
+	fan.set_line(line_a, line_b, live and not show_cursor)
+	var aim_tip := placed + _aim_from(0.0) * 4.5
+	var aim_from := cam.unproject_position(placed + Vector3(0.0, 0.12, 0.0))
+	var aim_to := cam.unproject_position(aim_tip + Vector3(0.0, 0.12, 0.0))
+	fan.set_aim(aim_from, aim_to, show_arrow)
+	fan.set_disc(cursor_at, live)
 
 
 func _new_match() -> void:

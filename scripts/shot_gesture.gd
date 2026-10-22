@@ -1,9 +1,11 @@
 extends Node
 
-## Touch the disc and slide it on the line. Releasing opens the fan.
-## The next pull, back along the shot, is the strike.
+## Touch the disc and slide it on the line. Drag up from it to choose
+## the line. Releasing locks that aim and opens the strike. The pull
+## after that is power, and the cursor is only the timing.
 
 signal place_at(spot: Vector3)
+signal aim_set(amount: float)
 signal opened_take
 signal cancelled_pull
 signal fired(power: float, needle: float)
@@ -12,6 +14,7 @@ const TakeScript := preload("res://scripts/shot_take.gd")
 
 var phase := "idle"
 var anchor := Vector3.ZERO
+var aim := 0.0
 var camera: Camera3D
 var hit_test: Callable
 var board_point: Callable
@@ -31,6 +34,7 @@ func _ready() -> void:
 
 func arm() -> void:
 	phase = "idle"
+	aim = 0.0
 	if take != null:
 		take.close()
 
@@ -56,6 +60,10 @@ func read_needle() -> float:
 	if take == null:
 		return 0.0
 	return float(take.needle)
+
+
+func read_aim() -> float:
+	return aim
 
 
 func _input(event: InputEvent) -> void:
@@ -95,7 +103,11 @@ func _input(event: InputEvent) -> void:
 
 func _move(screen: Vector2) -> void:
 	if phase == "place":
-		_emit_place(screen)
+		# Along the line places the disc. A drag up the board points the shot.
+		if _ahead(screen) > 34.0:
+			_set_aim(screen)
+		else:
+			_emit_place(screen)
 		return
 	var pull := _pull_pixels(_from, screen)
 	var side := absf(_side_pixels(_from, screen))
@@ -115,7 +127,10 @@ func _move(screen: Vector2) -> void:
 func _up(screen: Vector2) -> void:
 	if phase == "place" or phase == "hold":
 		if phase == "place":
-			_emit_place(screen)
+			if _ahead(screen) > 34.0:
+				_set_aim(screen)
+			else:
+				_emit_place(screen)
 		phase = "take"
 		take.open()
 		opened_take.emit()
@@ -140,6 +155,22 @@ func _emit_place(screen: Vector2) -> void:
 		return
 	var spot: Vector3 = board_point.call(screen)
 	place_at.emit(spot)
+
+
+func _set_aim(screen: Vector2) -> void:
+	var side := _side_pixels(_disc_screen(), screen)
+	aim = clampf(side / 160.0, -1.0, 1.0)
+	aim_set.emit(aim)
+
+
+func _disc_screen() -> Vector2:
+	if camera == null:
+		return _from
+	return camera.unproject_position(anchor)
+
+
+func _ahead(screen: Vector2) -> float:
+	return (screen - _disc_screen()).dot(-_pull_axis())
 
 
 func _pull_axis() -> Vector2:

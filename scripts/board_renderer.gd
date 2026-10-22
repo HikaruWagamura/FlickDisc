@@ -142,10 +142,10 @@ func _build_lane() -> void:
 	var rail := StandardMaterial3D.new()
 	rail.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	rail.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	rail.albedo_color = Color(1.0, 0.28, 0.58, 0.55)
+	rail.albedo_color = Color(1.0, 0.84, 0.46, 0.72)
 	rail.cull_mode = BaseMaterial3D.CULL_DISABLED
 	var bar := BoxMesh.new()
-	bar.size = Vector3(Metrics.LANE_HALF * 2.0, 0.004, 0.012)
+	bar.size = Vector3(Metrics.LANE_HALF * 2.0, 0.003, 0.006)
 	var near_z := Metrics.PLAYER_START_Z + Metrics.DISC_RADIUS + 0.045
 	var far_z := Metrics.PLAYER_START_Z - Metrics.DISC_RADIUS - 0.055
 	Metrics.add_mesh(self, bar, rail, Vector3(0.0, 0.008, near_z))

@@ -1,9 +1,9 @@
 extends Control
 
-## Premium strike fan. Centre gold is the line you placed. Pink is a push.
-## The edges are a miss. The needle and the bar under it read the pull.
+## The place line, the aim arrow, and the strike cursor.
+## The power reading lives on the bottom bar, not on this display.
 
-var _anchor := Vector2(270, 480)
+var _anchor := Vector2(270, 640)
 var _power := 0.0
 var _needle := 0.0
 var _show := false
@@ -13,6 +13,9 @@ var _line_b := Vector2.ZERO
 var _show_line := false
 var _disc := Vector2.ZERO
 var _show_disc := false
+var _aim_from := Vector2.ZERO
+var _aim_to := Vector2.ZERO
+var _show_aim := false
 
 
 func _ready() -> void:
@@ -43,70 +46,88 @@ func set_disc(at: Vector2, showing: bool) -> void:
 	queue_redraw()
 
 
+func set_aim(from: Vector2, to: Vector2, showing: bool) -> void:
+	_aim_from = from
+	_aim_to = to
+	_show_aim = showing
+	queue_redraw()
+
+
 func _draw() -> void:
 	if _show_line and _line_a.distance_to(_line_b) > 4.0:
 		_draw_line()
+	if _show_aim:
+		_draw_aim()
 	if _show_disc:
 		_draw_disc_ring()
 	if _show:
-		_draw_fan()
+		_draw_cursor()
 
 
 func _draw_line() -> void:
-	draw_line(_line_a, _line_b, Color(1.0, 0.18, 0.48, 0.28), 10.0, true)
-	draw_line(_line_a, _line_b, Color(1.0, 0.82, 0.42, 0.95), 2.0, true)
-	draw_circle(_line_a, 5.0, Color(1.0, 0.84, 0.46, 0.95))
-	draw_circle(_line_b, 5.0, Color(1.0, 0.84, 0.46, 0.95))
-	var mid := (_line_a + _line_b) * 0.5
-	draw_circle(mid, 3.0, Color(1.0, 0.95, 0.86, 0.9))
+	draw_line(_line_a, _line_b, Color(1.0, 0.84, 0.46, 0.9), 2.0, true)
+	draw_circle(_line_a, 3.5, Color(1.0, 0.84, 0.46, 0.95))
+	draw_circle(_line_b, 3.5, Color(1.0, 0.84, 0.46, 0.95))
+
+
+func _draw_aim() -> void:
+	var delta := _aim_to - _aim_from
+	var length := delta.length()
+	if length < 10.0:
+		return
+	var dir := delta / length
+	var tip := _aim_from + dir * minf(length, 168.0)
+	draw_line(_aim_from, tip, Color(1.0, 0.55, 0.72, 0.35), 8.0, true)
+	draw_line(_aim_from, tip, Color(1.0, 0.9, 0.55, 0.98), 3.0, true)
+	var side := Vector2(-dir.y, dir.x)
+	var head := PackedVector2Array([
+		tip,
+		tip - dir * 16.0 + side * 8.0,
+		tip - dir * 16.0 - side * 8.0,
+	])
+	draw_colored_polygon(head, Color(1.0, 0.96, 0.88, 1.0))
 
 
 func _draw_disc_ring() -> void:
-	draw_arc(_disc, 34.0, 0.0, TAU, 40, Color(1.0, 0.35, 0.62, 0.45), 3.0, true)
-	draw_arc(_disc, 40.0, 0.0, TAU, 40, Color(1.0, 0.82, 0.42, 0.7), 1.5, true)
+	draw_arc(_disc, 22.0, 0.0, TAU, 36, Color(1.0, 0.35, 0.62, 0.55), 2.0, true)
+	draw_arc(_disc, 28.0, 0.0, TAU, 36, Color(1.0, 0.86, 0.48, 0.75), 1.25, true)
 
 
-func _draw_fan() -> void:
-	var origin := _anchor + Vector2(cos(_facing), sin(_facing)) * -150.0
-	origin.x = clampf(origin.x, 108.0, 432.0)
-	origin.y = clampf(origin.y, 188.0, 560.0)
-	var radius := 128.0
-	var spread := 0.78
-	_plate(origin, radius + 16.0, spread + 0.1)
-	_band(origin, radius, radius * 0.22, spread, Color(0.36, 0.03, 0.14, 0.94))
-	_band(origin, radius - 2.0, radius * 0.22, spread * 0.58, Color(1.0, 0.24, 0.55, 0.97))
-	_band(origin, radius - 2.0, radius * 0.22, spread * 0.16, Color(0.99, 0.8, 0.34, 0.99))
-	var centre_tip := origin + Vector2(cos(_facing), sin(_facing)) * (radius - 8.0)
-	var centre_root := origin + Vector2(cos(_facing), sin(_facing)) * (radius * 0.28)
-	draw_line(centre_root, centre_tip, Color(1, 1, 1, 0.9), 2.0, true)
+func _draw_cursor() -> void:
+	# A compact arc on the disc. Centre gold is the line already chosen.
+	# The needle is only the timing, and it stays clear of the bottom bar.
+	var origin := _anchor
+	origin.y = minf(origin.y, 730.0)
+	var radius := 84.0
+	var spread := 0.62
+	_plate(origin, radius + 8.0, spread + 0.08, Color(0.05, 0.02, 0.06, 0.42))
+	_band(origin, radius, radius * 0.58, spread, Color(0.42, 0.04, 0.16, 0.9))
+	_band(origin, radius - 1.0, radius * 0.58, spread * 0.46, Color(1.0, 0.28, 0.55, 0.95))
+	_band(origin, radius - 1.0, radius * 0.58, spread * 0.14, Color(0.99, 0.82, 0.36, 1.0))
+	var centre_dir := Vector2(cos(_facing), sin(_facing))
+	draw_line(origin + centre_dir * (radius * 0.62), origin + centre_dir * (radius - 6.0), Color(1, 1, 1, 0.95), 2.0, true)
 	var nang := _facing + _needle * spread
-	var tip := origin + Vector2(cos(nang), sin(nang)) * (radius - 8.0)
-	var root := origin + Vector2(cos(nang), sin(nang)) * 10.0
-	draw_line(root, tip, Color(1.0, 0.72, 0.84, 0.4), 11.0, true)
-	draw_line(root, tip, Color(1.0, 0.97, 0.9, 1.0), 3.0, true)
-	draw_circle(tip, 7.0, Color(1.0, 0.96, 0.9, 1.0))
-	draw_circle(origin, 6.0, Color(1.0, 0.84, 0.4, 1.0))
-	var bar := Rect2(origin.x - 74.0, origin.y + 22.0, 148.0, 10.0)
-	draw_rect(Rect2(bar.position.x - 2.0, bar.position.y - 2.0, bar.size.x + 4.0, bar.size.y + 4.0), Color(0.05, 0.03, 0.05, 0.88), true)
-	draw_rect(bar, Color(0.1, 0.05, 0.08, 1.0), true)
-	if _power > 0.01:
-		draw_rect(Rect2(bar.position.x, bar.position.y, bar.size.x * _power, bar.size.y), Color(1.0, 0.28, 0.58, 1.0), true)
-		draw_rect(Rect2(bar.position.x + bar.size.x * _power - 3.0, bar.position.y - 2.0, 6.0, bar.size.y + 4.0), Color(1.0, 0.86, 0.46, 1.0), true)
+	var needle_dir := Vector2(cos(nang), sin(nang))
+	var tip := origin + needle_dir * (radius - 6.0)
+	var root := origin + needle_dir * (radius * 0.5)
+	draw_line(root, tip, Color(1.0, 0.96, 0.9, 1.0), 3.0, true)
+	draw_circle(tip, 5.5, Color(1.0, 0.97, 0.92, 1.0))
+	draw_circle(origin + centre_dir * 8.0, 4.0, Color(1.0, 0.84, 0.4, 1.0))
 
 
-func _plate(origin: Vector2, radius: float, half: float) -> void:
+func _plate(origin: Vector2, radius: float, half: float, color: Color) -> void:
 	var pts := PackedVector2Array()
 	pts.append(origin)
-	for i in 20:
-		var t := float(i) / 19.0
+	for i in 18:
+		var t := float(i) / 17.0
 		var ang := _facing + lerpf(-half, half, t)
 		pts.append(origin + Vector2(cos(ang), sin(ang)) * radius)
-	draw_colored_polygon(pts, Color(0.04, 0.02, 0.05, 0.78))
+	draw_colored_polygon(pts, color)
 
 
 func _band(origin: Vector2, outer: float, inner: float, half: float, color: Color) -> void:
 	var pts := PackedVector2Array()
-	var steps := 18
+	var steps := 16
 	for i in steps + 1:
 		var t := float(i) / float(steps)
 		var ang := _facing + lerpf(-half, half, t)

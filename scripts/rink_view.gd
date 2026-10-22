@@ -177,16 +177,17 @@ func _build_lights() -> void:
 func _build_camera() -> void:
 	var camera := Camera3D.new()
 	camera.name = "GameCamera"
-	camera.fov = 49.0
+	camera.fov = 44.0
 	camera.near = 0.08
 	camera.far = 240.0
-	camera.position = Vector3(0.0, 9.2, 10.8)
-	camera.look_at_from_position(camera.position, Vector3(0.0, 0.28, -18.0), Vector3.UP)
+	# Higher and further up the green so the mat sits above the bottom bar.
+	camera.position = Vector3(0.0, 11.6, 6.8)
+	camera.look_at_from_position(camera.position, Vector3(0.0, 0.2, -26.0), Vector3.UP)
 	camera.current = true
 	add_child(camera)
 	_camera = camera
 	_home_position = camera.position
-	_home_look = Vector3(0.0, 0.28, -18.0)
+	_home_look = Vector3(0.0, 0.2, -26.0)
 	_home_fov = camera.fov
 	_zoom_position = _home_position
 	_zoom_look = _home_look
