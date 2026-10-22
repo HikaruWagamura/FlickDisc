@@ -218,6 +218,8 @@ func _table() -> Array:
 func _on_disc_aim_changed(_direction: Vector2, power_ratio: float) -> void:
 	ui.set_power_ratio(power_ratio)
 	feel.aim(power_ratio)
+	if power_ratio > 0.02:
+		rink.release_head()
 	if power_ratio <= 0.0:
 		return
 	if delivering_jack:
@@ -346,6 +348,7 @@ func _finish_shot(token: int) -> void:
 	var closest: float = score_manager.get_closest_distance()
 	var jack_moved: bool = jack_pos.distance_to(jack_home) > 0.2
 	ui.set_power_ratio(0.0)
+	rink.focus_head(jack_pos)
 	if throws_left > 0:
 		feel.settled(closest if closest >= 0.0 else 9.0)
 		ui.show_throw_result(disc_distance, closest, throws_left, jack_moved, bowl_ditched, respotted, spares)
@@ -358,7 +361,6 @@ func _finish_shot(token: int) -> void:
 			match_decided.emit(true)
 		disc.visible = false
 		_place_rack()
-		rink.focus_head(jack_pos)
 		feel.settled(0.2 if shots > 0 else 9.0)
 		ui.show_end_summary(end_number, shots, closest, match_points, match_complete)
 

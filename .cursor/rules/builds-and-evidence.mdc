@@ -1,0 +1,8 @@
+---
+description: Testing evidence and mobile install files for every finished task and build
+alwaysApply: true
+---
+
+When a task or build is finished, include testing evidence the user can watch: a screen recording of the changed flow, or screenshots when a recording does not apply. Show the feature working, not only the code.
+
+When a build is pushed to GitHub, also add a new installable Android file for that version. Export both an APK and an AAB, name them with the version (for example FlickDisc-1.2.0.apk and FlickDisc-1.2.0.aab), and push those files so they can be downloaded from the branch. Do not replace an older version's file. The package id is com.hikarutech.flickdisc and the app name is FlickDisc.

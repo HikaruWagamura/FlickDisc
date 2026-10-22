@@ -11,6 +11,7 @@ const Metrics = preload("res://scripts/table_metrics.gd")
 const LevelScript = preload("res://scripts/crokinole_levels.gd")
 const ScoreScript = preload("res://scripts/crokinole_score.gd")
 const PuckScript = preload("res://scripts/puck.gd")
+const FeelScript = preload("res://scripts/feel.gd")
 
 var disc
 var ui
@@ -35,6 +36,8 @@ var goal := ""
 var goal_sent := false
 var match_reported := false
 var player_tint := Color("#ff3d9a")
+var feel
+var _hit_wait := 0.0
 
 func _ready() -> void:
 	disc = get_node("Shooter")
@@ -46,6 +49,9 @@ func _ready() -> void:
 	pucks_root = Node3D.new()
 	pucks_root.name = "Pucks"
 	add_child(pucks_root)
+	feel = FeelScript.new()
+	feel.name = "Feel"
+	add_child(feel)
 	_setup_view()
 	disc.aim_changed.connect(_on_disc_aim_changed)
 	disc.bias_changed.connect(_on_disc_bias_changed)
@@ -119,6 +125,7 @@ func _setup_view() -> void:
 	add_child(fill)
 
 func _physics_process(delta: float) -> void:
+	_hit_wait = maxf(0.0, _hit_wait - delta)
 	if not resolving:
 		return
 	var remaining := delta
@@ -190,6 +197,7 @@ func _solve_pegs() -> void:
 			if into < 0.0:
 				velocity -= normal * into * (1.0 + Metrics.PEG_RESTITUTION)
 				puck.velocity = Vector3(velocity.x, 0.0, velocity.y)
+				_hit(velocity.length())
 				puck.moving = true
 				puck.stop_timer = 0.0
 
@@ -216,6 +224,7 @@ func _solve_pucks() -> void:
 			var relative := Vector2(first.velocity.x - second.velocity.x, first.velocity.z - second.velocity.z)
 			var approach := relative.dot(normal)
 			if approach > 0.0:
+				_hit(approach)
 				var impulse := approach * (1.0 + Metrics.DISC_RESTITUTION) * 0.5
 				first.velocity -= Vector3(normal.x, 0.0, normal.y) * impulse
 				second.velocity += Vector3(normal.x, 0.0, normal.y) * impulse
@@ -413,6 +422,8 @@ func _lock_lane() -> void:
 	if not placing or place_time < 0.4:
 		return
 	placing = false
+	if feel != null:
+		feel.tap()
 	ui.show_stopped()
 
 
@@ -448,6 +459,8 @@ func _load_level(level_index: int) -> void:
 
 func _on_disc_aim_changed(_direction: Vector3, power_ratio: float) -> void:
 	ui.show_power(power_ratio)
+	if feel != null:
+		feel.aim(power_ratio)
 	if power_ratio > 0.0:
 		ui.show_aiming(power_ratio)
 
@@ -464,6 +477,8 @@ func _on_disc_shot_started() -> void:
 	placing = false
 	discs_left -= 1
 	resolving = true
+	if feel != null:
+		feel.release(disc.power_ratio)
 	ui.show_power(0.0)
 	ui.show_in_motion()
 	_show_board(int(current_level["number"]), discs_left)
@@ -478,6 +493,8 @@ func _on_table_settled() -> void:
 		sunk = bool(active_puck.sunk)
 		ditched = bool(active_puck.in_ditch)
 	if discs_left > 0:
+		if feel != null:
+			feel.settled(0.2 if sunk or shot_points >= 15 else 2.5)
 		ui.show_landed(shot_points, sunk, ditched)
 		_show_board(int(current_level["number"]), discs_left)
 		_check_shot_goal()
@@ -508,10 +525,19 @@ func _present_end() -> void:
 		last_award_them = award_them
 		end_applied = true
 	var has_next: bool = current_level_index < level_manager.get_level_count() - 1
+	if feel != null:
+		feel.settled(0.4)
 	ui.show_end_overview(int(current_level["number"]), str(current_level["difficulty"]), you_items, them_items, award_you, award_them, match_you, match_them, match_target, has_next)
 	_show_board(int(current_level["number"]), 0)
 	_check_shot_goal()
 	_check_match_winner()
+
+func _hit(speed: float) -> void:
+	if feel == null or _hit_wait > 0.0:
+		return
+	_hit_wait = 0.12
+	feel.contact(speed, false, false)
+
 
 func _check_shot_goal() -> void:
 	if goal_sent or (goal != "hole" and goal != "fifteen"):
