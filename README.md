@@ -62,9 +62,9 @@ can open it). Serve that folder over HTTP and drag the disc with the mouse.
 
 ## Test the MVP
 
-1. Choose SHORT JACK or LONG JACK, and REBOUND or DITCH ON.
-2. Throw the jack. A short jack must stop between 14 m and 28 m. A long jack must reach 44 m and stay out of the ditch.
-3. Touch the bowl and drag backwards. The guide shows the wide line and the inward draw.
+1. Choose REBOUND or DITCH ON. Pull down on the dial at the right of the green to place the jack wherever you want it. A jack in the ditch is thrown again.
+2. The same dial sends each disc. Pull down for pace and sideways for the line.
+3. The guide shows the opening of the delivery and the start of the draw.
 4. Release. With banks, a bowl rebounds. With ditches, a bowl that crosses the side or the far end is dead. A jack knocked into the ditch is replaced from the spare dots.
 5. Use the arrows for FOREHAND and BACKHAND. The arrows point the way that bowl will bend. Pick one bias for the shot you are about to play.
 6. Wait for it to stop. A bowl in the ditch does not count. The closest bowl still on the green is the score.

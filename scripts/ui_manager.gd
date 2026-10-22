@@ -8,6 +8,8 @@ signal ditch_option_requested
 signal match_cycle_requested
 signal hand_selected(forehand: bool)
 signal bias_selected(index: int)
+signal dial_pull(pull: Vector2)
+signal dial_released(pull: Vector2)
 
 var status_label: Label
 var score_label: Label
@@ -15,8 +17,11 @@ var level_label: Label
 var throws_label: Label
 var reset_button: Button
 var next_button: Button
-var bias_button: Button
 var ditch_button: Button
+var aim_dial: Control
+var power_track: Panel
+var power_cap: Panel
+var power_label: Label
 var match_button: Button
 var hand_bar: Panel
 var hand_label: Label
@@ -27,10 +32,10 @@ var summary: Panel
 var summary_title: Label
 var summary_shots: Label
 var summary_detail: Label
-var power_fill: ColorRect
+var power_fill: TextureRect
 var current_bias := 0.0
 
-const POWER_WIDTH := 400.0
+const POWER_WIDTH := 250.0
 
 
 func _ready() -> void:
@@ -62,32 +67,16 @@ func _ready() -> void:
 	match_button.pressed.connect(func() -> void: match_cycle_requested.emit())
 	_build_summary()
 
-	status_label = _make_label(Vector2(22.0, 758.0), Vector2(496.0, 20.0), 13, Color(0.95, 0.99, 0.96))
-	score_label = _make_label(Vector2(22.0, 776.0), Vector2(496.0, 18.0), 12, Color(0.78, 0.92, 0.86))
+	status_label = _make_label(Vector2(18.0, 688.0), Vector2(300.0, 20.0), 13, Color(0.95, 0.99, 0.96))
+	score_label = _make_label(Vector2(18.0, 708.0), Vector2(300.0, 18.0), 12, Color(0.78, 0.92, 0.86))
 
-	var power_label := _make_label(Vector2(18.0, 804.0), Vector2(70.0, 18.0), 11, Color(0.78, 0.9, 0.84))
-	power_label.text = "POWER"
-	var power_track := ColorRect.new()
-	power_track.position = Vector2(92.0, 808.0)
-	power_track.size = Vector2(POWER_WIDTH, 8.0)
-	power_track.color = Color(0.02, 0.05, 0.08, 0.72)
-	power_track.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(power_track)
-	power_fill = ColorRect.new()
-	power_fill.position = power_track.position
-	power_fill.size = Vector2(0.0, 8.0)
-	power_fill.color = Color(0.45, 0.86, 0.9)
-	power_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(power_fill)
-
+	_build_power_meter()
+	_build_aim_dial()
 	_build_bias_row()
 	_build_hand_bar()
 
 	reset_button = _make_button("RESET", Vector2(18.0, 892.0), Vector2(100.0, 44.0))
 	reset_button.pressed.connect(func() -> void: reset_requested.emit())
-
-	bias_button = _make_button("FOREHAND", Vector2(128.0, 892.0), Vector2(260.0, 48.0))
-	bias_button.pressed.connect(func() -> void: bias_cycle_requested.emit())
 
 	next_button = _make_button("NEXT END", Vector2(400.0, 892.0), Vector2(124.0, 44.0))
 	next_button.pressed.connect(func() -> void: next_level_requested.emit())
@@ -97,20 +86,21 @@ func _ready() -> void:
 func set_power_ratio(power_ratio: float) -> void:
 	if power_fill == null:
 		return
-	power_fill.size.x = POWER_WIDTH * clampf(power_ratio, 0.0, 1.0)
+	var ratio := clampf(power_ratio, 0.0, 1.0)
+	var inner := POWER_WIDTH - 8.0
+	power_fill.size.x = inner * ratio
+	if power_cap != null:
+		power_cap.visible = ratio > 0.04
+		power_cap.position = Vector2(4.0 + power_fill.size.x - 7.0, 4.0)
 
 
-func show_jack_prompt(end_number: int, match_label: String, long_jack: bool, match_points: int) -> void:
+func show_jack_prompt(end_number: int, match_label: String, match_points: int) -> void:
 	level_label.text = "END %d" % end_number
 	throws_label.text = "%d PTS" % match_points
-	status_label.text = "THROW A %s JACK" % ("LONG" if long_jack else "SHORT")
-	var band := "14–28 m"
-	if long_jack:
-		band = "44 m OR MORE"
-	score_label.text = "%s  •  %s" % [match_label, band]
+	status_label.text = "PULL THE DIAL TO PLACE THE JACK"
+	score_label.text = match_label
 	reset_button.visible = true
 	next_button.visible = false
-	bias_button.text = "LONG JACK" if long_jack else "SHORT JACK"
 	show_bowl_controls(false)
 	hide_summary()
 	set_power_ratio(0.0)
@@ -120,19 +110,12 @@ func show_match(match_label: String) -> void:
 	match_button.text = match_label
 
 
-func show_jack_length(long_jack: bool) -> void:
-	bias_button.text = "LONG JACK" if long_jack else "SHORT JACK"
-
-
 func show_ditch_mode(enabled: bool) -> void:
 	ditch_button.text = "DITCH ON" if enabled else "REBOUND"
 
 
-func show_jack_aim(power_ratio: float, long_jack: bool) -> void:
-	var length_name := "SHORT"
-	if long_jack:
-		length_name = "LONG"
-	status_label.text = "AIMING %s JACK  •  %d%%" % [length_name, roundi(power_ratio * 100.0)]
+func show_jack_aim(power_ratio: float) -> void:
+	status_label.text = "AIMING JACK  •  %d%%" % roundi(power_ratio * 100.0)
 	set_power_ratio(power_ratio)
 
 
@@ -248,18 +231,83 @@ func show_bowl_controls(enabled: bool) -> void:
 		hand_label.visible = enabled
 	for button in bias_buttons:
 		button.visible = enabled
-	if bias_button != null:
-		bias_button.visible = not enabled
 
 
 func _hand_name() -> String:
 	return "FOREHAND" if current_bias < 0.0 else "BACKHAND"
 
 
+func _build_power_meter() -> void:
+	power_track = Panel.new()
+	power_track.position = Vector2(145.0, 806.0)
+	power_track.size = Vector2(POWER_WIDTH, 22.0)
+	power_track.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var track := StyleBoxFlat.new()
+	track.bg_color = Color(0.03, 0.07, 0.1, 0.92)
+	track.border_color = Color(0.9, 0.76, 0.38)
+	track.set_border_width_all(2)
+	track.set_corner_radius_all(11)
+	power_track.add_theme_stylebox_override("panel", track)
+	power_track.clip_contents = true
+	add_child(power_track)
+	var gradient := Gradient.new()
+	gradient.set_color(0, Color(0.16, 0.55, 0.66))
+	gradient.add_point(0.62, Color(0.55, 0.9, 0.78))
+	gradient.set_color(gradient.get_point_count() - 1, Color(0.98, 0.78, 0.32))
+	var texture := GradientTexture2D.new()
+	texture.gradient = gradient
+	texture.width = 256
+	texture.height = 16
+	texture.fill_from = Vector2(0.0, 0.5)
+	texture.fill_to = Vector2(1.0, 0.5)
+	power_fill = TextureRect.new()
+	power_fill.position = Vector2(4.0, 4.0)
+	power_fill.size = Vector2(0.0, 14.0)
+	power_fill.texture = texture
+	power_fill.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	power_fill.stretch_mode = TextureRect.STRETCH_SCALE
+	power_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	power_track.add_child(power_fill)
+	power_cap = Panel.new()
+	power_cap.size = Vector2(14.0, 14.0)
+	power_cap.position = Vector2(4.0, 4.0)
+	power_cap.visible = false
+	power_cap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var cap := StyleBoxFlat.new()
+	cap.bg_color = Color(0.98, 0.9, 0.62)
+	cap.set_corner_radius_all(7)
+	power_cap.add_theme_stylebox_override("panel", cap)
+	power_track.add_child(power_cap)
+	power_label = Label.new()
+	power_label.text = "POWER"
+	power_label.position = Vector2(0.0, 1.0)
+	power_label.size = Vector2(POWER_WIDTH, 20.0)
+	power_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	power_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	power_label.add_theme_font_size_override("font_size", 11)
+	power_label.add_theme_color_override("font_color", Color(0.98, 0.92, 0.72, 0.95))
+	power_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	power_track.add_child(power_label)
+
+
+func _build_aim_dial() -> void:
+	var dial := preload("res://scripts/aim_dial.gd").new()
+	dial.name = "AimDial"
+	dial.position = Vector2(412.0, 628.0)
+	dial.size = Vector2(118.0, 118.0)
+	add_child(dial)
+	aim_dial = dial
+	dial.pull_changed.connect(func(pull: Vector2) -> void: dial_pull.emit(pull))
+	dial.pull_released.connect(func(pull: Vector2) -> void: dial_released.emit(pull))
+	var caption := _make_label(Vector2(412.0, 750.0), Vector2(118.0, 16.0), 11, Color(0.98, 0.9, 0.62))
+	caption.text = "PULL"
+	caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+
+
 func _build_bias_row() -> void:
 	var names := ["NARROW", "MEDIUM", "WIDE", "HOOK"]
 	for i in names.size():
-		var button := _make_button(names[i], Vector2(16.0 + float(i) * 131.0, 834.0), Vector2(123.0, 36.0))
+		var button := _make_button(names[i], Vector2(16.0 + float(i) * 131.0, 840.0), Vector2(123.0, 32.0))
 		button.add_theme_font_size_override("font_size", 11)
 		button.visible = false
 		button.pressed.connect(_emit_bias.bind(i))

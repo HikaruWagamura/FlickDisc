@@ -32,7 +32,6 @@ var shot_token := 0
 var delivering_jack := true
 var hand_sign := -1.0
 var bias_index := 1
-var long_jack := false
 var ditch_mode := false
 var jack_length := 0.0
 var match_index := 1
@@ -77,6 +76,8 @@ func _ready() -> void:
 	ui.match_cycle_requested.connect(_on_match_cycle_requested)
 	ui.hand_selected.connect(_on_hand_selected)
 	ui.bias_selected.connect(_on_bias_selected)
+	ui.dial_pull.connect(_on_dial_pull)
+	ui.dial_released.connect(_on_dial_release)
 	_lock_portrait_on_device()
 	_build_rack()
 	_new_match()
@@ -98,43 +99,24 @@ func _lock_portrait_on_device() -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if feel != null and (event is InputEventMouseButton or event is InputEventScreenTouch):
+		feel.unlock()
+
+
+func _on_dial_pull(pull: Vector2) -> void:
+	if disc == null or disc.shot_in_progress or not disc.visible:
+		return
+	if not disc.is_aiming:
+		if not disc.begin_dial():
+			return
+	disc.update_dial(pull)
+
+
+func _on_dial_release(pull: Vector2) -> void:
 	if disc == null or not disc.is_aiming:
 		return
-	var on_device := OS.has_feature("android") or OS.has_feature("ios")
-	if on_device and event is InputEventScreenDrag:
-		disc.update_aim(event.position)
-		get_viewport().set_input_as_handled()
-	elif on_device and event is InputEventScreenTouch and not event.pressed:
-		disc.release_aim(event.position)
-		get_viewport().set_input_as_handled()
-	elif not on_device and event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
-		disc.update_aim(event.position)
-		get_viewport().set_input_as_handled()
-	elif not on_device and event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
-		disc.release_aim(event.position)
-		get_viewport().set_input_as_handled()
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	# On a phone, Godot also synthesizes mouse events from touches. Handling
-	# both would start and release the same shot twice.
-	if feel != null:
-		feel.unlock()
-	var on_device := OS.has_feature("android") or OS.has_feature("ios")
-	if on_device and event is InputEventScreenTouch:
-		if event.pressed:
-			disc.begin_aim(event.position)
-		else:
-			disc.release_aim(event.position)
-	elif on_device and event is InputEventScreenDrag:
-		disc.update_aim(event.position)
-	elif not on_device and event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		if event.pressed:
-			disc.begin_aim(event.position)
-		else:
-			disc.release_aim(event.position)
-	elif not on_device and event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
-		disc.update_aim(event.position)
+	disc.update_dial(pull)
+	disc.release_dial()
 
 
 func _new_match() -> void:
@@ -174,7 +156,7 @@ func _begin_end() -> void:
 	ui.set_power_ratio(0.0)
 	ui.show_ditch_mode(ditch_mode)
 	ui.show_match(_match_label())
-	ui.show_jack_prompt(end_number, _match_label(), long_jack, match_points)
+	ui.show_jack_prompt(end_number, _match_label(), match_points)
 
 
 func _build_rack() -> void:
@@ -192,7 +174,7 @@ func _place_rack() -> void:
 		bowl.set_hand(hand_sign)
 		bowl.set_scoring(false)
 		var slot := -0.69 + float(i) * 0.46
-		bowl.rest_at(Vector3(slot, 0.0, RinkScript.DISC_Z - 1.15))
+		bowl.rest_at(Vector3(slot, 0.0, RinkScript.DISC_Z - 2.2))
 		if delivering_jack:
 			bowl.visible = true
 		else:
@@ -232,7 +214,7 @@ func _on_disc_aim_changed(_direction: Vector2, power_ratio: float) -> void:
 	if power_ratio <= 0.0:
 		return
 	if delivering_jack:
-		ui.show_jack_aim(power_ratio, long_jack)
+		ui.show_jack_aim(power_ratio)
 	else:
 		ui.show_aiming(power_ratio)
 
@@ -244,12 +226,9 @@ func _on_disc_bias_changed(_bias_ratio: float) -> void:
 
 
 func _on_bias_cycle_requested() -> void:
-	feel.tap()
-	if delivering_jack:
-		long_jack = not long_jack
-		ui.show_jack_length(long_jack)
-		ui.show_jack_prompt(end_number, _match_label(), long_jack, match_points)
+	if delivering_jack or disc.shot_in_progress:
 		return
+	feel.tap()
 	disc.toggle_hand()
 	hand_sign = disc.hand_sign
 	_place_rack()
@@ -292,7 +271,7 @@ func _on_match_cycle_requested() -> void:
 	feel.tap()
 	match_index = (match_index + 1) % MATCHES.size()
 	ui.show_match(_match_label())
-	ui.show_jack_prompt(end_number, _match_label(), long_jack, match_points)
+	ui.show_jack_prompt(end_number, _match_label(), match_points)
 
 
 func _on_disc_shot_started() -> void:
@@ -381,21 +360,11 @@ func _finish_jack(rest_pos: Vector3) -> void:
 	if ditched:
 		reason = "JACK IN THE DITCH"
 		detail = "THROW AGAIN"
-	elif long_jack and travelled < RinkScript.LONG_MIN:
-		reason = "TOO SHORT FOR A LONG JACK"
-		detail = "NEEDS %.0f m" % RinkScript.LONG_MIN
-	elif not long_jack and travelled < RinkScript.SHORT_MIN:
-		reason = "JACK TOO SHORT"
-		detail = "NEEDS %.0f m" % RinkScript.SHORT_MIN
-	elif not long_jack and travelled > RinkScript.SHORT_MAX:
-		reason = "TOO LONG FOR A SHORT JACK"
-		detail = "KEEP IT UNDER %.0f m" % RinkScript.SHORT_MAX
 	if reason != "":
 		feel.settled(9.0)
 		disc.configure_jack()
 		disc.reset_to_start()
 		ui.show_jack_illegal(reason, travelled, detail)
-		ui.show_jack_length(long_jack)
 		return
 	delivering_jack = false
 	jack_length = travelled

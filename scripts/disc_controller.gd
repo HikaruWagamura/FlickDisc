@@ -14,7 +14,8 @@ const MAX_DRAG_PIXELS := 210.0
 const MAX_SPEED := 66.0
 const MIN_SPEED := 5.0
 const AIM_RESPONSE := 11.0
-const AIM_SIDE_PIXELS := 340.0
+const DIAL_POWER_PIXELS := 148.0
+const DIAL_SIDE_PIXELS := 132.0
 const FRICTION_PER_SECOND := 0.52
 const STOP_SPEED := 0.15
 const STOP_GRACE_SECONDS := 0.15
@@ -153,48 +154,35 @@ func toggle_hand() -> void:
 	set_hand(1.0 if hand_sign < 0.0 else -1.0)
 
 
-func begin_aim(pointer_position: Vector2) -> bool:
+func begin_dial() -> bool:
 	if shot_in_progress or not visible:
 		return false
-	var camera := get_viewport().get_camera_3d()
-	if camera == null:
-		return false
-	var disc_screen := camera.unproject_position(global_position + Vector3(0.0, 0.12, 0.0))
-	if pointer_position.distance_to(disc_screen) > PICK_RADIUS_PX:
-		return false
 	is_aiming = true
-	_aim_target = aim_direction
+	_aim_target = Vector3(0.0, 0.0, -1.0)
+	aim_direction = _aim_target
 	_power_target = 0.0
 	power_ratio = 0.0
-	update_aim(pointer_position)
 	return true
 
 
-func update_aim(pointer_position: Vector2) -> void:
+func update_dial(pull: Vector2) -> void:
 	if not is_aiming:
 		return
-	var camera := get_viewport().get_camera_3d()
-	if camera == null:
-		return
-	var disc_screen := camera.unproject_position(global_position + Vector3(0.0, 0.12, 0.0))
-	var pull_px := pointer_position - disc_screen
-	var pull_len := pull_px.length()
-	_power_target = clampf(pull_len / MAX_DRAG_PIXELS, 0.0, 1.0)
-	# Horizontal drag sets the line gently. Pulling right aims left, the
-	# slingshot opposite, without the ground-ray whip near the bottom edge.
-	var side_px := pull_px.x
-	if absf(side_px) < 14.0:
+	var down := maxf(pull.y, 0.0)
+	_power_target = clampf(down / DIAL_POWER_PIXELS, 0.0, 1.0)
+	var side_px := pull.x
+	if absf(side_px) < 6.0:
 		side_px = 0.0
 	else:
-		side_px -= signf(side_px) * 14.0
-	var side := clampf(-side_px / AIM_SIDE_PIXELS, -0.56, 0.56)
+		side_px -= signf(side_px) * 6.0
+	# The dial is direct. Pulling right sends the bowl to the right.
+	var side := clampf(side_px / DIAL_SIDE_PIXELS, -0.62, 0.62)
 	_aim_target = Vector3(side, 0.0, -1.0).normalized()
 
 
-func release_aim(pointer_position: Vector2) -> void:
+func release_dial() -> void:
 	if not is_aiming:
 		return
-	update_aim(pointer_position)
 	is_aiming = false
 	aim_direction = _aim_target
 	power_ratio = _power_target
