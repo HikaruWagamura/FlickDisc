@@ -1,6 +1,6 @@
-# DISC QUEST
+# FLICK CHAOS
 
-The first Godot 4 prototype for a portrait mobile sports puzzle game.
+Two modes in one portrait game. **Crokinole** opens first, with the round board filling the screen. **Lawn** is the long bowls rink and the jack. The buttons under the title switch modes.
 
 ## Current step
 
