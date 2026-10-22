@@ -7,8 +7,8 @@ extends Node
 signal changed(power: float, needle: float)
 signal fired(power: float, needle: float)
 
-const PULL_PIXELS := 228.0
-const CURVE := 1.62
+const PULL_PIXELS := 260.0
+const CURVE := 1.45
 const FIRE_POWER := 0.08
 
 var live := false
@@ -78,8 +78,8 @@ func advance(delta: float) -> void:
 		return
 	var stiffness := lerpf(18.0, 7.5, _target)
 	power = lerpf(power, _target, 1.0 - exp(-stiffness * delta))
-	# Slower than the first strike cursor. A heavy pull still hurries it.
-	var cycles := lerpf(0.48, 1.85, power)
+	# A slow sweep. Power hurries it, but the mark stays readable.
+	var cycles := lerpf(0.12, 0.38, power)
 	_phase += cycles * TAU * delta
 	needle = sin(_phase)
 	changed.emit(power, needle)

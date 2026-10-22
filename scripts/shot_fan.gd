@@ -1,7 +1,7 @@
 extends Control
 
-## The place line, the aim arrow, and the strike cursor.
-## The power reading lives on the bottom bar, not on this display.
+## Aim arrow while the line is open. The strike dial sits on the disc
+## and the number in it is the power.
 
 var _anchor := Vector2(270, 640)
 var _power := 0.0
@@ -94,25 +94,33 @@ func _draw_disc_ring() -> void:
 
 
 func _draw_cursor() -> void:
-	# A compact arc on the disc. Centre gold is the line already chosen.
-	# The needle is only the timing, and it stays clear of the bottom bar.
+	# Glass dial on the disc. The arc fills with power and the needle is the mark.
 	var origin := _anchor
-	origin.y = minf(origin.y, 730.0)
-	var radius := 84.0
-	var spread := 0.62
-	_plate(origin, radius + 8.0, spread + 0.08, Color(0.05, 0.02, 0.06, 0.42))
-	_band(origin, radius, radius * 0.58, spread, Color(0.42, 0.04, 0.16, 0.9))
-	_band(origin, radius - 1.0, radius * 0.58, spread * 0.46, Color(1.0, 0.28, 0.55, 0.95))
-	_band(origin, radius - 1.0, radius * 0.58, spread * 0.14, Color(0.99, 0.82, 0.36, 1.0))
+	origin.y = clampf(origin.y, 140.0, 900.0)
+	var radius := 102.0
+	var spread := 0.7
+	draw_circle(origin, 34.0, Color(0.05, 0.03, 0.06, 0.72))
+	draw_arc(origin, 34.0, 0.0, TAU, 40, Color(0.93, 0.76, 0.4, 0.95), 2.0, true)
+	_plate(origin, radius + 12.0, spread + 0.12, Color(0.04, 0.02, 0.05, 0.48))
+	_band(origin, radius + 2.0, radius * 0.6, spread, Color(0.10, 0.05, 0.07, 0.94))
+	draw_arc(origin, radius + 3.0, _facing - spread, _facing + spread, 28, Color(0.95, 0.8, 0.42, 0.95), 2.5, true)
+	if _power > 0.015:
+		_span(origin, radius, radius * 0.6, -spread, lerpf(-spread, spread, _power), Color(1.0, 0.42, 0.62, 0.96))
+	_span(origin, radius - 1.0, radius * 0.62, -spread * 0.12, spread * 0.12, Color(0.99, 0.84, 0.38, 1.0))
 	var centre_dir := Vector2(cos(_facing), sin(_facing))
-	draw_line(origin + centre_dir * (radius * 0.62), origin + centre_dir * (radius - 6.0), Color(1, 1, 1, 0.95), 2.0, true)
+	draw_line(origin + centre_dir * (radius * 0.64), origin + centre_dir * (radius - 4.0), Color(1, 1, 1, 0.95), 2.0, true)
 	var nang := _facing + _needle * spread
 	var needle_dir := Vector2(cos(nang), sin(nang))
-	var tip := origin + needle_dir * (radius - 6.0)
-	var root := origin + needle_dir * (radius * 0.5)
-	draw_line(root, tip, Color(1.0, 0.96, 0.9, 1.0), 3.0, true)
-	draw_circle(tip, 5.5, Color(1.0, 0.97, 0.92, 1.0))
-	draw_circle(origin + centre_dir * 8.0, 4.0, Color(1.0, 0.84, 0.4, 1.0))
+	var tip := origin + needle_dir * (radius - 4.0)
+	var root := origin + needle_dir * (radius * 0.52)
+	draw_line(root, tip, Color(1.0, 0.97, 0.9, 1.0), 3.5, true)
+	draw_circle(tip, 6.0, Color(1.0, 0.97, 0.92, 1.0))
+	draw_circle(tip, 3.0, Color(1.0, 0.45, 0.62, 1.0))
+	var font := ThemeDB.fallback_font
+	if font != null:
+		var label := "%d" % roundi(_power * 100.0)
+		var width := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x
+		draw_string(font, origin + Vector2(-width * 0.5, 8.0), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1.0, 0.95, 0.82))
 
 
 func _plate(origin: Vector2, radius: float, half: float, color: Color) -> void:
@@ -126,14 +134,18 @@ func _plate(origin: Vector2, radius: float, half: float, color: Color) -> void:
 
 
 func _band(origin: Vector2, outer: float, inner: float, half: float, color: Color) -> void:
+	_span(origin, outer, inner, -half, half, color)
+
+
+func _span(origin: Vector2, outer: float, inner: float, start: float, end: float, color: Color) -> void:
 	var pts := PackedVector2Array()
 	var steps := 16
 	for i in steps + 1:
 		var t := float(i) / float(steps)
-		var ang := _facing + lerpf(-half, half, t)
+		var ang := _facing + lerpf(start, end, t)
 		pts.append(origin + Vector2(cos(ang), sin(ang)) * outer)
 	for i in range(steps, -1, -1):
 		var t := float(i) / float(steps)
-		var ang := _facing + lerpf(-half, half, t)
+		var ang := _facing + lerpf(start, end, t)
 		pts.append(origin + Vector2(cos(ang), sin(ang)) * inner)
 	draw_colored_polygon(pts, color)

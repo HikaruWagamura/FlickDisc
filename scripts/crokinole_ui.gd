@@ -26,7 +26,6 @@ var _count_token := 0
 
 func _ready() -> void:
 	_make_scrim(Rect2(0.0, 0.0, 540.0, 108.0), Color(0.03, 0.02, 0.04, 0.72))
-	_make_scrim(Rect2(0.0, 820.0, 540.0, 140.0), Color(0.03, 0.02, 0.04, 0.82))
 
 	var menu_button := _make_button("MENU", Vector2(16.0, 10.0), Vector2(104.0, 32.0))
 	menu_button.add_theme_stylebox_override("normal", _button_style(Color("#ff4d9a"), Color("#ffd0e8")))
@@ -40,30 +39,14 @@ func _ready() -> void:
 	status_label = _make_label(Vector2(22.0, 58.0), Vector2(496.0, 22.0), 13, Color("#d9f5e8"), "")
 	score_label = _make_label(Vector2(22.0, 80.0), Vector2(496.0, 20.0), 11, Color("#8fc9bf"), "")
 
-	reset_button = _make_button("RESET", Vector2(16.0, 836.0), Vector2(120.0, 40.0))
+	reset_button = _make_button("RESET", Vector2(128.0, 10.0), Vector2(96.0, 32.0))
 	reset_button.pressed.connect(func() -> void: reset_requested.emit())
 
-	next_button = _make_button("NEXT END", Vector2(392.0, 836.0), Vector2(132.0, 40.0))
+	next_button = _make_button("NEXT END", Vector2(150.0, 852.0), Vector2(240.0, 48.0))
 	next_button.pressed.connect(func() -> void: next_level_requested.emit())
 	next_button.visible = false
 
-	bias_button = _make_button("BIAS  CENTER", Vector2(148.0, 836.0), Vector2(232.0, 40.0))
-	bias_button.pressed.connect(func() -> void: bias_cycle_requested.emit())
-	var power_label := _make_label(Vector2(50.0, 886.0), Vector2(440.0, 16.0), 10, Color("#9fd8cc"), "POWER")
-	power_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var track := ColorRect.new()
-	track.position = Vector2(50.0, 908.0)
-	track.size = Vector2(440.0, 18.0)
-	track.color = Color(0.02, 0.05, 0.08, 0.95)
-	track.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(track)
-	power_fill = ColorRect.new()
-	power_fill.position = Vector2(50.0, 908.0)
-	power_fill.size = Vector2(0.0, 18.0)
-	power_fill.color = Color("#ff4d9a")
-	power_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(power_fill)
-	stop_button = _make_button("STOP", Vector2(144.0, 836.0), Vector2(250.0, 40.0))
+	stop_button = _make_button("STOP", Vector2(144.0, 852.0), Vector2(250.0, 40.0))
 	stop_button.add_theme_font_size_override("font_size", 20)
 	stop_button.add_theme_stylebox_override("normal", _button_style(Color("#ff2f86"), Color("#ffd0e8")))
 	stop_button.add_theme_stylebox_override("hover", _button_style(Color("#ff5aa3"), Color("#ffe4f2")))
@@ -78,7 +61,7 @@ func _ready() -> void:
 
 func show_touch(level_number: int, discs_left: int, you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0) -> void:
 	hide_overview()
-	status_label.text = "TOUCH YOUR DISC  •  SLIDE IT, THEN AIM"
+	status_label.text = "DRAG TO AIM  •  TAP THE DISC TO SHOOT"
 	show_match_status(level_number, discs_left, you_board, far_board, match_you, match_them)
 	reset_button.text = "RESET"
 	reset_button.visible = true
@@ -87,7 +70,11 @@ func show_touch(level_number: int, discs_left: int, you_board: int = 0, far_boar
 	show_power(0.0)
 
 func show_sliding() -> void:
-	status_label.text = "SLIDE TO PLACE  •  DRAG UP TO AIM"
+	status_label.text = "DRAG TO AIM  •  TAP THE DISC TO SHOOT"
+
+
+func show_aim_ready() -> void:
+	status_label.text = "LINE SET  •  TAP THE DISC TO SHOOT"
 
 func show_take() -> void:
 	status_label.text = "PULL BACK  •  RELEASE ON THE MARK"
@@ -99,16 +86,14 @@ func show_lane(level_number: int, discs_left: int, difficulty: String = "", you_
 func show_stopped() -> void:
 	show_take()
 
-func _show_stop(rolling: bool) -> void:
+func _show_stop(_rolling: bool) -> void:
 	if stop_button != null:
-		stop_button.visible = rolling
-	if bias_button != null:
-		bias_button.visible = not rolling
+		stop_button.visible = false
 
 func show_ready(level_number: int, discs_left: int, difficulty: String = "", you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0) -> void:
 	hide_overview()
 	var layout := difficulty.to_upper() if difficulty != "" else "CROKINOLE"
-	status_label.text = "LEVEL %02d  •  %s  •  TOUCH YOUR DISC" % [level_number, layout]
+	status_label.text = "LEVEL %02d  •  %s  •  TAP YOUR DISC" % [level_number, layout]
 	show_match_status(level_number, discs_left, you_board, far_board, match_you, match_them)
 	reset_button.text = "RESET"
 	reset_button.visible = true
@@ -122,11 +107,11 @@ func show_match_status(level_number: int, discs_left: int, you_board: int = 0, f
 		throws_label.text = "%d LEFT" % discs_left
 	score_label.text = "BOARD %d–%d    MATCH %d–%d" % [you_board, far_board, match_you, match_them]
 
-func show_aiming(power_ratio: float) -> void:
-	status_label.text = "RELEASE ON THE MARK  •  %d%%  •  %s" % [roundi(power_ratio * 100.0), _bias_name()]
+func show_aiming(_power_ratio: float) -> void:
+	status_label.text = "RELEASE ON THE MARK"
 
-func show_power(ratio: float) -> void:
-	power_fill.size.x = 440.0 * clampf(ratio, 0.0, 1.0)
+func show_power(_ratio: float) -> void:
+	pass
 
 func show_in_motion() -> void:
 	_show_stop(false)
@@ -165,7 +150,9 @@ func show_end_overview(end_number: int, layout_name: String, you_items: Array, t
 
 func show_bias(value: float) -> void:
 	current_bias = value
-	bias_button.text = "BIAS  %s" % _bias_name()
+
+func show_opponent() -> void:
+	status_label.text = "OPPONENT TO PLAY"
 
 func _play_end_count(token: int, end_number: int, you_items: Array, them_items: Array, award_you: int, award_them: int, match_you: int, match_them: int, match_target: int, has_next: bool) -> void:
 	var built := ""

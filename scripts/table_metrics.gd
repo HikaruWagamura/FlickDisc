@@ -1,22 +1,24 @@
 extends RefCounted
 
-## Crokinole table in meters-ish world units.
-## The wooden surface has a radius of 0.92. Eight pegs stand on the 15-point circle.
+## NCA crokinole, scaled so a disc is 1 1/4 inch.
+## Playing surface 26". Rings at 4", 8" and 12". Hole is 1 3/8",
+## only a little wider than the disc. Pegs stand on the 4" ring.
 
-const SURFACE_RADIUS := 0.92
-const DITCH_OUTER := 1.08
-const HOLE_RADIUS := 0.108
-const RING_15 := 0.40
-const RING_10 := 0.64
-const RING_5 := 0.92
-const PEG_RADIUS := 0.036
-const PEG_RING := 0.28
 const DISC_RADIUS := 0.058
+const INCH := DISC_RADIUS / 0.625
+const SURFACE_RADIUS := 13.0 * INCH
+const DITCH_OUTER := 15.0 * INCH
+const HOLE_RADIUS := 0.6875 * INCH
+const RING_15 := 4.0 * INCH
+const RING_10 := 8.0 * INCH
+const RING_5 := 12.0 * INCH
+const PEG_RADIUS := 0.1875 * INCH
+const PEG_RING := RING_15
 const DISC_HEIGHT := 0.030
 const DISC_CENTER_Y := 0.016
 const DITCH_Y := -0.006
-const PLAYER_START_Z := 0.68
-const LANE_HALF := 0.30
+const PLAYER_START_Z := 12.35 * INCH
+const LANE_HALF := 3.2 * INCH
 const DISCS_PER_ROUND := 8
 
 const MIN_SPEED := 1.15

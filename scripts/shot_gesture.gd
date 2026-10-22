@@ -6,6 +6,7 @@ extends Node
 
 signal place_at(spot: Vector3)
 signal aim_set(amount: float)
+signal kept_aim
 signal opened_take
 signal cancelled_pull
 signal fired(power: float, needle: float)
@@ -23,6 +24,7 @@ var take
 var _from := Vector2.ZERO
 var _press_frame := -1
 var _release_frame := -1
+var _travel := 0.0
 
 
 func _ready() -> void:
@@ -81,6 +83,7 @@ func _input(event: InputEvent) -> void:
 		if not hit:
 			return
 		_from = screen
+		_travel = 0.0
 		if phase == "idle" or phase == "place":
 			phase = "place"
 		elif phase == "take":
@@ -102,6 +105,7 @@ func _input(event: InputEvent) -> void:
 
 
 func _move(screen: Vector2) -> void:
+	_travel = maxf(_travel, _from.distance_to(screen))
 	if phase == "place":
 		# Along the line places the disc. A drag up the board points the shot.
 		if _ahead(screen) > 34.0:
@@ -125,12 +129,21 @@ func _move(screen: Vector2) -> void:
 
 
 func _up(screen: Vector2) -> void:
-	if phase == "place" or phase == "hold":
-		if phase == "place":
-			if _ahead(screen) > 34.0:
-				_set_aim(screen)
-			else:
-				_emit_place(screen)
+	if phase == "place":
+		if _ahead(screen) > 34.0:
+			_set_aim(screen)
+		elif _travel >= 10.0:
+			_emit_place(screen)
+		# A drag only sets the line. A tap on the disc enters the shot.
+		if _travel < 18.0:
+			phase = "take"
+			take.open()
+			opened_take.emit()
+		else:
+			phase = "place"
+			kept_aim.emit()
+		return
+	if phase == "hold":
 		phase = "take"
 		take.open()
 		opened_take.emit()

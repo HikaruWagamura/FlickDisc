@@ -52,7 +52,7 @@ var aim_lock := 0.0
 var line_z := 0.0
 var _return_token := 0
 const PLACE_HALF := 1.65
-const PULL_BACK := 1.15
+const PULL_BACK := 1.25
 const AIM_CONE := 0.26
 const CURSOR_SPAN := 0.05
 
@@ -129,6 +129,7 @@ func _wire_shot() -> void:
 	shot.board_point = _board_point
 	shot.place_at.connect(_on_place_at)
 	shot.aim_set.connect(_on_aim_set)
+	shot.kept_aim.connect(_on_aim_kept)
 	shot.opened_take.connect(_on_take_opened)
 	shot.cancelled_pull.connect(_on_pull_cancelled)
 	shot.fired.connect(_on_shot_fired)
@@ -162,6 +163,10 @@ func _on_place_at(spot: Vector3) -> void:
 func _on_aim_set(amount: float) -> void:
 	aim_lock = amount
 	ui.show_aiming_line(delivering_jack)
+
+
+func _on_aim_kept() -> void:
+	ui.show_aim_ready(delivering_jack)
 
 
 func _on_take_opened() -> void:
@@ -244,8 +249,11 @@ func _sync_fan() -> void:
 	var needle: float = gesture.read_needle() if pulling else 0.0
 	if live:
 		disc.global_position = placed + Vector3(0.0, 0.0, power * PULL_BACK)
+		if show_arrow:
+			disc.preview_take(_aim_from(0.0), 0.55)
+		elif not pulling and disc.is_aiming:
+			disc.preview_take(Vector3(0.0, 0.0, -1.0), 0.0)
 		if pulling:
-			ui.set_power_ratio(power)
 			feel.aim(power)
 			if delivering_jack:
 				ui.show_jack_aim(power)
@@ -258,9 +266,7 @@ func _sync_fan() -> void:
 	var live_pos: Vector3 = disc.global_position
 	var cursor_at := cam.unproject_position(live_pos + Vector3(0.0, 0.16, 0.0))
 	fan.present(cursor_at, power, needle, show_cursor, _facing(live_pos, _aim_from(0.0)))
-	var line_a := cam.unproject_position(Vector3(-PLACE_HALF, 0.06, line_z))
-	var line_b := cam.unproject_position(Vector3(PLACE_HALF, 0.06, line_z))
-	fan.set_line(line_a, line_b, live and not show_cursor)
+	fan.set_line(Vector2.ZERO, Vector2.ZERO, false)
 	var aim_tip := placed + _aim_from(0.0) * 4.5
 	var aim_from := cam.unproject_position(placed + Vector3(0.0, 0.12, 0.0))
 	var aim_to := cam.unproject_position(aim_tip + Vector3(0.0, 0.12, 0.0))
@@ -325,12 +331,8 @@ func _place_rack() -> void:
 		var bowl = rack[i]
 		bowl.set_hand(hand_sign)
 		bowl.set_scoring(false)
-		var slot := -0.69 + float(i) * 0.46
-		bowl.rest_at(Vector3(slot, 0.0, RinkScript.DISC_Z - 2.2))
-		if delivering_jack:
-			bowl.visible = true
-		else:
-			bowl.visible = i > throw_index
+		bowl.rest_at(Vector3(-2.05, 0.0, -9.0 - float(i) * 0.7))
+		bowl.visible = not delivering_jack and i > throw_index
 
 
 func _match_label() -> String:
@@ -361,12 +363,11 @@ func _table() -> Array:
 
 
 func _on_disc_aim_changed(_direction: Vector2, power_ratio: float) -> void:
-	ui.set_power_ratio(power_ratio)
-	feel.aim(power_ratio)
 	if power_ratio > 0.02:
 		rink.release_head()
-	if power_ratio <= 0.0:
+	if gesture == null or str(gesture.phase) != "pull":
 		return
+	feel.aim(power_ratio)
 	if delivering_jack:
 		ui.show_jack_aim(power_ratio)
 	else:

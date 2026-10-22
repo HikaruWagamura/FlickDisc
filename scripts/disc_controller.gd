@@ -489,7 +489,7 @@ func _update_guide() -> void:
 	if _guide == null:
 		return
 	var path := _predict_path()
-	var show_line := path.size() > 1 and (power_ratio > 0.02 or (is_aiming and not delivering_jack))
+	var show_line := path.size() > 1 and power_ratio > 0.02
 	_guide.visible = show_line
 	if not _guide.visible:
 		return
@@ -516,8 +516,6 @@ func _predict_path() -> PackedVector3Array:
 	# Only the opening quarter of the run. The rest of the hand is for
 	# the player to judge.
 	var aiming_line := power_ratio < 0.08
-	if delivering_jack and aiming_line:
-		return PackedVector3Array()
 	var pace := 0.42 if aiming_line else power_ratio
 	var bias := 0.0 if delivering_jack else bias_ratio
 	var use_bias := not delivering_jack
@@ -572,14 +570,16 @@ func _build_visual() -> void:
 	_spin = Node3D.new()
 	_visual.add_child(_spin)
 
-	_rim_mat = _disc_mat(Color(0.40, 0.06, 0.10), 0.4, 0.15)
-	_body_mat = _disc_mat(Color(0.82, 0.12, 0.18), 0.32, 0.18)
-	_cap_mat = _disc_mat(Color(0.93, 0.22, 0.26), 0.28, 0.08)
+	_rim_mat = _disc_mat(Color(0.09, 0.08, 0.07), 0.4, 0.15)
+	_body_mat = _disc_mat(Color(0.93, 0.90, 0.84), 0.32, 0.08)
+	_cap_mat = _disc_mat(Color(0.98, 0.95, 0.88), 0.28, 0.08)
 	_mark_mat = StandardMaterial3D.new()
 	_mark_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_mark_mat.albedo_color = Color(0.97, 0.96, 0.93)
+	_mark_mat.albedo_color = Color(0.12, 0.10, 0.08)
 
 	_add_cylinder(_spin, Vector3(0.0, 0.014, 0.0), 0.18, 0.172, 0.02, _rim_mat)
+	var gold := _disc_mat(Color(0.86, 0.68, 0.28), 0.28, 0.78)
+	_add_cylinder(_spin, Vector3(0.0, 0.022, 0.0), 0.15, 0.15, 0.004, gold)
 	_add_cylinder(_spin, Vector3(0.0, 0.026, 0.0), 0.132, 0.132, 0.006, _body_mat)
 	_bias_pip = MeshInstance3D.new()
 	var pip_mesh := SphereMesh.new()
@@ -616,8 +616,8 @@ func _build_guide() -> void:
 	for i in GUIDE_DOTS:
 		var dot := MeshInstance3D.new()
 		var mesh := SphereMesh.new()
-		mesh.radius = 0.11
-		mesh.height = 0.22
+		mesh.radius = 0.045
+		mesh.height = 0.09
 		mesh.radial_segments = 12
 		mesh.rings = 8
 		dot.mesh = mesh

@@ -23,14 +23,14 @@ func _build_room() -> void:
 	var rug := StandardMaterial3D.new()
 	rug.albedo_color = Color("#241018")
 	rug.roughness = 0.9
-	Metrics.add_mesh(self, Metrics.cylinder(1.85, 0.02, 64), rug, Vector3(0.0, -0.595, 0.0))
+	Metrics.add_mesh(self, Metrics.cylinder(Metrics.DITCH_OUTER + 0.55, 0.02, 64), rug, Vector3(0.0, -0.595, 0.0))
 
 func _build_body() -> void:
 	var body := StandardMaterial3D.new()
 	body.albedo_color = Color("#2a1612")
 	body.roughness = 0.48
 	body.metallic = 0.22
-	Metrics.add_mesh(self, Metrics.cylinder(1.16, 0.16, 80), body, Vector3(0.0, -0.1, 0.0))
+	Metrics.add_mesh(self, Metrics.cylinder(Metrics.DITCH_OUTER + 0.06, 0.16, 80), body, Vector3(0.0, -0.1, 0.0))
 
 	var leg_material := Metrics.plastic(Color("#1a1012"), 0.38, 0.0)
 	leg_material.metallic = 0.4
@@ -38,11 +38,11 @@ func _build_body() -> void:
 		var angle := PI * 0.25 + float(index) * PI * 0.5
 		var leg := Metrics.cylinder(0.05, 0.42, 16)
 		leg.bottom_radius = 0.06
-		Metrics.add_mesh(self, leg, leg_material, Vector3(cos(angle) * 0.78, -0.38, sin(angle) * 0.78))
+		Metrics.add_mesh(self, leg, leg_material, Vector3(cos(angle) * Metrics.DITCH_OUTER * 0.72, -0.38, sin(angle) * Metrics.DITCH_OUTER * 0.72))
 
 	var skirt := CylinderMesh.new()
-	skirt.top_radius = 1.2
-	skirt.bottom_radius = 1.2
+	skirt.top_radius = Metrics.DITCH_OUTER + 0.1
+	skirt.bottom_radius = Metrics.DITCH_OUTER + 0.1
 	skirt.height = 0.18
 	skirt.radial_segments = 96
 	skirt.cap_top = false
@@ -438,11 +438,13 @@ func _apply_logo(albedo: Image, emission: Image) -> void:
 
 func _paint_play_lines(albedo: Image) -> void:
 	var center := (float(albedo.get_width()) - 1.0) * 0.5
-	var hole := 0.117 * center
-	_fill_disc(albedo, center, hole + 11.0, Color("#f0c56a"))
+	var surface := Metrics.SURFACE_RADIUS
+	var hole := Metrics.HOLE_RADIUS / surface * center
+	var lip := hole * 1.45
+	_fill_disc(albedo, center, lip, Color("#f0c56a"))
 	_fill_disc(albedo, center, hole, Color("#12080c"))
-	for ring_radius in [0.435, 0.696, 0.93]:
-		_stroke_circle(albedo, center, ring_radius * center, center * 0.011, Color("#fff6fc"))
+	for ring in [Metrics.RING_15, Metrics.RING_10, Metrics.RING_5]:
+		_stroke_circle(albedo, center, ring / surface * center, center * 0.007, Color("#fff6fc"))
 	_stroke_cross(albedo, center, Color(1.0, 0.92, 0.96))
 
 func _fill_disc(albedo: Image, center: float, radius: float, color: Color) -> void:

@@ -177,17 +177,18 @@ func _build_lights() -> void:
 func _build_camera() -> void:
 	var camera := Camera3D.new()
 	camera.name = "GameCamera"
-	camera.fov = 48.0
+	camera.fov = 42.0
 	camera.near = 0.08
 	camera.far = 240.0
-	# The mat sits in the lower third, clear of the bottom power bar.
-	camera.position = Vector3(0.0, 9.5, 10.2)
-	camera.look_at_from_position(camera.position, Vector3(0.0, 0.32, -17.0), Vector3.UP)
+	# Close to the mat so the bowl reads as a puck you can take hold of.
+	# The head camera below is unchanged.
+	camera.position = Vector3(0.0, 1.05, -1.2)
+	camera.look_at_from_position(camera.position, Vector3(0.0, 0.02, -8.5), Vector3.UP)
 	camera.current = true
 	add_child(camera)
 	_camera = camera
 	_home_position = camera.position
-	_home_look = Vector3(0.0, 0.32, -17.0)
+	_home_look = Vector3(0.0, 0.02, -8.5)
 	_home_fov = camera.fov
 	_zoom_position = _home_position
 	_zoom_look = _home_look
@@ -367,13 +368,8 @@ func _markings() -> void:
 	# End lines.
 	_box(self, Vector3(0.0, y, -0.55), Vector3(HALF_WIDTH * 2.0 - 0.45, line_h, 0.045), _white_line, Vector3.ZERO, false)
 	_box(self, Vector3(0.0, y, FAR_Z + 0.55), Vector3(HALF_WIDTH * 2.0 - 0.45, line_h, 0.045), _white_line, Vector3.ZERO, false)
-	# Delivery mat and the line the player bowls from.
-	var mat := _lit(Color(0.93, 0.89, 0.78), 0.7)
-	_box(self, Vector3(0.0, 0.012, DISC_Z), Vector3(0.62, 0.01, 0.42), mat, Vector3.ZERO, false)
-	var cream := _lit(Color(0.96, 0.9, 0.62), 0.5, 0.0, Color(1.0, 0.92, 0.6), 0.12)
-	_box(self, Vector3(0.0, y, DISC_Z - 0.55), Vector3(HALF_WIDTH * 2.0 - 0.7, line_h, 0.035), cream, Vector3.ZERO, false)
 	# Dashed center line. Gaps keep the stripe from turning into a solid wall.
-	var dash_z := -3.1
+	var dash_z := -6.2
 	while dash_z > FAR_Z + 1.2:
 		_box(self, Vector3(0.0, y, dash_z), Vector3(0.04, line_h, 0.58), _white_line, Vector3.ZERO, false)
 		dash_z -= 1.18

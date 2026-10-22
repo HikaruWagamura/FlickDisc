@@ -47,6 +47,22 @@ func _process(_delta: float) -> void:
 	elif _guide_has_surface and not is_aiming:
 		_clear_guide()
 
+func show_aim_line(aim: Vector3, showing: bool) -> void:
+	if active_puck == null or shot_in_progress or not showing:
+		if is_aiming:
+			is_aiming = false
+			power_ratio = 0.0
+			_clear_guide()
+		return
+	var direction := aim
+	if direction.length() < 0.001:
+		direction = Vector3(0.0, 0.0, -1.0)
+	aim_direction = direction.normalized()
+	power_ratio = 0.62
+	is_aiming = true
+	global_position = active_puck.global_position
+
+
 func set_bias(value: float) -> void:
 	bias_ratio = clampf(value, -1.0, 1.0)
 	bias_changed.emit(bias_ratio)
@@ -192,7 +208,7 @@ func _rebuild_guide() -> void:
 	if not is_aiming or power_ratio <= 0.0:
 		_end_marker.visible = false
 		return
-	var length := lerpf(0.14, 0.42, power_ratio)
+	var length := lerpf(0.22, 0.9, power_ratio)
 	var steps := 32
 	var points: Array[Vector3] = [Vector3.ZERO]
 	var point := Vector3.ZERO

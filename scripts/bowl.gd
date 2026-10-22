@@ -30,7 +30,7 @@ var _score_ring: MeshInstance3D
 
 static func palette(index: int) -> Array:
 	var looks := [
-		[Color(0.40, 0.06, 0.10), Color(0.82, 0.12, 0.18), Color(0.93, 0.22, 0.26), Color(0.97, 0.96, 0.93)],
+		[Color(0.09, 0.08, 0.07), Color(0.93, 0.90, 0.84), Color(0.98, 0.95, 0.88), Color(0.12, 0.10, 0.08)],
 		[Color(0.55, 0.52, 0.46), Color(0.93, 0.90, 0.82), Color(0.98, 0.96, 0.90), Color(0.12, 0.22, 0.38)],
 		[Color(0.04, 0.08, 0.16), Color(0.10, 0.22, 0.46), Color(0.20, 0.38, 0.72), Color(0.93, 0.78, 0.38)],
 		[Color(0.10, 0.28, 0.16), Color(0.16, 0.46, 0.28), Color(0.55, 0.72, 0.42), Color(0.96, 0.92, 0.72)],
@@ -233,6 +233,8 @@ func _make_shadow(size: float) -> MeshInstance3D:
 
 func _puck(parent: Node3D, rim: Material, body: Material) -> void:
 	_cylinder(parent, Vector3(0.0, 0.014, 0.0), 0.18, 0.172, 0.02, rim)
+	var gold := _mat(Color(0.86, 0.68, 0.28), 0.28, 0.78)
+	_cylinder(parent, Vector3(0.0, 0.022, 0.0), 0.15, 0.15, 0.004, gold)
 	_cylinder(parent, Vector3(0.0, 0.026, 0.0), 0.132, 0.132, 0.006, body)
 
 

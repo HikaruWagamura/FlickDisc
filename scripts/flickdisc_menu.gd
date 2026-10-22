@@ -7,8 +7,8 @@ signal play_requested(setup: Dictionary)
 const PINK := Color("#ff3d8a")
 const PINK_DEEP := Color("#e21862")
 const INK := Color("#09080d")
-const CARD := Color(0.2, 0.11, 0.15, 0.96)
-const PLUM := Color(0.16, 0.09, 0.12, 0.97)
+const CARD := Color(0.32, 0.16, 0.22, 0.98)
+const PLUM := Color(0.24, 0.12, 0.17, 0.98)
 const MUTED := Color("#cbbcc6")
 const CREAM := Color("#f6f3f7")
 
@@ -152,9 +152,12 @@ func _load_font(path: String, weight: int, italic: bool) -> Font:
 	return system
 
 
+const LOGO := preload("res://assets/flickdisc_mark.png")
+
+
 func _logo_texture() -> Texture2D:
-	# Imported texture, so the mark is packed into the phone export.
-	return load("res://assets/flickdisc_mark.png") as Texture2D
+	# preload packs the mark into the phone export. Image.load does not.
+	return LOGO
 
 
 func _show(next: String) -> void:
@@ -662,7 +665,7 @@ func _build_settings() -> void:
 	box.add_child(sound_button)
 	box.add_child(haptic_button)
 	box.add_child(_kicker("HOW A ROUND WORKS"))
-	box.add_child(_wrapped("Crokinole. Touch your disc and slide it on the line, then drag up to aim. Release to lock that line. Pull back and let the cursor come through the mark. A heavier pull sweeps it faster. Eight discs. Both colours score. 20 is only the hole. 15, 10 and 5 need the disc clear of that line. A disc on the line scores the lower ring. The ditch is nothing. Only the difference is added. First to the race wins.\n\nLong rink. Place the jack on the line and aim it, then pull back and release on the mark. Do the same with each bowl. Pick forehand or backhand. The marks show only the start of the run. The bowl keeps that hand and will not run straight. Bowls inside two metres of the jack count. Banks rebound unless the ditch is open."))
+	box.add_child(_wrapped("Crokinole. An empty board. Drag on your disc to aim, tap it, then pull back. The dial on the disc is the power. You and the far side take turns. Eight discs each. Both colours score. 20 is only the hole. 15, 10 and 5 need the disc clear of that line. A disc on the line scores the lower ring. The ditch is nothing. Only the difference is added. First to the race wins.\n\nLong rink. Drag the jack to aim, tap it, then pull back and release on the mark. The same shot plays each bowl. Bowls sit on the right. Forehand and backhand are the small button at the bottom right. The marks show only the start of the run. The bowl keeps that hand and will not run straight. Bowls inside two metres of the jack count. Banks rebound unless the ditch is open."))
 
 
 func _build_nav() -> void:
