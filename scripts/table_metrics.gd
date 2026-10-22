@@ -16,7 +16,7 @@ const DISC_HEIGHT := 0.030
 const DISC_CENTER_Y := 0.016
 const DITCH_Y := -0.006
 const PLAYER_START_Z := 0.68
-const LANE_HALF := 0.44
+const LANE_HALF := 0.30
 const DISCS_PER_ROUND := 8
 
 const MIN_SPEED := 1.15

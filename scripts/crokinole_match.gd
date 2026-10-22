@@ -90,14 +90,15 @@ func _setup_view() -> void:
 
 	camera = Camera3D.new()
 	camera.name = "Camera3D"
-	camera.fov = 35.0
+	camera.fov = 28.0
 	camera.near = 0.04
 	camera.far = 40.0
 	camera.current = true
 	add_child(camera)
-	# The round board fills the portrait. The near lane stays above the buttons.
-	camera.position = Vector3(0.0, 2.9, 1.95)
-	camera.look_at(Vector3(0.0, 0.0, 0.08), Vector3.UP)
+	# Close over the round board so the hole and pegs fill the portrait.
+	# The near lane stays above the buttons, and the far discs stay under the header.
+	camera.position = Vector3(0.0, 2.5, 2.2)
+	camera.look_at(Vector3(0.0, 0.0, 0.12), Vector3.UP)
 
 	var key := DirectionalLight3D.new()
 	key.rotation_degrees = Vector3(-52.0, -28.0, 0.0)
