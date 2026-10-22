@@ -53,7 +53,22 @@ func _ready() -> void:
 	ui.reset_requested.connect(_on_reset_requested)
 	ui.next_level_requested.connect(_on_next_level_requested)
 	ui.bias_cycle_requested.connect(_on_bias_cycle_requested)
+	ui.stop_requested.connect(_lock_lane)
 	_load_level(start_level)
+
+var placing := false
+var place_time := 0.0
+const LANE_SPEED := 2.25
+
+
+func _process(delta: float) -> void:
+	if not placing or active_puck == null:
+		return
+	place_time += delta
+	var along := sin(place_time * LANE_SPEED) * Metrics.LANE_HALF
+	active_puck.set_flat(Vector2(along, Metrics.PLAYER_START_Z))
+	active_puck.rotation.y = place_time * 3.4
+	disc.global_position = active_puck.global_position
 
 func _setup_view() -> void:
 	var environment := Environment.new()
@@ -75,14 +90,14 @@ func _setup_view() -> void:
 
 	camera = Camera3D.new()
 	camera.name = "Camera3D"
-	camera.fov = 34.0
+	camera.fov = 35.0
 	camera.near = 0.04
 	camera.far = 40.0
 	camera.current = true
 	add_child(camera)
-	# Crokinole is the main mode, so the round board fills the portrait frame.
-	camera.position = Vector3(0.0, 3.55, 2.15)
-	camera.look_at(Vector3(0.0, 0.0, 0.06), Vector3.UP)
+	# The round board fills the portrait. The near lane stays above the buttons.
+	camera.position = Vector3(0.0, 2.9, 1.95)
+	camera.look_at(Vector3(0.0, 0.0, 0.08), Vector3.UP)
 
 	var key := DirectionalLight3D.new()
 	key.rotation_degrees = Vector3(-52.0, -28.0, 0.0)
@@ -305,6 +320,9 @@ func _event_position(event: InputEvent) -> Vector2:
 	return Vector2.ZERO
 
 func _pointer_down(screen_position: Vector2) -> void:
+	if placing:
+		_lock_lane()
+		return
 	if active_puck == null or resolving or not _pointer_hits_disc(screen_position):
 		return
 	disc.begin_aim(_board_point(screen_position))
@@ -336,6 +354,7 @@ func _board_point(screen_position: Vector2) -> Vector3:
 	return origin + direction * distance
 
 func _clear_pucks() -> void:
+	placing = false
 	for puck in pucks:
 		puck.queue_free()
 	pucks.clear()
@@ -380,16 +399,32 @@ func _start_spot() -> Vector2:
 			return candidate
 	return candidates[0]
 
-func _arm_next_disc(announce := true) -> void:
+func _begin_lane() -> void:
+	placing = true
+	place_time = 0.0
+	if active_puck != null:
+		active_puck.set_flat(Vector2(0.0, Metrics.PLAYER_START_Z))
+		active_puck.rotation.y = 0.0
+	ui.show_lane(int(current_level["number"]), discs_left, str(current_level["difficulty"]), _side_total(true), _side_total(false), match_you, match_them)
+
+
+func _lock_lane() -> void:
+	if not placing or place_time < 0.4:
+		return
+	placing = false
+	ui.show_stopped()
+
+
+func _arm_next_disc(_announce := true) -> void:
 	if discs_left <= 0:
+		placing = false
 		active_puck = null
 		disc.bind_puck(null)
 		return
-	active_puck = _spawn_puck(true, _start_spot())
+	active_puck = _spawn_puck(true, Vector2(0.0, Metrics.PLAYER_START_Z))
 	disc.bind_puck(active_puck)
 	_show_board(int(current_level["number"]), discs_left)
-	if announce:
-		ui.show_ready(int(current_level["number"]), discs_left, str(current_level["difficulty"]), _side_total(true), _side_total(false), match_you, match_them)
+	_begin_lane()
 
 func _load_level(level_index: int) -> void:
 	var clamped := clampi(level_index, 0, level_manager.get_level_count() - 1)
@@ -425,6 +460,7 @@ func _on_bias_cycle_requested() -> void:
 		disc.cycle_bias()
 
 func _on_disc_shot_started() -> void:
+	placing = false
 	discs_left -= 1
 	resolving = true
 	ui.show_power(0.0)

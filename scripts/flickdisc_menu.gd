@@ -650,7 +650,7 @@ func _build_settings() -> void:
 	box.add_child(sound_button)
 	box.add_child(haptic_button)
 	box.add_child(_kicker("HOW A ROUND WORKS"))
-	box.add_child(_wrapped("Crokinmode. Eight discs. Both colours score. 20 is only the hole. 15, 10 and 5 need the disc clear of that line. A disc on the line scores the lower ring. The ditch is nothing. Only the difference is added. First to the race wins.\n\nLong rink. Deliver the jack, then four bowls. Choose the hand and the bias. Bowls inside two metres of the jack count. Banks rebound unless the ditch is open."))
+	box.add_child(_wrapped("Crokinmode. The disc rolls across your line. Press stop, then drag back and flick. Eight discs. Both colours score. 20 is only the hole. 15, 10 and 5 need the disc clear of that line. A disc on the line scores the lower ring. The ditch is nothing. Only the difference is added. First to the race wins.\n\nLong rink. Deliver the jack, then four bowls. Choose the hand and the bias. Bowls inside two metres of the jack count. Banks rebound unless the ditch is open."))
 
 
 func _build_nav() -> void:
