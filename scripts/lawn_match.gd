@@ -1,5 +1,8 @@
 extends Node3D
 
+signal goal_cleared
+signal match_decided(you_won: bool)
+
 const RinkScript := preload("res://scripts/rink_view.gd")
 const DiscScript := preload("res://scripts/disc_controller.gd")
 const LevelScript := preload("res://scripts/level_manager.gd")
@@ -38,6 +41,9 @@ var match_index := 1
 var end_number := 1
 var match_points := 0
 var match_complete := false
+var match_reported := false
+var goal := ""
+var goal_sent := false
 var rack: Array = []
 
 
@@ -123,6 +129,7 @@ func _new_match() -> void:
 	end_number = 1
 	match_points = 0
 	match_complete = false
+	match_reported = false
 	_begin_end()
 
 
@@ -335,6 +342,7 @@ func _finish_shot(token: int) -> void:
 		distances.append(_distance(body.global_position, jack_pos))
 	score_manager.set_table(distances)
 	var disc_distance := _distance(rest_pos, jack_pos)
+	_check_draw(disc_distance, bowl_ditched)
 	var closest: float = score_manager.get_closest_distance()
 	var jack_moved: bool = jack_pos.distance_to(jack_home) > 0.2
 	ui.set_power_ratio(0.0)
@@ -345,6 +353,9 @@ func _finish_shot(token: int) -> void:
 		var shots := _mark_shots()
 		match_points += shots
 		match_complete = _is_match_over()
+		if match_complete and not match_reported:
+			match_reported = true
+			match_decided.emit(true)
 		disc.visible = false
 		_place_rack()
 		rink.focus_head(jack_pos)
@@ -432,6 +443,14 @@ func _mark_shots() -> int:
 				body.set_scoring(true)
 				break
 	return shots
+
+
+func _check_draw(distance: float, ditched: bool) -> void:
+	if goal_sent or goal != "draw" or ditched:
+		return
+	if distance <= 1.0:
+		goal_sent = true
+		goal_cleared.emit()
 
 
 func _bowl_name(index: int) -> String:

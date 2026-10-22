@@ -1,6 +1,8 @@
-# FLICK CHAOS
+# FlickDisc
 
-Two modes in one portrait game. **Crokinole** opens first, with the round board filling the screen. **Lawn** is the long bowls rink and the jack. The buttons under the title switch modes.
+Portrait club for the two tables. The game opens on the FlickDisc splash and home. **Play** leads to Classic 1v1, where **Crokinmode** is the round board and **Long rink** is the lawn and the jack. Practice, challenges, friends, rankings, profile, customise, shop, and settings live on the same menu.
+
+A finished match writes the win or loss onto this device. Challenges clear when the shot lands: the 20, a 15, or a bowl inside a metre of the jack. Online rows are on the Classic screen; this build plays that setup on the same device until a club server is connected.
 
 ## Current step
 

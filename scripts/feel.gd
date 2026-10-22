@@ -54,7 +54,7 @@ func _process(_delta: float) -> void:
 
 
 func unlock() -> void:
-	if _unlocked:
+	if _unlocked or not _allows_sound():
 		return
 	_unlocked = true
 	_roll.play()
@@ -114,6 +114,8 @@ func settled(closest_m: float) -> void:
 
 
 func _play(key: String, pitch: float, db: float) -> void:
+	if not _allows_sound():
+		return
 	var player := _players[_next_player]
 	_next_player = (_next_player + 1) % _players.size()
 	player.stream = _streams[key]
@@ -123,17 +125,39 @@ func _play(key: String, pitch: float, db: float) -> void:
 
 
 func _vibrate(duration_ms: int) -> void:
+	if not _allows_haptics():
+		return
 	Input.vibrate_handheld(duration_ms)
 	if OS.has_feature("web"):
 		JavaScriptBridge.eval("navigator.vibrate && navigator.vibrate(%d);" % duration_ms, true)
 
 
 func _vibrate_pattern(first_ms: int, gap_ms: int, second_ms: int) -> void:
+	if not _allows_haptics():
+		return
 	if OS.has_feature("web"):
 		JavaScriptBridge.eval("navigator.vibrate && navigator.vibrate([%d,%d,%d]);" % [first_ms, gap_ms, second_ms], true)
 		return
 	Input.vibrate_handheld(first_ms)
 	_pulse_later(second_ms, first_ms + gap_ms)
+
+
+func _allows_sound() -> bool:
+	if not is_inside_tree():
+		return true
+	var tree_root := get_tree().root
+	if tree_root.has_meta("flickdisc_sound"):
+		return bool(tree_root.get_meta("flickdisc_sound"))
+	return true
+
+
+func _allows_haptics() -> bool:
+	if not is_inside_tree():
+		return true
+	var tree_root := get_tree().root
+	if tree_root.has_meta("flickdisc_haptics"):
+		return bool(tree_root.get_meta("flickdisc_haptics"))
+	return true
 
 
 func _pulse_later(duration_ms: int, delay_ms: int) -> void:

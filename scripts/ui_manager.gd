@@ -11,6 +11,7 @@ signal bias_selected(index: int)
 signal dial_pull(pull: Vector2)
 signal dial_released(pull: Vector2)
 signal mode_requested(mode_name: String)
+signal leave_requested
 
 var status_label: Label
 var score_label: Label
@@ -49,14 +50,11 @@ func _ready() -> void:
 	scrim.material = scrim_mat
 	add_child(scrim)
 
-	var title := _make_label(Vector2(18.0, 8.0), Vector2(250.0, 28.0), 22, Color(0.96, 0.99, 0.97))
-	title.text = "FLICK CHAOS"
-	var crokinole_button := _make_button("CROKINOLE", Vector2(16.0, 40.0), Vector2(118.0, 26.0))
-	crokinole_button.add_theme_font_size_override("font_size", 11)
-	crokinole_button.pressed.connect(func() -> void: mode_requested.emit("crokinole"))
-	var lawn_button := _make_button("LAWN", Vector2(142.0, 38.0), Vector2(132.0, 30.0))
-	lawn_button.add_theme_font_size_override("font_size", 13)
-	_paint_selected(lawn_button)
+	var menu_button := _make_button("MENU", Vector2(16.0, 12.0), Vector2(104.0, 32.0))
+	menu_button.add_theme_font_size_override("font_size", 13)
+	menu_button.add_theme_stylebox_override("normal", _button_style(Color("#ff4d9a"), Color("#ffd0e8")))
+	menu_button.add_theme_color_override("font_color", Color("#1a0a12"))
+	menu_button.pressed.connect(func() -> void: leave_requested.emit())
 
 	level_label = _make_label(Vector2(340.0, 18.0), Vector2(180.0, 26.0), 16, Color(0.96, 0.99, 0.97))
 	level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT

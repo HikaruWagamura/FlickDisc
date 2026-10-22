@@ -1,5 +1,8 @@
 extends Node3D
 
+signal goal_cleared
+signal match_decided(you_won: bool)
+
 ## Crokinole match. Buttons stay on the table and bounce off the eight pegs.
 ## An end is eight discs. Both colors count, a disc on a line scores the
 ## lower ring, and only the difference is added to the match.
@@ -26,7 +29,12 @@ var match_them := 0
 var end_applied := false
 var last_award_you := 0
 var last_award_them := 0
-const MATCH_TARGET := 100
+var match_target := 100
+var start_level := 0
+var goal := ""
+var goal_sent := false
+var match_reported := false
+var player_tint := Color("#ff3d9a")
 
 func _ready() -> void:
 	disc = get_node("Shooter")
@@ -45,7 +53,7 @@ func _ready() -> void:
 	ui.reset_requested.connect(_on_reset_requested)
 	ui.next_level_requested.connect(_on_next_level_requested)
 	ui.bias_cycle_requested.connect(_on_bias_cycle_requested)
-	_load_level(0)
+	_load_level(start_level)
 
 func _setup_view() -> void:
 	var environment := Environment.new()
@@ -336,7 +344,8 @@ func _clear_pucks() -> void:
 
 func _spawn_puck(player_disc: bool, spot: Vector2):
 	var puck = PuckScript.new()
-	puck.setup(player_disc)
+	var tint_color := player_tint if player_disc else Color("#6b3e28")
+	puck.setup(player_disc, tint_color)
 	puck.set_flat(spot)
 	puck.add_to_group("crokinole_puck")
 	pucks_root.add_child(puck)
@@ -434,6 +443,7 @@ func _on_table_settled() -> void:
 	if discs_left > 0:
 		ui.show_landed(shot_points, sunk, ditched)
 		_show_board(int(current_level["number"]), discs_left)
+		_check_shot_goal()
 		_arm_next_disc(false)
 	else:
 		_present_end()
@@ -461,8 +471,35 @@ func _present_end() -> void:
 		last_award_them = award_them
 		end_applied = true
 	var has_next: bool = current_level_index < level_manager.get_level_count() - 1
-	ui.show_end_overview(int(current_level["number"]), str(current_level["difficulty"]), you_items, them_items, award_you, award_them, match_you, match_them, MATCH_TARGET, has_next)
+	ui.show_end_overview(int(current_level["number"]), str(current_level["difficulty"]), you_items, them_items, award_you, award_them, match_you, match_them, match_target, has_next)
 	_show_board(int(current_level["number"]), 0)
+	_check_shot_goal()
+	_check_match_winner()
+
+func _check_shot_goal() -> void:
+	if goal_sent or (goal != "hole" and goal != "fifteen"):
+		return
+	for puck in pucks:
+		if not bool(puck.is_player):
+			continue
+		var met := false
+		if goal == "hole" and bool(puck.sunk):
+			met = true
+		elif goal == "fifteen" and int(puck.ring_points()) >= 15:
+			met = true
+		if met:
+			goal_sent = true
+			goal_cleared.emit()
+			return
+
+
+func _check_match_winner() -> void:
+	var you_won := match_you >= match_target and match_you >= match_them
+	var they_won := match_them >= match_target and match_them > match_you
+	if (you_won or they_won) and not match_reported:
+		match_reported = true
+		match_decided.emit(you_won)
+
 
 func _on_reset_requested() -> void:
 	_load_level(current_level_index)

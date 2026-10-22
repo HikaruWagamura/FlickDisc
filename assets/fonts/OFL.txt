@@ -1,0 +1,5 @@
+Anton, Pacifico, and Inter are licensed under the SIL Open Font License, Version 1.1.
+https://openfontlicense.org
+Anton: Copyright 2020 The Anton Project Authors
+Pacifico: Copyright 2018 The Pacifico Project Authors
+Inter: Copyright 2020 The Inter Project Authors

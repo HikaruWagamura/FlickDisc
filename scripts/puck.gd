@@ -15,10 +15,12 @@ var shot_bias := 0.0
 var stop_timer := 0.0
 var played := false
 
+var tint := Color("#ff3d9a")
 var _visual: Node3D
 
-func setup(player_disc: bool) -> void:
+func setup(player_disc: bool, disc_tint: Color = Color("#ff3d9a")) -> void:
 	is_player = player_disc
+	tint = disc_tint
 	_build_visual()
 
 func flat() -> Vector2:
@@ -70,8 +72,8 @@ func _build_visual() -> void:
 	add_child(_visual)
 	var body_color := Color("#141414") if is_player else Color("#f3e6cf")
 	var rim_color := Color("#2a2a2e") if is_player else Color("#c4a574")
-	var center_color := Color("#ff3d9a") if is_player else Color("#6b3e28")
-	var ring_color := Color("#ff2f9a") if is_player else Color("#f0d48a")
+	var center_color := tint if is_player else Color("#6b3e28")
+	var ring_color := tint if is_player else Color("#f0d48a")
 
 	var body := CylinderMesh.new()
 	body.top_radius = Metrics.DISC_RADIUS
