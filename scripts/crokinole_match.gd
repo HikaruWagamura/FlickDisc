@@ -38,6 +38,16 @@ var match_reported := false
 var player_tint := Color("#ff3d9a")
 var feel
 var _hit_wait := 0.0
+var gesture
+var fan
+var place_x := 0.0
+var aim_lock := 0.0
+var opponent_left := 0
+var ai_turn := false
+var _ai_token := 0
+const PULL_BACK := 0.42
+const AIM_CONE := 0.58
+const CURSOR_SPAN := 0.09
 
 func _ready() -> void:
 	disc = get_node("Shooter")
@@ -59,22 +69,14 @@ func _ready() -> void:
 	ui.reset_requested.connect(_on_reset_requested)
 	ui.next_level_requested.connect(_on_next_level_requested)
 	ui.bias_cycle_requested.connect(_on_bias_cycle_requested)
-	ui.stop_requested.connect(_lock_lane)
+	_wire_shot()
 	_load_level(start_level)
-
-var placing := false
-var place_time := 0.0
-const LANE_SPEED := 2.25
 
 
 func _process(delta: float) -> void:
-	if not placing or active_puck == null:
-		return
-	place_time += delta
-	var along := sin(place_time * LANE_SPEED) * Metrics.LANE_HALF
-	active_puck.set_flat(Vector2(along, Metrics.PLAYER_START_Z))
-	active_puck.rotation.y = place_time * 3.4
-	disc.global_position = active_puck.global_position
+	if gesture != null:
+		gesture.advance(delta)
+	_sync_fan()
 
 func _setup_view() -> void:
 	var environment := Environment.new()
@@ -96,15 +98,15 @@ func _setup_view() -> void:
 
 	camera = Camera3D.new()
 	camera.name = "Camera3D"
-	camera.fov = 28.0
+	camera.fov = 54.0
 	camera.near = 0.04
 	camera.far = 40.0
 	camera.current = true
 	add_child(camera)
-	# Close over the round board so the hole and pegs fill the portrait.
-	# The near lane stays above the buttons, and the far discs stay under the header.
-	camera.position = Vector3(0.0, 2.5, 2.2)
-	camera.look_at(Vector3(0.0, 0.0, 0.12), Vector3.UP)
+	# The round board fills the phone. The cup stays a small hole
+	# and the disc starts on the near edge of the playing surface.
+	camera.position = Vector3(0.0, 2.2, 2.4)
+	camera.look_at(Vector3(0.0, 0.0, 0.35), Vector3.UP)
 
 	var key := DirectionalLight3D.new()
 	key.rotation_degrees = Vector3(-52.0, -28.0, 0.0)
@@ -259,7 +261,8 @@ func _solve_holes() -> void:
 		if puck.sunk or puck.in_ditch:
 			continue
 		var speed: float = Vector2(puck.velocity.x, puck.velocity.z).length()
-		if puck.flat().length() <= Metrics.HOLE_RADIUS * 0.78 and speed < 1.05:
+		# The cup is only a little wider than the disc, so the centre has to be over it.
+		if puck.flat().length() + Metrics.DISC_RADIUS * 0.62 <= Metrics.HOLE_RADIUS and speed < 1.05:
 			puck.sink_into_hole()
 
 func _all_stopped() -> bool:
@@ -294,63 +297,12 @@ func _sum(items: Array) -> int:
 		total += int(value)
 	return total
 
-func _unhandled_input(event: InputEvent) -> void:
-	if disc.shot_in_progress or disc.is_aiming or not _is_press(event):
-		return
-	_pointer_down(_event_position(event))
-
-func _input(event: InputEvent) -> void:
-	if not disc.is_aiming:
-		return
-	if _is_drag(event):
-		_pointer_move(_event_position(event))
-		get_viewport().set_input_as_handled()
-	elif _is_release(event):
-		_pointer_up(_event_position(event))
-		get_viewport().set_input_as_handled()
-
-func _is_press(event: InputEvent) -> bool:
-	if event is InputEventScreenTouch:
-		return event.pressed
-	return event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed
-
-func _is_release(event: InputEvent) -> bool:
-	if event is InputEventScreenTouch:
-		return not event.pressed
-	return event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed
-
-func _is_drag(event: InputEvent) -> bool:
-	if event is InputEventScreenDrag:
-		return true
-	return event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
-
-func _event_position(event: InputEvent) -> Vector2:
-	if event is InputEventMouse or event is InputEventScreenTouch or event is InputEventScreenDrag:
-		return event.position
-	return Vector2.ZERO
-
-func _pointer_down(screen_position: Vector2) -> void:
-	if placing:
-		_lock_lane()
-		return
-	if active_puck == null or resolving or not _pointer_hits_disc(screen_position):
-		return
-	disc.begin_aim(_board_point(screen_position))
-
-func _pointer_move(screen_position: Vector2) -> void:
-	if disc.is_aiming:
-		disc.update_aim(_board_point(screen_position))
-
-func _pointer_up(screen_position: Vector2) -> void:
-	if disc.is_aiming:
-		disc.release_aim(_board_point(screen_position))
-
 func _pointer_hits_disc(screen_position: Vector2) -> bool:
-	if active_puck == null:
+	if active_puck == null or resolving or disc.shot_in_progress or camera == null:
 		return false
 	var disc_screen := camera.unproject_position(active_puck.global_position)
-	var edge_screen := camera.unproject_position(active_puck.global_position + Vector3(Metrics.DISC_RADIUS * 2.4, 0.0, 0.0))
-	var grab_radius := maxf(disc_screen.distance_to(edge_screen), 72.0)
+	var edge_screen := camera.unproject_position(active_puck.global_position + Vector3(Metrics.DISC_RADIUS * 2.8, 0.0, 0.0))
+	var grab_radius := maxf(disc_screen.distance_to(edge_screen), 96.0)
 	return disc_screen.distance_to(screen_position) <= grab_radius
 
 func _board_point(screen_position: Vector2) -> Vector3:
@@ -363,8 +315,132 @@ func _board_point(screen_position: Vector2) -> Vector3:
 		return active_puck.global_position if active_puck != null else Vector3.ZERO
 	return origin + direction * distance
 
+
+func _wire_shot() -> void:
+	var shot := preload("res://scripts/shot_gesture.gd").new()
+	shot.name = "ShotGesture"
+	shot.camera = camera
+	shot.hit_test = _pointer_hits_disc
+	shot.board_point = _board_point
+	shot.place_at.connect(_on_place_at)
+	shot.aim_set.connect(_on_aim_set)
+	shot.kept_aim.connect(_on_aim_kept)
+	shot.opened_take.connect(_on_take_opened)
+	shot.cancelled_pull.connect(_on_pull_cancelled)
+	shot.fired.connect(_on_shot_fired)
+	add_child(shot)
+	gesture = shot
+	fan = preload("res://scripts/shot_fan.gd").new()
+	fan.name = "ShotFan"
+	ui.add_child(fan)
+
+
+func _on_place_at(spot: Vector3) -> void:
+	place_x = clampf(spot.x, -Metrics.LANE_HALF, Metrics.LANE_HALF)
+	_snap_disc()
+	ui.show_sliding()
+
+
+func _on_aim_set(amount: float) -> void:
+	aim_lock = amount
+	ui.show_sliding()
+
+
+func _on_aim_kept() -> void:
+	ui.show_aim_ready()
+
+
+func _on_take_opened() -> void:
+	_snap_disc()
+	ui.show_take()
+	ui.show_power(0.0)
+	if feel != null:
+		feel.tap()
+
+
+func _on_pull_cancelled() -> void:
+	_snap_disc()
+	ui.show_take()
+	ui.show_power(0.0)
+
+
+func _on_shot_fired(power: float, needle: float) -> void:
+	_snap_disc()
+	disc.fire_at(_aim_from(needle), power)
+
+
+func _snap_disc() -> void:
+	if active_puck == null:
+		return
+	active_puck.set_flat(Vector2(place_x, Metrics.PLAYER_START_Z))
+	active_puck.rotation.y = 0.0
+	disc.global_position = active_puck.global_position
+
+
+func _aim_from(needle: float) -> Vector3:
+	var toward := Vector2(-place_x, -Metrics.PLAYER_START_Z)
+	if toward.length() < 0.001:
+		toward = Vector2(0.0, -1.0)
+	var base := Vector3(toward.x, 0.0, toward.y).normalized()
+	var turn := aim_lock * AIM_CONE + needle * CURSOR_SPAN
+	return base.rotated(Vector3.UP, -turn)
+
+
+func _facing(origin: Vector3, aim: Vector3) -> float:
+	if camera == null:
+		return -PI * 0.5
+	var from := camera.unproject_position(origin)
+	var toward := camera.unproject_position(origin + aim * 0.45)
+	var delta := toward - from
+	if delta.length() < 3.0:
+		return -PI * 0.5
+	return delta.angle()
+
+
+func _sync_fan() -> void:
+	if gesture == null or fan == null or camera == null:
+		return
+	var placed := Vector3(place_x, 0.02, Metrics.PLAYER_START_Z)
+	gesture.anchor = placed
+	var phase := str(gesture.phase)
+	var live: bool = active_puck != null and not resolving and not bool(disc.shot_in_progress) and phase != "busy"
+	var pulling: bool = phase == "pull"
+	var show_cursor: bool = live and (phase == "take" or phase == "hold" or pulling)
+	var show_arrow: bool = live and (phase == "idle" or phase == "place")
+	var power: float = gesture.read_power() if pulling else 0.0
+	var needle: float = gesture.read_needle() if pulling else 0.0
+	if live:
+		active_puck.set_flat(Vector2(place_x, Metrics.PLAYER_START_Z + power * PULL_BACK))
+		active_puck.rotation.y = 0.0
+		disc.global_position = active_puck.global_position
+		if show_arrow:
+			disc.show_aim_line(_aim_from(0.0), true)
+		else:
+			disc.show_aim_line(Vector3.ZERO, false)
+		if pulling:
+			ui.show_aiming(power)
+			if feel != null:
+				feel.aim(power)
+	var live_pos: Vector3 = placed
+	if active_puck != null:
+		live_pos = active_puck.global_position
+	var cursor_at := camera.unproject_position(live_pos + Vector3(0.0, 0.06, 0.0))
+	var rim := camera.unproject_position(live_pos + Vector3(Metrics.DISC_RADIUS, 0.0, 0.0))
+	var disc_px := cursor_at.distance_to(rim)
+	var lift := disc_px + 78.0
+	fan.present(cursor_at, power, needle, show_cursor, _facing(live_pos, _aim_from(0.0)), lift)
+	var dots := PackedVector2Array()
+	if show_arrow:
+		dots = fan.project_dots(camera, live_pos, disc.guide_points(), Metrics.DISC_RADIUS * 0.4, cursor_at, disc_px + 12.0)
+	fan.set_dots(dots, show_arrow)
+	fan.set_line(Vector2.ZERO, Vector2.ZERO, false)
+	fan.set_aim(Vector2.ZERO, Vector2.ZERO, false)
+	fan.set_disc(cursor_at, false)
+
+
 func _clear_pucks() -> void:
-	placing = false
+	if gesture != null:
+		gesture.busy()
 	for puck in pucks:
 		puck.queue_free()
 	pucks.clear()
@@ -409,34 +485,27 @@ func _start_spot() -> Vector2:
 			return candidate
 	return candidates[0]
 
-func _begin_lane() -> void:
-	placing = true
-	place_time = 0.0
-	if active_puck != null:
-		active_puck.set_flat(Vector2(0.0, Metrics.PLAYER_START_Z))
-		active_puck.rotation.y = 0.0
-	ui.show_lane(int(current_level["number"]), discs_left, str(current_level["difficulty"]), _side_total(true), _side_total(false), match_you, match_them)
-
-
-func _lock_lane() -> void:
-	if not placing or place_time < 0.4:
-		return
-	placing = false
-	if feel != null:
-		feel.tap()
-	ui.show_stopped()
+func _begin_ready() -> void:
+	place_x = 0.0
+	aim_lock = 0.0
+	_snap_disc()
+	if gesture != null:
+		gesture.arm()
+		gesture.anchor = Vector3(0.0, 0.02, Metrics.PLAYER_START_Z)
+	ui.show_touch(int(current_level["number"]), discs_left, _side_total(true), _side_total(false), match_you, match_them)
 
 
 func _arm_next_disc(_announce := true) -> void:
 	if discs_left <= 0:
-		placing = false
+		if gesture != null:
+			gesture.busy()
 		active_puck = null
 		disc.bind_puck(null)
 		return
 	active_puck = _spawn_puck(true, Vector2(0.0, Metrics.PLAYER_START_Z))
 	disc.bind_puck(active_puck)
 	_show_board(int(current_level["number"]), discs_left)
-	_begin_lane()
+	_begin_ready()
 
 func _load_level(level_index: int) -> void:
 	var clamped := clampi(level_index, 0, level_manager.get_level_count() - 1)
@@ -449,16 +518,16 @@ func _load_level(level_index: int) -> void:
 	last_award_them = 0
 	current_level_index = clamped
 	current_level = level_manager.get_level(current_level_index)
+	_ai_token += 1
+	ai_turn = false
 	discs_left = int(current_level["discs"])
+	opponent_left = discs_left
 	_clear_pucks()
-	for opponent in current_level["opponents"]:
-		var spot: Vector2 = opponent
-		if _spot_free(spot):
-			_spawn_puck(false, spot)
 	_arm_next_disc()
 
 func _on_disc_aim_changed(_direction: Vector3, power_ratio: float) -> void:
-	ui.show_power(power_ratio)
+	if gesture == null or str(gesture.phase) != "pull":
+		return
 	if feel != null:
 		feel.aim(power_ratio)
 	if power_ratio > 0.0:
@@ -474,7 +543,8 @@ func _on_bias_cycle_requested() -> void:
 		disc.cycle_bias()
 
 func _on_disc_shot_started() -> void:
-	placing = false
+	if gesture != null:
+		gesture.busy()
 	discs_left -= 1
 	resolving = true
 	if feel != null:
@@ -485,24 +555,65 @@ func _on_disc_shot_started() -> void:
 
 func _on_table_settled() -> void:
 	disc.mark_shot_finished()
+	if ai_turn:
+		ai_turn = false
+		if discs_left > 0:
+			_arm_next_disc(false)
+		else:
+			_present_end()
+			active_puck = null
+			disc.bind_puck(null)
+		return
 	var shot_points := 0
 	var sunk := false
 	var ditched := false
-	if active_puck != null and active_puck.is_player:
+	if active_puck != null and bool(active_puck.is_player):
 		shot_points = int(active_puck.ring_points())
 		sunk = bool(active_puck.sunk)
 		ditched = bool(active_puck.in_ditch)
-	if discs_left > 0:
+	active_puck = null
+	disc.bind_puck(null)
+	if opponent_left > 0:
 		if feel != null:
 			feel.settled(0.2 if sunk or shot_points >= 15 else 2.5)
 		ui.show_landed(shot_points, sunk, ditched)
 		_show_board(int(current_level["number"]), discs_left)
 		_check_shot_goal()
+		_begin_opponent_shot()
+		return
+	if discs_left > 0:
 		_arm_next_disc(false)
 	else:
 		_present_end()
-		active_puck = null
-		disc.bind_puck(null)
+
+
+func _begin_opponent_shot() -> void:
+	_ai_token += 1
+	var token := _ai_token
+	ai_turn = true
+	if gesture != null:
+		gesture.busy()
+	ui.show_opponent()
+	await get_tree().create_timer(0.45).timeout
+	if token != _ai_token or not is_inside_tree():
+		return
+	opponent_left = maxi(0, opponent_left - 1)
+	var spread := Metrics.LANE_HALF * 0.65
+	var x := randf_range(-spread, spread)
+	var spot := Vector2(x, -Metrics.PLAYER_START_Z)
+	var puck = _spawn_puck(false, spot)
+	var aim := Vector3(-x * 0.35, 0.0, -spot.y)
+	if aim.length() < 0.001:
+		aim = Vector3(0.0, 0.0, 1.0)
+	aim = aim.normalized().rotated(Vector3.UP, randf_range(-0.11, 0.11))
+	var power := randf_range(0.58, 0.86)
+	puck.velocity = aim * lerpf(Metrics.MIN_SPEED, Metrics.MAX_SPEED, power)
+	puck.velocity.y = 0.0
+	puck.moving = true
+	puck.played = true
+	puck.shot_bias = 0.0
+	puck.stop_timer = 0.0
+	resolving = true
 
 func _show_board(level_number: int, remaining: int) -> void:
 	ui.show_match_status(level_number, remaining, _side_total(true), _side_total(false), match_you, match_them)

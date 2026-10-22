@@ -16,13 +16,18 @@ const MIN_SPEED := 5.0
 const AIM_RESPONSE := 11.0
 const DIAL_POWER_PIXELS := 148.0
 const DIAL_SIDE_PIXELS := 132.0
+const LINE_LOCK_PIXELS := 36.0
+const MAX_LINE := 0.16
 const FRICTION_PER_SECOND := 0.52
 const STOP_SPEED := 0.15
 const STOP_GRACE_SECONDS := 0.15
-const TURN_FAST := 0.006
-const TURN_DRAW := 0.26
+## Radians of turn per metre at bias 1. The same bowl takes the same
+## curve whatever the aim, so a straight line still finishes wide.
+const CURL_PER_METRE := 0.0025
+const CURL_DRAW := 0.45
 const PICK_RADIUS_PX := 88.0
-const GUIDE_DOTS := 8
+const GUIDE_DOTS := 9
+const GUIDE_PORTION := 0.26
 
 var start_position := Vector3.ZERO
 var green_min := Vector2(-2.9, -38.0)
@@ -44,6 +49,8 @@ var ditch_mode := false
 var in_ditch := false
 var bowl_bias := 0.95
 var hand_sign := -1.0
+var line_side := 0.0
+var _line_locked := false
 var velocity := Vector3.ZERO
 var stop_timer := 0.0
 var spin_angle := 0.0
@@ -120,6 +127,7 @@ func configure_jack() -> void:
 		_visual.visible = false
 	if _jack_visual != null:
 		_jack_visual.visible = true
+	line_side = 0.0
 	bias_changed.emit(bias_ratio)
 
 
@@ -158,7 +166,8 @@ func begin_dial() -> bool:
 	if shot_in_progress or not visible:
 		return false
 	is_aiming = true
-	_aim_target = Vector3(0.0, 0.0, -1.0)
+	_line_locked = false
+	_aim_target = Vector3(line_side, 0.0, -1.0).normalized()
 	aim_direction = _aim_target
 	_power_target = 0.0
 	power_ratio = 0.0
@@ -169,15 +178,20 @@ func update_dial(pull: Vector2) -> void:
 	if not is_aiming:
 		return
 	var down := maxf(pull.y, 0.0)
-	_power_target = clampf(down / DIAL_POWER_PIXELS, 0.0, 1.0)
-	var side_px := pull.x
-	if absf(side_px) < 6.0:
-		side_px = 0.0
+	# Sideways sets the line. Pulling down afterwards sets the weight
+	# and leaves that line alone, so the two choices stay separate.
+	if down < LINE_LOCK_PIXELS:
+		_line_locked = false
+		if absf(pull.x) > 10.0:
+			line_side = clampf(pull.x / DIAL_SIDE_PIXELS, -1.0, 1.0) * MAX_LINE
+		_power_target = 0.0
 	else:
-		side_px -= signf(side_px) * 6.0
-	# The dial is direct. Pulling right sends the bowl to the right.
-	var side := clampf(side_px / DIAL_SIDE_PIXELS, -0.62, 0.62)
-	_aim_target = Vector3(side, 0.0, -1.0).normalized()
+		if not _line_locked:
+			_line_locked = true
+			if absf(pull.x) > 10.0:
+				line_side = clampf(pull.x / DIAL_SIDE_PIXELS, -1.0, 1.0) * MAX_LINE
+		_power_target = clampf((down - LINE_LOCK_PIXELS) / DIAL_POWER_PIXELS, 0.0, 1.0)
+	_aim_target = Vector3(line_side, 0.0, -1.0).normalized()
 
 
 func release_dial() -> void:
@@ -195,24 +209,60 @@ func release_dial() -> void:
 	launch()
 
 
+func preview_take(aim: Vector3, power: float) -> void:
+	if shot_in_progress:
+		return
+	var direction := aim
+	if direction.length() < 0.001:
+		direction = Vector3(0.0, 0.0, -1.0)
+	else:
+		direction = direction.normalized()
+	_aim_target = direction
+	aim_direction = direction
+	var shown := clampf(power, 0.0, 1.0)
+	_power_target = shown
+	power_ratio = shown
+	is_aiming = shown >= 0.08
+	if not is_aiming:
+		_hide_guide()
+	aim_changed.emit(Vector2(aim_direction.x, aim_direction.z), shown)
+
+
+func fire_taken(aim: Vector3, power: float) -> void:
+	var direction := aim
+	if direction.length() < 0.001:
+		direction = Vector3(0.0, 0.0, -1.0)
+	else:
+		direction = direction.normalized()
+	is_aiming = false
+	aim_direction = direction
+	_aim_target = direction
+	power_ratio = clampf(power, 0.0, 1.0)
+	_power_target = power_ratio
+	_hide_guide()
+	global_position = start_position
+	if power_ratio < 0.08:
+		power_ratio = 0.0
+		aim_changed.emit(Vector2(aim_direction.x, aim_direction.z), 0.0)
+		return
+	launch()
+
+
 func launch() -> void:
 	shot_power = power_ratio
 	shot_bias = 0.0 if delivering_jack else bias_ratio
-	velocity = _delivery_velocity(aim_direction, shot_bias, shot_power)
+	velocity = _delivery_velocity(aim_direction, shot_power)
 	shot_in_progress = true
 	stop_timer = 0.0
 	shot_started.emit()
 
 
-func _delivery_velocity(aim: Vector3, bias: float, power: float) -> Vector3:
+func _delivery_velocity(aim: Vector3, power: float) -> Vector3:
 	var speed := lerpf(MIN_SPEED, MAX_SPEED, power)
 	var planar := Vector2(aim.x, aim.z)
 	if planar.length() < 0.001:
 		planar = Vector2(0.0, -1.0)
-	if absf(bias) > 0.001:
-		# Start wide of the line. The late draw rolls the bowl back inward.
-		var shoulder := absf(bias) * 0.18 * (0.25 + 0.75 * power)
-		planar = planar.rotated(-signf(bias) * shoulder)
+	# Leave on the line the player chose. The bias bends it afterwards.
 	planar = planar.normalized() * speed
 	return Vector3(planar.x, 0.0, planar.y)
 
@@ -407,16 +457,16 @@ func _ditch_park(pos: Vector3) -> Vector3:
 	return parked
 
 
-func _curve_and_damp(vel: Vector3, bias: float, delta: float, length_power: float) -> Vector3:
+func _curve_and_damp(vel: Vector3, bias: float, delta: float, _length_power: float) -> Vector3:
 	var planar := Vector2(vel.x, vel.z)
 	var speed := planar.length()
 	if speed > 0.001 and absf(bias) > 0.001:
 		var slow := clampf(1.0 - speed / MAX_SPEED, 0.0, 1.0)
-		# Most of the bend arrives as the bowl slows, so a long shot
-		# runs wide and then draws back toward the centre.
-		var turn := lerpf(TURN_FAST, TURN_DRAW, slow * slow * slow)
-		var length_scale := 0.32 + length_power
-		planar = planar.rotated(bias * length_scale * turn * delta)
+		var curve := CURL_PER_METRE * (1.0 + CURL_DRAW * slow * slow)
+		# Turn with the distance run, not with an aim that pulls back
+		# to the jack. A centre line and a wide line take the same hand.
+		# Negative bias is the forehand and turns to the player's left.
+		planar = planar.rotated(bias * curve * speed * delta)
 		vel.x = planar.x
 		vel.z = planar.y
 	vel *= pow(FRICTION_PER_SECOND, delta)
@@ -435,25 +485,16 @@ func _apply_visual(speed: float) -> void:
 	_shadow.position = Vector3(0.1 + lift * 0.08, 0.012, 0.06)
 
 
+func guide_points() -> PackedVector3Array:
+	if not is_aiming or power_ratio <= 0.02:
+		return PackedVector3Array()
+	return _predict_path()
+
+
 func _update_guide() -> void:
-	if _guide == null:
-		return
-	var path := _predict_path()
-	_guide.visible = power_ratio > 0.02 and path.size() > 1
-	if not _guide.visible:
-		return
-	var last := path.size() - 1
-	for i in _dots.size():
-		var along := float(i + 1) / float(_dots.size())
-		var sample := int(round(along * float(last)))
-		sample = clampi(sample, 0, last)
-		_dots[i].global_position = path[sample] + Vector3(0.0, 0.06, 0.0)
-		var scale := lerpf(1.15, 0.28, along)
-		_dots[i].scale = Vector3(scale, scale, scale)
-		var mat := _dots[i].material_override as StandardMaterial3D
-		if mat != null:
-			mat.albedo_color.a = lerpf(0.95, 0.45, along)
-		_dots[i].visible = true
+	# The aim is drawn as screen dots, so the world meshes stay hidden.
+	# They sat on the white dashes and read as stray specks.
+	_hide_guide()
 
 
 func _hide_guide() -> void:
@@ -462,26 +503,38 @@ func _hide_guide() -> void:
 
 
 func _predict_path() -> PackedVector3Array:
-	# Opening line only. The dots fade out before the bowl finishes,
-	# so the guide shows the draw without marking the exact rest spot.
-	var points := PackedVector3Array()
+	# Only the opening quarter of the run. The rest of the hand is for
+	# the player to judge.
+	var aiming_line := power_ratio < 0.08
+	var pace := 0.42 if aiming_line else power_ratio
+	var bias := 0.0 if delivering_jack else bias_ratio
+	var use_bias := not delivering_jack
+	var samples: Array[Vector3] = []
+	var dists: Array[float] = []
 	var pos := global_position
-	var vel := _delivery_velocity(aim_direction, bias_ratio, power_ratio)
-	var launch := vel.length()
-	var origin := pos
-	points.append(pos)
-	var step := 0.02
-	for i in 120:
-		var moved := _move_planar(pos, vel, radius, bias_ratio, true, step, power_ratio)
+	var vel := _delivery_velocity(aim_direction, pace)
+	var travelled := 0.0
+	samples.append(pos)
+	dists.append(0.0)
+	var step := 0.05
+	for i in 220:
+		var prev := pos
+		var moved := _move_planar(pos, vel, radius, bias, use_bias, step, pace)
 		pos = moved[0]
 		vel = moved[1]
-		if moved[3]:
+		travelled += prev.distance_to(pos)
+		if i % 2 == 1:
+			samples.append(pos)
+			dists.append(travelled)
+		if moved[3] or vel.length() < STOP_SPEED:
 			break
-		if i % 3 == 2:
-			points.append(pos)
-		# Show the opening and the start of the draw, not the resting spot.
-		if pos.distance_to(origin) > 16.0 or vel.length() < launch * 0.5:
-			break
+	var limit := maxf(travelled * GUIDE_PORTION, 1.2)
+	var points := PackedVector3Array()
+	for i in samples.size():
+		if dists[i] <= limit:
+			points.append(samples[i])
+	if points.size() < 2 and samples.size() > 1:
+		points.append(samples[1])
 	return points
 
 
@@ -507,14 +560,16 @@ func _build_visual() -> void:
 	_spin = Node3D.new()
 	_visual.add_child(_spin)
 
-	_rim_mat = _disc_mat(Color(0.40, 0.06, 0.10), 0.4, 0.15)
-	_body_mat = _disc_mat(Color(0.82, 0.12, 0.18), 0.32, 0.18)
-	_cap_mat = _disc_mat(Color(0.93, 0.22, 0.26), 0.28, 0.08)
+	_rim_mat = _disc_mat(Color(0.09, 0.08, 0.07), 0.4, 0.15)
+	_body_mat = _disc_mat(Color(0.93, 0.90, 0.84), 0.32, 0.08)
+	_cap_mat = _disc_mat(Color(0.98, 0.95, 0.88), 0.28, 0.08)
 	_mark_mat = StandardMaterial3D.new()
 	_mark_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_mark_mat.albedo_color = Color(0.97, 0.96, 0.93)
+	_mark_mat.albedo_color = Color(0.12, 0.10, 0.08)
 
 	_add_cylinder(_spin, Vector3(0.0, 0.014, 0.0), 0.18, 0.172, 0.02, _rim_mat)
+	var gold := _disc_mat(Color(0.86, 0.68, 0.28), 0.28, 0.78)
+	_add_cylinder(_spin, Vector3(0.0, 0.022, 0.0), 0.15, 0.15, 0.004, gold)
 	_add_cylinder(_spin, Vector3(0.0, 0.026, 0.0), 0.132, 0.132, 0.006, _body_mat)
 	_bias_pip = MeshInstance3D.new()
 	var pip_mesh := SphereMesh.new()
@@ -551,18 +606,18 @@ func _build_guide() -> void:
 	for i in GUIDE_DOTS:
 		var dot := MeshInstance3D.new()
 		var mesh := SphereMesh.new()
-		mesh.radius = 0.13
-		mesh.height = 0.26
+		mesh.radius = 0.055
+		mesh.height = 0.11
 		mesh.radial_segments = 12
 		mesh.rings = 8
 		dot.mesh = mesh
 		var dot_mat := StandardMaterial3D.new()
 		dot_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		dot_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		dot_mat.albedo_color = Color(0.98, 0.84, 0.32, 0.95)
+		dot_mat.albedo_color = Color(0.97, 0.98, 1.0, 0.96)
 		dot_mat.emission_enabled = true
-		dot_mat.emission = Color(1.0, 0.78, 0.28)
-		dot_mat.emission_energy_multiplier = 0.35
+		dot_mat.emission = Color(0.92, 0.96, 1.0)
+		dot_mat.emission_energy_multiplier = 0.55
 		dot.material_override = dot_mat
 		dot.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_guide.add_child(dot)

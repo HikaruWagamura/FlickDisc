@@ -7,8 +7,8 @@ signal play_requested(setup: Dictionary)
 const PINK := Color("#ff3d8a")
 const PINK_DEEP := Color("#e21862")
 const INK := Color("#09080d")
-const CARD := Color(0.2, 0.11, 0.15, 0.96)
-const PLUM := Color(0.16, 0.09, 0.12, 0.97)
+const CARD := Color(0.32, 0.16, 0.22, 0.98)
+const PLUM := Color(0.24, 0.12, 0.17, 0.98)
 const MUTED := Color("#cbbcc6")
 const CREAM := Color("#f6f3f7")
 
@@ -152,11 +152,12 @@ func _load_font(path: String, weight: int, italic: bool) -> Font:
 	return system
 
 
+const LOGO := preload("res://assets/flickdisc_mark.png")
+
+
 func _logo_texture() -> Texture2D:
-	var image := Image.new()
-	if image.load("res://assets/flickdisc_mark.png") != OK:
-		return null
-	return ImageTexture.create_from_image(image)
+	# preload packs the mark into the phone export. Image.load does not.
+	return LOGO
 
 
 func _show(next: String) -> void:
@@ -278,8 +279,12 @@ func _build_home() -> void:
 	var server := _label("SERVER ONLINE", 11, PINK, bold_font)
 	_place(page, server, Vector2(20, 80), Vector2(220, 16))
 
+	var plate := Panel.new()
+	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_place(page, plate, Vector2(36, 102), Vector2(468, 262))
+	plate.add_theme_stylebox_override("panel", _flat(Color(0.1, 0.04, 0.07, 0.78), Color(1.0, 0.35, 0.58, 0.9), 1, 28, 0))
 	var mark := _mark_rect()
-	_place(page, mark, Vector2(125, 98), Vector2(290, 290))
+	_place(page, mark, Vector2(115, 108), Vector2(310, 248))
 
 	var play := _button("PLAY", 22)
 	_place(page, play, Vector2(20, 392), Vector2(500, 64))
@@ -660,7 +665,7 @@ func _build_settings() -> void:
 	box.add_child(sound_button)
 	box.add_child(haptic_button)
 	box.add_child(_kicker("HOW A ROUND WORKS"))
-	box.add_child(_wrapped("Crokinmode. The disc rolls across your line. Press stop, then drag back and flick. Eight discs. Both colours score. 20 is only the hole. 15, 10 and 5 need the disc clear of that line. A disc on the line scores the lower ring. The ditch is nothing. Only the difference is added. First to the race wins.\n\nLong rink. Deliver the jack, then four bowls. Choose the hand and the bias. Bowls inside two metres of the jack count. Banks rebound unless the ditch is open."))
+	box.add_child(_wrapped("Crokinole. An empty board. Touch the disc and drag the white dots to aim, then tap to lock. Pull the disc back and release on the green line. You and the far side take turns. Eight discs each. Both colours score. 20 is only the hole. 15, 10 and 5 need the disc clear of that line. A disc on the line scores the lower ring. The ditch is nothing. Only the difference is added. First to the race wins.\n\nLong rink. Touch the jack and drag the white dots to aim, then tap to lock. Pull back and release on the green line. The same shot plays each bowl. Bowls sit on the right. Forehand and backhand are the small button at the bottom right. The dots show only the start of the run. The bowl keeps that hand and will not run straight. Bowls inside two metres of the jack count. Banks rebound unless the ditch is open."))
 
 
 func _build_nav() -> void:

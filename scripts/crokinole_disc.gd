@@ -22,6 +22,8 @@ var _guide_instance: MeshInstance3D
 var _end_marker: MeshInstance3D
 var _idle_ring: MeshInstance3D
 var _guide_has_surface := false
+var _aim_dots: Array[MeshInstance3D] = []
+var _guide_world := PackedVector3Array()
 
 func _ready() -> void:
 	_build_guide()
@@ -46,6 +48,29 @@ func _process(_delta: float) -> void:
 		_rebuild_guide()
 	elif _guide_has_surface and not is_aiming:
 		_clear_guide()
+
+func guide_points() -> PackedVector3Array:
+	if not is_aiming:
+		return PackedVector3Array()
+	return _guide_world
+
+
+func show_aim_line(aim: Vector3, showing: bool) -> void:
+	if active_puck == null or shot_in_progress or not showing:
+		if is_aiming:
+			is_aiming = false
+			power_ratio = 0.0
+			_clear_guide()
+		return
+	var direction := aim
+	if direction.length() < 0.001:
+		direction = Vector3(0.0, 0.0, -1.0)
+	aim_direction = direction.normalized()
+	power_ratio = 0.62
+	is_aiming = true
+	global_position = active_puck.global_position
+	_rebuild_guide()
+
 
 func set_bias(value: float) -> void:
 	bias_ratio = clampf(value, -1.0, 1.0)
@@ -85,6 +110,23 @@ func release_aim(world_point: Vector3) -> void:
 	if not is_aiming:
 		return
 	update_aim(world_point)
+	is_aiming = false
+	_clear_guide()
+	if power_ratio < 0.05 or active_puck == null:
+		power_ratio = 0.0
+		aim_changed.emit(aim_direction, 0.0)
+		return
+	_launch()
+
+
+func fire_at(direction: Vector3, power: float) -> void:
+	var aim := direction
+	if aim.length() < 0.001:
+		aim = Vector3(0.0, 0.0, -1.0)
+	else:
+		aim = aim.normalized()
+	aim_direction = aim
+	power_ratio = clampf(power, 0.0, 1.0)
 	is_aiming = false
 	_clear_guide()
 	if power_ratio < 0.05 or active_puck == null:
@@ -146,13 +188,36 @@ func _build_guide() -> void:
 	_idle_ring = Metrics.add_mesh(self, ring, ring_material, Vector3(0.0, 0.012, 0.0))
 	_idle_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_idle_ring.visible = false
+	for _i in 12:
+		var dot := MeshInstance3D.new()
+		var mesh := SphereMesh.new()
+		mesh.radius = 0.016
+		mesh.height = 0.032
+		mesh.radial_segments = 10
+		mesh.rings = 6
+		dot.mesh = mesh
+		var mat := StandardMaterial3D.new()
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.albedo_color = Color(0.97, 0.98, 1.0, 0.95)
+		mat.emission_enabled = true
+		mat.emission = Color(0.92, 0.96, 1.0)
+		mat.emission_energy_multiplier = 0.4
+		dot.material_override = mat
+		dot.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		dot.visible = false
+		add_child(dot)
+		_aim_dots.append(dot)
 
 func _clear_guide() -> void:
+	_guide_world = PackedVector3Array()
 	if _guide_has_surface:
 		_guide_mesh.clear_surfaces()
 		_guide_has_surface = false
 	if _end_marker != null:
 		_end_marker.visible = false
+	for dot in _aim_dots:
+		dot.visible = false
 
 func _blocked(flat: Vector2) -> bool:
 	for peg in Metrics.peg_positions():
@@ -174,8 +239,11 @@ func _rebuild_guide() -> void:
 		_guide_has_surface = false
 	if not is_aiming or power_ratio <= 0.0:
 		_end_marker.visible = false
+		_guide_world = PackedVector3Array()
+		for dot in _aim_dots:
+			dot.visible = false
 		return
-	var length := lerpf(0.35, 1.85, power_ratio)
+	var length := lerpf(0.55, 1.35, power_ratio)
 	var steps := 32
 	var points: Array[Vector3] = [Vector3.ZERO]
 	var point := Vector3.ZERO
@@ -203,31 +271,11 @@ func _rebuild_guide() -> void:
 		point = next_point
 		points.append(point)
 	if points.size() < 2:
-		_end_marker.visible = false
+		_clear_guide()
 		return
-
-	var material: Material = _guide_instance.material_override
-	_guide_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP, material)
-	for point_index in points.size():
-		var center: Vector3 = points[point_index]
-		var forward := Vector3(0.0, 0.0, -1.0)
-		if point_index + 1 < points.size():
-			forward = points[point_index + 1] - center
-		elif point_index > 0:
-			forward = center - points[point_index - 1]
-		forward.y = 0.0
-		if forward.length() < 0.0001:
-			forward = Vector3(0.0, 0.0, -1.0)
-		forward = forward.normalized()
-		var side := Vector3(-forward.z, 0.0, forward.x)
-		var width := lerpf(0.01, 0.03, 1.0 - float(point_index) / float(points.size()))
-		var alpha := lerpf(0.95, 0.12, float(point_index) / float(points.size()))
-		var lifted := Vector3(center.x, 0.03, center.z)
-		_guide_mesh.surface_set_color(Color(1.0, 0.94, 0.72, alpha))
-		_guide_mesh.surface_add_vertex(lifted + side * width)
-		_guide_mesh.surface_add_vertex(lifted - side * width)
-	_guide_mesh.surface_end()
-	_guide_has_surface = true
-	var last: Vector3 = points[points.size() - 1]
-	_end_marker.position = Vector3(last.x, 0.03, last.z)
-	_end_marker.visible = true
+	var world := PackedVector3Array()
+	for at in points:
+		world.append(global_position + Vector3(at.x, 0.04, at.z))
+	_guide_world = world
+	for dot in _aim_dots:
+		dot.visible = false
