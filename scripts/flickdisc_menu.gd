@@ -235,11 +235,11 @@ func _build_home() -> void:
 	_place(page, pill, Vector2(16, 16), Vector2(250, 58))
 	_paint_button(pill, Color(0.09, 0.05, 0.1, 0.94), PINK, CREAM, 28, 12)
 	pill.pressed.connect(_show.bind("profile"))
-	var avatar := ColorRect.new()
+	var avatar := Panel.new()
 	avatar.position = Vector2(8, 10)
 	avatar.size = Vector2(38, 38)
-	avatar.color = PINK
 	avatar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	avatar.add_theme_stylebox_override("panel", _flat(PINK, PINK, 0, 19, 0))
 	pill.add_child(avatar)
 	home_letter = _label("F", 18, Color("#1a0a12"), bold_font)
 	home_letter.position = Vector2(8, 16)
@@ -361,9 +361,9 @@ func _build_setup() -> void:
 
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
-	row.custom_minimum_size = Vector2(0, 124)
+	row.custom_minimum_size = Vector2(0, 142)
 	crokin_card = _rink_card("CROKINMODE", "Classic round board")
-	lawn_card = _rink_card("LONG RINK", "Bowls and curling style · about 10 seconds to the jack")
+	lawn_card = _rink_card("LONG RINK", "Bowls and curling style.\nAbout 10 seconds to the jack.")
 	crokin_tag = crokin_card.get_node("Tag") as Label
 	lawn_tag = lawn_card.get_node("Tag") as Label
 	crokin_card.pressed.connect(func() -> void:
@@ -377,6 +377,7 @@ func _build_setup() -> void:
 	row.add_child(crokin_card)
 	row.add_child(lawn_card)
 	box.add_child(row)
+	box.add_child(_gap(8))
 
 	hint_label = _label("The original round board and scoring rules.", 14, MUTED, body_font)
 	hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1090,6 +1091,12 @@ func _column_page(top: float, bottom: float) -> Dictionary:
 
 
 func _back_on(page: Control, target: String) -> void:
+	var shield := ColorRect.new()
+	shield.position = Vector2(0, 0)
+	shield.size = Vector2(540, 68)
+	shield.color = Color(0.035, 0.031, 0.051, 0.96)
+	shield.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	page.add_child(shield)
 	var button := _button("‹   Back", 15)
 	button.position = Vector2(16, 16)
 	button.size = Vector2(124, 40)
@@ -1120,21 +1127,22 @@ func _rink_card(title: String, body: String) -> Button:
 	var button := Button.new()
 	button.text = ""
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	button.custom_minimum_size = Vector2(150, 124)
+	button.clip_contents = true
+	button.custom_minimum_size = Vector2(150, 142)
 	var tag := _label("SELECTED", 10, PINK, bold_font)
 	tag.name = "Tag"
 	tag.position = Vector2(12, 8)
-	tag.size = Vector2(180, 16)
+	tag.size = Vector2(200, 16)
 	tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	button.add_child(tag)
-	var heading := _label(title, 16, CREAM, bold_font)
-	heading.position = Vector2(12, 30)
-	heading.size = Vector2(200, 24)
+	var heading := _label(title, 15, CREAM, bold_font)
+	heading.position = Vector2(12, 28)
+	heading.size = Vector2(210, 24)
 	heading.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	button.add_child(heading)
 	var detail := _label(body, 12, MUTED, body_font)
-	detail.position = Vector2(12, 58)
-	detail.size = Vector2(200, 52)
+	detail.position = Vector2(12, 54)
+	detail.size = Vector2(210, 76)
 	detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	detail.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	button.add_child(detail)
