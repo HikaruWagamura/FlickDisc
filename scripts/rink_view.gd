@@ -17,6 +17,15 @@ const DISC_Z := -1.65
 const SURFACE_Y := 0.0
 
 var head: Node3D
+var _camera: Camera3D
+var _home_position := Vector3(0.0, 9.2, 10.8)
+var _home_look := Vector3(0.0, 0.28, -18.0)
+var _home_fov := 49.0
+var _zoom_position := Vector3(0.0, 9.2, 10.8)
+var _zoom_look := Vector3(0.0, 0.28, -18.0)
+var _zoom_fov := 34.0
+var _zoom_weight := 0.0
+var _zoom_goal := 0.0
 var _rebound_frame: Node3D
 var _ditch_frame: Node3D
 var _spare_dots: Array[MeshInstance3D] = []
@@ -175,6 +184,37 @@ func _build_camera() -> void:
 	camera.look_at_from_position(camera.position, Vector3(0.0, 0.28, -18.0), Vector3.UP)
 	camera.current = true
 	add_child(camera)
+	_camera = camera
+	_home_position = camera.position
+	_home_look = Vector3(0.0, 0.28, -18.0)
+	_home_fov = camera.fov
+	_zoom_position = _home_position
+	_zoom_look = _home_look
+
+
+func _process(delta: float) -> void:
+	if _camera == null:
+		return
+	var previous := _zoom_weight
+	_zoom_weight = move_toward(_zoom_weight, _zoom_goal, delta * 0.85)
+	if absf(_zoom_weight - previous) < 0.0001:
+		return
+	var blend := _zoom_weight * _zoom_weight * (3.0 - 2.0 * _zoom_weight)
+	_camera.position = _home_position.lerp(_zoom_position, blend)
+	_camera.fov = lerpf(_home_fov, _zoom_fov, blend)
+	var look_at := _home_look.lerp(_zoom_look, blend)
+	_camera.look_at(look_at, Vector3.UP)
+
+
+func focus_head(at: Vector3) -> void:
+	_zoom_look = at + Vector3(0.0, 0.15, 0.0)
+	_zoom_position = at + Vector3(0.0, 3.1, 4.6)
+	_zoom_fov = 32.0
+	_zoom_goal = 1.0
+
+
+func release_head() -> void:
+	_zoom_goal = 0.0
 
 
 func _build_grounds() -> void:

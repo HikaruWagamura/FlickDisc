@@ -9,17 +9,20 @@ signal shot_started
 signal shot_stopped
 signal impacted(speed: float, hit_jack: bool, hit_bank: bool)
 
-const DISC_RADIUS := 0.42
-const MAX_DRAG_PIXELS := 160.0
-const MAX_SPEED := 45.0
-const MIN_SPEED := 4.5
+const DISC_RADIUS := 0.18
+const MAX_DRAG_PIXELS := 210.0
+const MAX_SPEED := 66.0
+const MIN_SPEED := 5.0
+const AIM_RESPONSE := 11.0
+const DIAL_POWER_PIXELS := 148.0
+const DIAL_SIDE_PIXELS := 132.0
 const FRICTION_PER_SECOND := 0.52
 const STOP_SPEED := 0.15
 const STOP_GRACE_SECONDS := 0.15
 const TURN_FAST := 0.006
 const TURN_DRAW := 0.26
 const PICK_RADIUS_PX := 88.0
-const GUIDE_DOTS := 16
+const GUIDE_DOTS := 8
 
 var start_position := Vector3.ZERO
 var green_min := Vector2(-2.9, -38.0)
@@ -31,6 +34,8 @@ var is_aiming := false
 var shot_in_progress := false
 var aim_direction := Vector3(0.0, 0.0, -1.0)
 var power_ratio := 0.0
+var _aim_target := Vector3(0.0, 0.0, -1.0)
+var _power_target := 0.0
 var bias_ratio := 0.0
 var shot_bias := 0.0
 var shot_power := 0.0
@@ -59,7 +64,6 @@ var _spin: Node3D
 var _shadow: MeshInstance3D
 var _guide: Node3D
 var _dots: Array[MeshInstance3D] = []
-var _end_ring: MeshInstance3D
 var _jack_visual: Node3D
 var _bias_pip: MeshInstance3D
 
@@ -68,6 +72,18 @@ func _ready() -> void:
 	start_position = position
 	_build_visual()
 	_build_guide()
+
+
+func _process(delta: float) -> void:
+	if not is_aiming:
+		return
+	var blend := 1.0 - exp(-AIM_RESPONSE * delta)
+	var blended := aim_direction.lerp(_aim_target, blend)
+	if blended.length() > 0.001:
+		aim_direction = blended.normalized()
+	power_ratio = lerpf(power_ratio, _power_target, blend)
+	aim_changed.emit(Vector2(aim_direction.x, aim_direction.z), power_ratio)
+	_update_guide()
 
 
 func _physics_process(delta: float) -> void:
@@ -116,7 +132,7 @@ func configure_bowl(index: int, hand: float) -> void:
 	radius = DISC_RADIUS
 	mass = BowlScript.DISC_MASS
 	is_jack = false
-	set_palette(index)
+	set_palette(0)
 	if _visual != null:
 		_visual.visible = true
 	if _jack_visual != null:
@@ -138,47 +154,40 @@ func toggle_hand() -> void:
 	set_hand(1.0 if hand_sign < 0.0 else -1.0)
 
 
-func begin_aim(pointer_position: Vector2) -> bool:
+func begin_dial() -> bool:
 	if shot_in_progress or not visible:
 		return false
-	var camera := get_viewport().get_camera_3d()
-	if camera == null:
-		return false
-	var disc_screen := camera.unproject_position(global_position + Vector3(0.0, 0.12, 0.0))
-	if pointer_position.distance_to(disc_screen) > PICK_RADIUS_PX:
-		return false
 	is_aiming = true
-	update_aim(pointer_position)
+	_aim_target = Vector3(0.0, 0.0, -1.0)
+	aim_direction = _aim_target
+	_power_target = 0.0
+	power_ratio = 0.0
 	return true
 
 
-func update_aim(pointer_position: Vector2) -> void:
+func update_dial(pull: Vector2) -> void:
 	if not is_aiming:
 		return
-	var camera := get_viewport().get_camera_3d()
-	if camera == null:
-		return
-	var disc_screen := camera.unproject_position(global_position + Vector3(0.0, 0.12, 0.0))
-	var pull_px := pointer_position - disc_screen
-	var pull_len := pull_px.length()
-	power_ratio = clampf(pull_len / MAX_DRAG_PIXELS, 0.0, 1.0)
-	if pull_len > 6.0:
-		var from := _ground_point(disc_screen)
-		var to := _ground_point(disc_screen + pull_px)
-		var world_pull := to - from
-		world_pull.y = 0.0
-		if world_pull.length() > 0.04:
-			aim_direction = (-world_pull).normalized()
-	aim_changed.emit(Vector2(aim_direction.x, aim_direction.z), power_ratio)
-	_update_guide()
+	var down := maxf(pull.y, 0.0)
+	_power_target = clampf(down / DIAL_POWER_PIXELS, 0.0, 1.0)
+	var side_px := pull.x
+	if absf(side_px) < 6.0:
+		side_px = 0.0
+	else:
+		side_px -= signf(side_px) * 6.0
+	# The dial is direct. Pulling right sends the bowl to the right.
+	var side := clampf(side_px / DIAL_SIDE_PIXELS, -0.62, 0.62)
+	_aim_target = Vector3(side, 0.0, -1.0).normalized()
 
 
-func release_aim(pointer_position: Vector2) -> void:
+func release_dial() -> void:
 	if not is_aiming:
 		return
-	update_aim(pointer_position)
 	is_aiming = false
+	aim_direction = _aim_target
+	power_ratio = _power_target
 	_hide_guide()
+	aim_changed.emit(Vector2(aim_direction.x, aim_direction.z), power_ratio)
 	if power_ratio < 0.08:
 		power_ratio = 0.0
 		aim_changed.emit(Vector2(aim_direction.x, aim_direction.z), power_ratio)
@@ -202,7 +211,7 @@ func _delivery_velocity(aim: Vector3, bias: float, power: float) -> Vector3:
 		planar = Vector2(0.0, -1.0)
 	if absf(bias) > 0.001:
 		# Start wide of the line. The late draw rolls the bowl back inward.
-		var shoulder := absf(bias) * 0.09 * (0.18 + 0.82 * power)
+		var shoulder := absf(bias) * 0.18 * (0.25 + 0.75 * power)
 		planar = planar.rotated(-signf(bias) * shoulder)
 	planar = planar.normalized() * speed
 	return Vector3(planar.x, 0.0, planar.y)
@@ -225,7 +234,7 @@ func reset_to_start() -> void:
 
 
 func set_palette(index: int) -> void:
-	palette_index = index % 3
+	palette_index = index % 4
 	if _rim_mat == null:
 		return
 	var colors: Array = BowlScript.palette(palette_index)
@@ -415,18 +424,6 @@ func _curve_and_damp(vel: Vector3, bias: float, delta: float, length_power: floa
 	return vel
 
 
-func _ground_point(screen_pos: Vector2) -> Vector3:
-	var camera := get_viewport().get_camera_3d()
-	var origin := camera.project_ray_origin(screen_pos)
-	var direction := camera.project_ray_normal(screen_pos)
-	if absf(direction.y) < 0.00001:
-		return global_position
-	var t := -origin.y / direction.y
-	if t < 0.0:
-		return global_position
-	return origin + direction * t
-
-
 func _apply_visual(speed: float) -> void:
 	if _visual == null:
 		return
@@ -447,12 +444,16 @@ func _update_guide() -> void:
 		return
 	var last := path.size() - 1
 	for i in _dots.size():
-		var sample := int(round(float(i + 1) / float(_dots.size()) * float(last)))
+		var along := float(i + 1) / float(_dots.size())
+		var sample := int(round(along * float(last)))
 		sample = clampi(sample, 0, last)
-		_dots[i].global_position = path[sample] + Vector3(0.0, 0.045, 0.0)
+		_dots[i].global_position = path[sample] + Vector3(0.0, 0.06, 0.0)
+		var scale := lerpf(1.15, 0.28, along)
+		_dots[i].scale = Vector3(scale, scale, scale)
+		var mat := _dots[i].material_override as StandardMaterial3D
+		if mat != null:
+			mat.albedo_color.a = lerpf(0.95, 0.45, along)
 		_dots[i].visible = true
-	_end_ring.global_position = path[last] + Vector3(0.0, 0.04, 0.0)
-	_end_ring.visible = true
 
 
 func _hide_guide() -> void:
@@ -461,71 +462,25 @@ func _hide_guide() -> void:
 
 
 func _predict_path() -> PackedVector3Array:
+	# Opening line only. The dots fade out before the bowl finishes,
+	# so the guide shows the draw without marking the exact rest spot.
 	var points := PackedVector3Array()
 	var pos := global_position
 	var vel := _delivery_velocity(aim_direction, bias_ratio, power_ratio)
-	var ghosts: Array = []
-	for body in obstacles:
-		if body.in_ditch:
-			continue
-		ghosts.append({
-			"pos": body.global_position,
-			"vel": body.velocity,
-			"radius": body.radius,
-			"mass": body.mass,
-			"is_jack": body.is_jack,
-			"live": true,
-		})
+	var launch := vel.length()
+	var origin := pos
 	points.append(pos)
 	var step := 0.02
-	for i in 360:
+	for i in 120:
 		var moved := _move_planar(pos, vel, radius, bias_ratio, true, step, power_ratio)
 		pos = moved[0]
 		vel = moved[1]
-		var fell: bool = moved[3]
-		if fell:
-			points.append(pos)
+		if moved[3]:
 			break
-		for ghost in ghosts:
-			if not ghost["live"]:
-				continue
-			if ghost["vel"].length() > STOP_SPEED:
-				var ghost_moved := _move_planar(ghost["pos"], ghost["vel"], ghost["radius"], 0.0, false, step)
-				ghost["pos"] = ghost_moved[0]
-				ghost["vel"] = ghost_moved[1]
-				if ghost_moved[3]:
-					ghost["live"] = false
-					ghost["vel"] = Vector3.ZERO
-			if not ghost["live"]:
-				continue
-			var resolved: Dictionary = BowlScript.resolve(
-				pos, vel, radius, mass,
-				ghost["pos"], ghost["vel"], ghost["radius"], ghost["mass"],
-				BowlScript.restitution_for(ghost["is_jack"])
-			)
-			pos = resolved["a_pos"]
-			vel = resolved["a_vel"]
-			ghost["pos"] = resolved["b_pos"]
-			ghost["vel"] = resolved["b_vel"]
-		for a in ghosts.size():
-			for b in range(a + 1, ghosts.size()):
-				var left: Dictionary = ghosts[a]
-				var right: Dictionary = ghosts[b]
-				if not left["live"] or not right["live"]:
-					continue
-				var pair: Dictionary = BowlScript.resolve(
-					left["pos"], left["vel"], left["radius"], left["mass"],
-					right["pos"], right["vel"], right["radius"], right["mass"],
-					BowlScript.restitution_for(left["is_jack"] or right["is_jack"])
-				)
-				left["pos"] = pair["a_pos"]
-				left["vel"] = pair["a_vel"]
-				right["pos"] = pair["b_pos"]
-				right["vel"] = pair["b_vel"]
-		if i % 4 == 3:
+		if i % 3 == 2:
 			points.append(pos)
-		if vel.length() <= STOP_SPEED:
-			points.append(pos)
+		# Show the opening and the start of the draw, not the resting spot.
+		if pos.distance_to(origin) > 16.0 or vel.length() < launch * 0.5:
 			break
 	return points
 
@@ -533,8 +488,8 @@ func _predict_path() -> PackedVector3Array:
 func _build_visual() -> void:
 	_shadow = MeshInstance3D.new()
 	var shadow_mesh := CylinderMesh.new()
-	shadow_mesh.top_radius = 0.4
-	shadow_mesh.bottom_radius = 0.4
+	shadow_mesh.top_radius = 0.16
+	shadow_mesh.bottom_radius = 0.16
 	shadow_mesh.height = 0.008
 	shadow_mesh.radial_segments = 24
 	_shadow.mesh = shadow_mesh
@@ -559,13 +514,12 @@ func _build_visual() -> void:
 	_mark_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_mark_mat.albedo_color = Color(0.97, 0.96, 0.93)
 
-	_add_sphere(_spin, Vector3(0.0, 0.42 * 0.66, 0.0), 0.42, Vector3(1.0, 0.66, 1.0), _rim_mat)
-	_add_sphere(_spin, Vector3(0.0, 0.34, 0.0), 0.3, Vector3(1.0, 0.72, 1.0), _body_mat)
-	_add_cylinder(_spin, Vector3(0.0, 0.26, 0.0), 0.4, 0.4, 0.045, _body_mat)
+	_add_cylinder(_spin, Vector3(0.0, 0.014, 0.0), 0.18, 0.172, 0.02, _rim_mat)
+	_add_cylinder(_spin, Vector3(0.0, 0.026, 0.0), 0.132, 0.132, 0.006, _body_mat)
 	_bias_pip = MeshInstance3D.new()
 	var pip_mesh := SphereMesh.new()
-	pip_mesh.radius = 0.07
-	pip_mesh.height = 0.14
+	pip_mesh.radius = 0.02
+	pip_mesh.height = 0.04
 	pip_mesh.radial_segments = 12
 	pip_mesh.rings = 8
 	_bias_pip.mesh = pip_mesh
@@ -587,34 +541,32 @@ func _build_visual() -> void:
 func _place_pip() -> void:
 	if _bias_pip == null:
 		return
-	_bias_pip.position = Vector3(hand_sign * 0.3, 0.3, 0.0)
+	_bias_pip.position = Vector3(hand_sign * 0.13, 0.02, 0.0)
 
 
 func _build_guide() -> void:
 	_guide = Node3D.new()
 	_guide.visible = false
 	add_child(_guide)
-	var dot_mat := StandardMaterial3D.new()
-	dot_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	dot_mat.albedo_color = Color(0.96, 0.98, 0.95)
 	for i in GUIDE_DOTS:
 		var dot := MeshInstance3D.new()
 		var mesh := SphereMesh.new()
-		mesh.radius = 0.075
-		mesh.height = 0.15
-		mesh.radial_segments = 10
-		mesh.rings = 6
+		mesh.radius = 0.13
+		mesh.height = 0.26
+		mesh.radial_segments = 12
+		mesh.rings = 8
 		dot.mesh = mesh
+		var dot_mat := StandardMaterial3D.new()
+		dot_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		dot_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		dot_mat.albedo_color = Color(0.98, 0.84, 0.32, 0.95)
+		dot_mat.emission_enabled = true
+		dot_mat.emission = Color(1.0, 0.78, 0.28)
+		dot_mat.emission_energy_multiplier = 0.35
 		dot.material_override = dot_mat
 		dot.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_guide.add_child(dot)
 		_dots.append(dot)
-	_end_ring = MeshInstance3D.new()
-	_end_ring.mesh = _annulus(0.18, 0.3, 32)
-	var ring_mat := dot_mat.duplicate()
-	_end_ring.material_override = ring_mat
-	_end_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_guide.add_child(_end_ring)
 
 
 func _add_sphere(parent: Node3D, pos: Vector3, radius_m: float, scale: Vector3, mat: Material) -> void:
