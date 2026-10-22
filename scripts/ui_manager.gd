@@ -29,6 +29,7 @@ var hand_bar: Panel
 var hand_label: Label
 var fore_button: Button
 var back_button: Button
+var turn_mark: Control
 var bias_buttons: Array[Button] = []
 var summary: Panel
 var summary_title: Label
@@ -90,7 +91,9 @@ func set_power_ratio(power_ratio: float) -> void:
 	if power_fill == null:
 		return
 	var ratio := clampf(power_ratio, 0.0, 1.0)
-	var inner := POWER_WIDTH - 8.0
+	var inner := 352.0
+	if power_track != null:
+		inner = power_track.size.x - 8.0
 	power_fill.size.x = inner * ratio
 	if power_cap != null:
 		power_cap.visible = ratio > 0.04
@@ -118,7 +121,10 @@ func show_ditch_mode(enabled: bool) -> void:
 
 
 func show_jack_aim(power_ratio: float) -> void:
-	status_label.text = "AIMING JACK  •  %d%%" % roundi(power_ratio * 100.0)
+	if power_ratio < 0.08:
+		status_label.text = "AIM THE JACK, THEN PULL"
+	else:
+		status_label.text = "JACK  •  %d%%" % roundi(power_ratio * 100.0)
 	set_power_ratio(power_ratio)
 
 
@@ -142,13 +148,16 @@ func show_jack_set(travelled: float, bowl_name: String, throws_left: int) -> voi
 
 
 func show_aiming(power_ratio: float) -> void:
-	status_label.text = "AIMING  •  %d%%  •  %s" % [roundi(power_ratio * 100.0), _hand_name()]
+	if power_ratio < 0.08:
+		status_label.text = "SET THE LINE  •  %s" % _hand_name()
+	else:
+		status_label.text = "PULL  •  %d%%  •  %s" % [roundi(power_ratio * 100.0), _hand_name()]
 	set_power_ratio(power_ratio)
 
 
 func show_in_motion(throws_left: int, bowl_name: String, forehand: bool) -> void:
 	throws_label.text = "%d BOWLS" % throws_left
-	status_label.text = "%s  •  %s  •  DRAWING IN" % [bowl_name, "FOREHAND" if forehand else "BACKHAND"]
+	status_label.text = "%s  •  %s" % [bowl_name, "FOREHAND" if forehand else "BACKHAND"]
 	score_label.text = "%d BOWLS REMAINING" % throws_left
 
 
@@ -205,12 +214,14 @@ func hide_summary() -> void:
 func show_hand(forehand: bool, bowl_name: String) -> void:
 	current_bias = -1.0 if forehand else 1.0
 	if hand_label != null:
-		hand_label.text = "%s\n%s" % [_hand_name(), bowl_name]
+		hand_label.text = bowl_name
 	if score_label != null and bowl_name != "":
 		score_label.text = "NOW %s" % bowl_name
-	# The left arrow is the hand that bends left. Forehand bends right.
-	_style_arrow(fore_button, not forehand)
-	_style_arrow(back_button, forehand)
+	# Forehand turns to the player's left. Backhand turns to the right.
+	_style_arrow(fore_button, forehand)
+	_style_arrow(back_button, not forehand)
+	if turn_mark != null and turn_mark.has_method("set_turn"):
+		turn_mark.set_turn(forehand)
 
 
 func show_bias(index: int) -> void:
@@ -231,7 +242,9 @@ func show_bowl_controls(enabled: bool) -> void:
 	if back_button != null:
 		back_button.visible = enabled
 	if hand_label != null:
-		hand_label.visible = enabled
+		hand_label.visible = false
+	if turn_mark != null:
+		turn_mark.visible = enabled
 	for button in bias_buttons:
 		button.visible = enabled
 
@@ -242,8 +255,8 @@ func _hand_name() -> String:
 
 func _build_power_meter() -> void:
 	power_track = Panel.new()
-	power_track.position = Vector2(145.0, 806.0)
-	power_track.size = Vector2(POWER_WIDTH, 22.0)
+	power_track.position = Vector2(18.0, 744.0)
+	power_track.size = Vector2(360.0, 22.0)
 	power_track.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var track := StyleBoxFlat.new()
 	track.bg_color = Color(0.03, 0.07, 0.1, 0.92)
@@ -284,7 +297,7 @@ func _build_power_meter() -> void:
 	power_label = Label.new()
 	power_label.text = "POWER"
 	power_label.position = Vector2(0.0, 1.0)
-	power_label.size = Vector2(POWER_WIDTH, 20.0)
+	power_label.size = Vector2(360.0, 20.0)
 	power_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	power_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	power_label.add_theme_font_size_override("font_size", 11)
@@ -296,21 +309,21 @@ func _build_power_meter() -> void:
 func _build_aim_dial() -> void:
 	var dial := preload("res://scripts/aim_dial.gd").new()
 	dial.name = "AimDial"
-	dial.position = Vector2(412.0, 628.0)
+	dial.position = Vector2(412.0, 600.0)
 	dial.size = Vector2(118.0, 118.0)
 	add_child(dial)
 	aim_dial = dial
 	dial.pull_changed.connect(func(pull: Vector2) -> void: dial_pull.emit(pull))
 	dial.pull_released.connect(func(pull: Vector2) -> void: dial_released.emit(pull))
-	var caption := _make_label(Vector2(412.0, 750.0), Vector2(118.0, 16.0), 11, Color(0.98, 0.9, 0.62))
-	caption.text = "PULL"
+	var caption := _make_label(Vector2(392.0, 722.0), Vector2(148.0, 16.0), 11, Color(0.98, 0.9, 0.62))
+	caption.text = "LINE  ·  PULL"
 	caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
 
 func _build_bias_row() -> void:
 	var names := ["NARROW", "MEDIUM", "WIDE", "HOOK"]
 	for i in names.size():
-		var button := _make_button(names[i], Vector2(16.0 + float(i) * 131.0, 840.0), Vector2(123.0, 32.0))
+		var button := _make_button(names[i], Vector2(16.0 + float(i) * 131.0, 844.0), Vector2(123.0, 32.0))
 		button.add_theme_font_size_override("font_size", 11)
 		button.visible = false
 		button.pressed.connect(_emit_bias.bind(i))
@@ -324,30 +337,35 @@ func _emit_bias(index: int) -> void:
 
 func _build_hand_bar() -> void:
 	hand_bar = Panel.new()
-	hand_bar.position = Vector2(128.0, 884.0)
-	hand_bar.size = Vector2(260.0, 58.0)
+	hand_bar.position = Vector2(16.0, 774.0)
+	hand_bar.size = Vector2(380.0, 60.0)
 	hand_bar.visible = false
 	hand_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.04, 0.09, 0.12, 0.94)
-	style.border_color = Color(0.9, 0.76, 0.38)
+	style.bg_color = Color(0.07, 0.04, 0.06, 0.94)
+	style.border_color = Color(0.93, 0.72, 0.42)
 	style.set_border_width_all(2)
 	style.set_corner_radius_all(18)
+	style.shadow_color = Color(0.0, 0.0, 0.0, 0.45)
+	style.shadow_size = 8
+	style.shadow_offset = Vector2(0.0, 3.0)
 	hand_bar.add_theme_stylebox_override("panel", style)
 	add_child(hand_bar)
-	fore_button = _make_button("◀", Vector2(136.0, 893.0), Vector2(52.0, 40.0))
-	fore_button.add_theme_font_size_override("font_size", 18)
+	fore_button = _make_button("FOREHAND", Vector2(26.0, 783.0), Vector2(150.0, 42.0))
+	fore_button.add_theme_font_size_override("font_size", 13)
 	fore_button.visible = false
-	fore_button.pressed.connect(func() -> void: hand_selected.emit(false))
-	back_button = _make_button("▶", Vector2(328.0, 893.0), Vector2(52.0, 40.0))
-	back_button.add_theme_font_size_override("font_size", 18)
+	fore_button.pressed.connect(func() -> void: hand_selected.emit(true))
+	back_button = _make_button("BACKHAND", Vector2(236.0, 783.0), Vector2(150.0, 42.0))
+	back_button.add_theme_font_size_override("font_size", 13)
 	back_button.visible = false
-	back_button.pressed.connect(func() -> void: hand_selected.emit(true))
-	hand_label = _make_label(Vector2(188.0, 890.0), Vector2(140.0, 46.0), 13, Color(0.98, 0.92, 0.72))
-	hand_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hand_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	back_button.pressed.connect(func() -> void: hand_selected.emit(false))
+	turn_mark = preload("res://scripts/turn_mark.gd").new()
+	turn_mark.position = Vector2(176.0, 778.0)
+	turn_mark.size = Vector2(60.0, 52.0)
+	turn_mark.visible = false
+	add_child(turn_mark)
+	hand_label = _make_label(Vector2(26.0, 774.0), Vector2(150.0, 16.0), 11, Color(0.98, 0.92, 0.72))
 	hand_label.visible = false
-	hand_label.text = "FOREHAND"
 
 
 func _style_arrow(button: Button, selected: bool) -> void:

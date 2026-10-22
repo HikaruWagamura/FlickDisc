@@ -207,9 +207,11 @@ func _process(delta: float) -> void:
 
 
 func focus_head(at: Vector3) -> void:
-	_zoom_look = at + Vector3(0.0, 0.12, 0.0)
-	_zoom_position = at + Vector3(0.0, 2.4, 3.2)
-	_zoom_fov = 28.0
+	# Wide enough to show a bowl that has taken its hand a few metres
+	# off the jack, with the jack still in the middle.
+	_zoom_look = at + Vector3(0.0, 0.2, 0.0)
+	_zoom_position = at + Vector3(0.0, 14.0, 18.0)
+	_zoom_fov = 42.0
 	_zoom_goal = 1.0
 
 

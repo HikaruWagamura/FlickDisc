@@ -1,7 +1,7 @@
 extends Control
 
-## Pull-down aim pad. Press the dial and draw down to set pace,
-## and sideways to set the line. The finger can leave the ring.
+## Aim pad. Drag sideways to set the line, then pull down for weight.
+## The finger can leave the ring.
 
 signal pull_changed(pull: Vector2)
 signal pull_released(pull: Vector2)
