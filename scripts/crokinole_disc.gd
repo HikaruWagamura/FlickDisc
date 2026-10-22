@@ -41,8 +41,7 @@ func _process(_delta: float) -> void:
 		_idle_ring.visible = show_ring
 		if show_ring:
 			global_position = active_puck.global_position
-			var pulse := 1.0 + sin(float(Time.get_ticks_msec()) * 0.004) * 0.08
-			_idle_ring.scale = Vector3(pulse, 1.0, pulse)
+			_idle_ring.scale = Vector3.ONE
 	if is_aiming:
 		_rebuild_guide()
 	elif _guide_has_surface and not is_aiming:
@@ -136,14 +135,14 @@ func _build_guide() -> void:
 	_end_marker.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 	var ring := TorusMesh.new()
-	ring.inner_radius = Metrics.DISC_RADIUS * 1.35
-	ring.outer_radius = Metrics.DISC_RADIUS * 1.85
-	ring.rings = 28
-	ring.ring_segments = 8
+	ring.inner_radius = Metrics.DISC_RADIUS * 1.02
+	ring.outer_radius = Metrics.DISC_RADIUS * 1.16
+	ring.rings = 32
+	ring.ring_segments = 12
 	var ring_material := StandardMaterial3D.new()
 	ring_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	ring_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	ring_material.albedo_color = Color(0.65, 1.0, 1.0, 0.9)
+	ring_material.albedo_color = Color(1.0, 0.55, 0.78, 0.22)
 	_idle_ring = Metrics.add_mesh(self, ring, ring_material, Vector3(0.0, 0.012, 0.0))
 	_idle_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_idle_ring.visible = false

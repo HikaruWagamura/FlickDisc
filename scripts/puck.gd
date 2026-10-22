@@ -53,7 +53,7 @@ func spin(delta: float) -> void:
 	if speed <= 0.01:
 		return
 	var spin_sign := -1.0 if shot_bias < 0.0 else 1.0
-	_visual.rotation.y += spin_sign * lerpf(2.0, 18.0, clampf(speed / Metrics.MAX_SPEED, 0.0, 1.0)) * delta
+	_visual.rotation.y += spin_sign * lerpf(1.2, 7.0, clampf(speed / Metrics.MAX_SPEED, 0.0, 1.0)) * delta
 
 func sink_into_hole() -> void:
 	if sunk:
@@ -77,23 +77,23 @@ func _build_visual() -> void:
 
 	var body := CylinderMesh.new()
 	body.top_radius = Metrics.DISC_RADIUS
-	body.bottom_radius = Metrics.DISC_RADIUS * 0.94
+	body.bottom_radius = Metrics.DISC_RADIUS * 0.96
 	body.height = Metrics.DISC_HEIGHT
-	body.radial_segments = 40
-	Metrics.add_mesh(_visual, body, Metrics.plastic(rim_color, 0.32, 0.0))
+	body.radial_segments = 64
+	Metrics.add_mesh(_visual, body, Metrics.plastic(rim_color, 0.34, 0.0))
 
-	var top := Metrics.cylinder(Metrics.DISC_RADIUS * 0.86, 0.006, 36)
-	Metrics.add_mesh(_visual, top, Metrics.plastic(body_color, 0.22, 0.04), Vector3(0.0, Metrics.DISC_HEIGHT * 0.42, 0.0))
+	var top := Metrics.cylinder(Metrics.DISC_RADIUS * 0.9, 0.004, 64)
+	Metrics.add_mesh(_visual, top, Metrics.plastic(body_color, 0.28, 0.0), Vector3(0.0, Metrics.DISC_HEIGHT * 0.46, 0.0))
 
-	var ring := TorusMesh.new()
-	ring.inner_radius = Metrics.DISC_RADIUS * 0.48
-	ring.outer_radius = Metrics.DISC_RADIUS * 0.6
-	ring.rings = 28
-	ring.ring_segments = 8
-	Metrics.add_mesh(_visual, ring, Metrics.plastic(ring_color, 0.22, 0.85 if is_player else 0.12), Vector3(0.0, Metrics.DISC_HEIGHT * 0.5, 0.0))
+	var band := Metrics.cylinder(Metrics.DISC_RADIUS * 0.72, 0.005, 64)
+	var band_glow := 0.12 if is_player else 0.0
+	Metrics.add_mesh(_visual, band, Metrics.plastic(ring_color, 0.24, band_glow), Vector3(0.0, Metrics.DISC_HEIGHT * 0.52, 0.0))
 
-	var cap := Metrics.cylinder(Metrics.DISC_RADIUS * 0.32, 0.007, 24)
-	Metrics.add_mesh(_visual, cap, Metrics.plastic(center_color, 0.2, 0.08), Vector3(0.0, Metrics.DISC_HEIGHT * 0.55, 0.0))
+	var groove := Metrics.cylinder(Metrics.DISC_RADIUS * 0.5, 0.004, 48)
+	Metrics.add_mesh(_visual, groove, Metrics.plastic(body_color, 0.3, 0.0), Vector3(0.0, Metrics.DISC_HEIGHT * 0.56, 0.0))
+
+	var cap := Metrics.cylinder(Metrics.DISC_RADIUS * 0.3, 0.005, 40)
+	Metrics.add_mesh(_visual, cap, Metrics.plastic(center_color, 0.22, 0.05 if is_player else 0.0), Vector3(0.0, Metrics.DISC_HEIGHT * 0.6, 0.0))
 
 	var shadow := Metrics.cylinder(Metrics.DISC_RADIUS * 1.15, 0.003, 28)
 	var shadow_material := StandardMaterial3D.new()
