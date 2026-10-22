@@ -93,6 +93,23 @@ func release_aim(world_point: Vector3) -> void:
 		return
 	_launch()
 
+
+func fire_at(direction: Vector3, power: float) -> void:
+	var aim := direction
+	if aim.length() < 0.001:
+		aim = Vector3(0.0, 0.0, -1.0)
+	else:
+		aim = aim.normalized()
+	aim_direction = aim
+	power_ratio = clampf(power, 0.0, 1.0)
+	is_aiming = false
+	_clear_guide()
+	if power_ratio < 0.05 or active_puck == null:
+		power_ratio = 0.0
+		aim_changed.emit(aim_direction, 0.0)
+		return
+	_launch()
+
 func _launch() -> void:
 	var speed := lerpf(Metrics.MIN_SPEED, Metrics.MAX_SPEED, power_ratio)
 	active_puck.velocity = aim_direction * speed
@@ -175,7 +192,7 @@ func _rebuild_guide() -> void:
 	if not is_aiming or power_ratio <= 0.0:
 		_end_marker.visible = false
 		return
-	var length := lerpf(0.35, 1.85, power_ratio)
+	var length := lerpf(0.14, 0.42, power_ratio)
 	var steps := 32
 	var points: Array[Vector3] = [Vector3.ZERO]
 	var point := Vector3.ZERO
@@ -228,6 +245,5 @@ func _rebuild_guide() -> void:
 		_guide_mesh.surface_add_vertex(lifted - side * width)
 	_guide_mesh.surface_end()
 	_guide_has_surface = true
-	var last: Vector3 = points[points.size() - 1]
-	_end_marker.position = Vector3(last.x, 0.03, last.z)
-	_end_marker.visible = true
+	if _end_marker != null:
+		_end_marker.visible = false

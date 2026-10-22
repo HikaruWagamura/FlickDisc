@@ -209,6 +209,45 @@ func release_dial() -> void:
 	launch()
 
 
+func preview_take(aim: Vector3, power: float) -> void:
+	if shot_in_progress:
+		return
+	var direction := aim
+	if direction.length() < 0.001:
+		direction = Vector3(0.0, 0.0, -1.0)
+	else:
+		direction = direction.normalized()
+	_aim_target = direction
+	aim_direction = direction
+	var shown := clampf(power, 0.0, 1.0)
+	_power_target = shown
+	power_ratio = shown
+	is_aiming = shown >= 0.08
+	if not is_aiming:
+		_hide_guide()
+	aim_changed.emit(Vector2(aim_direction.x, aim_direction.z), shown)
+
+
+func fire_taken(aim: Vector3, power: float) -> void:
+	var direction := aim
+	if direction.length() < 0.001:
+		direction = Vector3(0.0, 0.0, -1.0)
+	else:
+		direction = direction.normalized()
+	is_aiming = false
+	aim_direction = direction
+	_aim_target = direction
+	power_ratio = clampf(power, 0.0, 1.0)
+	_power_target = power_ratio
+	_hide_guide()
+	global_position = start_position
+	if power_ratio < 0.08:
+		power_ratio = 0.0
+		aim_changed.emit(Vector2(aim_direction.x, aim_direction.z), 0.0)
+		return
+	launch()
+
+
 func launch() -> void:
 	shot_power = power_ratio
 	shot_bias = 0.0 if delivering_jack else bias_ratio

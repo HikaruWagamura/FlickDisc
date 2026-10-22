@@ -45,6 +45,14 @@ var match_reported := false
 var goal := ""
 var goal_sent := false
 var rack: Array = []
+var gesture
+var fan
+var place_x := 0.0
+var line_z := 0.0
+var _return_token := 0
+const PLACE_HALF := 1.65
+const PULL_BACK := 1.45
+const AIM_SPAN := 0.16
 
 
 func _ready() -> void:
@@ -82,14 +90,16 @@ func _ready() -> void:
 	ui.match_cycle_requested.connect(_on_match_cycle_requested)
 	ui.hand_selected.connect(_on_hand_selected)
 	ui.bias_selected.connect(_on_bias_selected)
-	ui.dial_pull.connect(_on_dial_pull)
-	ui.dial_released.connect(_on_dial_release)
+	_wire_shot()
 	_lock_portrait_on_device()
 	_build_rack()
 	_new_match()
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	if gesture != null:
+		gesture.advance(delta)
+	_sync_fan()
 	var fastest := 0.0
 	if disc != null and disc.shot_in_progress:
 		fastest = disc.velocity.length()
@@ -109,20 +119,138 @@ func _input(event: InputEvent) -> void:
 		feel.unlock()
 
 
-func _on_dial_pull(pull: Vector2) -> void:
-	if disc == null or disc.shot_in_progress or not disc.visible:
-		return
-	if not disc.is_aiming:
-		if not disc.begin_dial():
-			return
-	disc.update_dial(pull)
+func _wire_shot() -> void:
+	var shot := preload("res://scripts/shot_gesture.gd").new()
+	shot.name = "ShotGesture"
+	shot.camera = rink.view_camera()
+	shot.hit_test = _pointer_hits_disc
+	shot.board_point = _board_point
+	shot.place_at.connect(_on_place_at)
+	shot.opened_take.connect(_on_take_opened)
+	shot.cancelled_pull.connect(_on_pull_cancelled)
+	shot.fired.connect(_on_shot_fired)
+	add_child(shot)
+	gesture = shot
+	fan = preload("res://scripts/shot_fan.gd").new()
+	fan.name = "ShotFan"
+	ui.add_child(fan)
 
 
-func _on_dial_release(pull: Vector2) -> void:
-	if disc == null or not disc.is_aiming:
+func _begin_ready() -> void:
+	line_z = disc.start_position.z
+	place_x = 0.0
+	disc.start_position = Vector3(0.0, 0.0, line_z)
+	disc.global_position = disc.start_position
+	if gesture != null:
+		gesture.arm()
+		gesture.anchor = disc.start_position
+	ui.show_place_line(delivering_jack)
+
+
+func _on_place_at(spot: Vector3) -> void:
+	place_x = clampf(spot.x, -PLACE_HALF, PLACE_HALF)
+	disc.start_position = Vector3(place_x, 0.0, line_z)
+	disc.global_position = disc.start_position
+	rink.release_head()
+	ui.show_sliding(delivering_jack)
+
+
+func _on_take_opened() -> void:
+	disc.global_position = Vector3(place_x, 0.0, line_z)
+	ui.show_take_shot(delivering_jack)
+	ui.set_power_ratio(0.0)
+	feel.tap()
+
+
+func _on_pull_cancelled() -> void:
+	disc.global_position = Vector3(place_x, 0.0, line_z)
+	if disc.is_aiming:
+		disc.preview_take(Vector3(0.0, 0.0, -1.0), 0.0)
+	ui.show_take_shot(delivering_jack)
+	ui.set_power_ratio(0.0)
+
+
+func _on_shot_fired(power: float, needle: float) -> void:
+	disc.start_position = Vector3(place_x, 0.0, line_z)
+	disc.fire_taken(_aim_from(needle), power)
+
+
+func _aim_from(needle: float) -> Vector3:
+	return Vector3(0.0, 0.0, -1.0).rotated(Vector3.UP, -needle * AIM_SPAN)
+
+
+func _pointer_hits_disc(screen_position: Vector2) -> bool:
+	if disc == null or not disc.visible or disc.shot_in_progress:
+		return false
+	var cam: Camera3D = rink.view_camera()
+	if cam == null:
+		return false
+	var disc_screen := cam.unproject_position(disc.global_position)
+	var edge := cam.unproject_position(disc.global_position + Vector3(disc.radius * 2.4, 0.0, 0.0))
+	return disc_screen.distance_to(screen_position) <= maxf(disc_screen.distance_to(edge), 110.0)
+
+
+func _board_point(screen_position: Vector2) -> Vector3:
+	var cam: Camera3D = rink.view_camera()
+	if cam == null:
+		return disc.global_position
+	var origin := cam.project_ray_origin(screen_position)
+	var direction := cam.project_ray_normal(screen_position)
+	if absf(direction.y) < 0.00001:
+		return disc.global_position
+	var distance := (0.0 - origin.y) / direction.y
+	if distance < 0.0:
+		return disc.global_position
+	return origin + direction * distance
+
+
+func _facing(origin: Vector3, aim: Vector3) -> float:
+	var cam: Camera3D = rink.view_camera()
+	if cam == null:
+		return -PI * 0.5
+	var from := cam.unproject_position(origin)
+	var toward := cam.unproject_position(origin + aim * 0.8)
+	var delta := toward - from
+	if delta.length() < 3.0:
+		return -PI * 0.5
+	return delta.angle()
+
+
+func _sync_fan() -> void:
+	if gesture == null or fan == null or disc == null:
 		return
-	disc.update_dial(pull)
-	disc.release_dial()
+	var cam: Camera3D = rink.view_camera()
+	if cam == null:
+		return
+	gesture.camera = cam
+	var placed := Vector3(place_x, 0.05, line_z)
+	gesture.anchor = placed
+	var phase := str(gesture.phase)
+	var live: bool = phase != "busy" and bool(disc.visible) and not bool(disc.shot_in_progress)
+	var pulling: bool = phase == "pull"
+	var show_fan: bool = live and (phase == "take" or phase == "hold" or pulling)
+	var power: float = gesture.read_power() if pulling else 0.0
+	var needle: float = gesture.read_needle() if pulling else 0.0
+	if live:
+		disc.global_position = placed + Vector3(0.0, 0.0, power * PULL_BACK)
+		if pulling:
+			ui.set_power_ratio(power)
+			feel.aim(power)
+			if delivering_jack:
+				ui.show_jack_aim(power)
+			else:
+				ui.show_aiming(power)
+			if power >= 0.08:
+				disc.preview_take(_aim_from(needle), power)
+			elif disc.is_aiming:
+				disc.preview_take(Vector3(0.0, 0.0, -1.0), 0.0)
+	var anchor := cam.unproject_position(placed + Vector3(0.0, 0.2, 0.0))
+	fan.present(anchor, power, needle, show_fan, _facing(placed, _aim_from(0.0)))
+	var line_a := cam.unproject_position(Vector3(-PLACE_HALF, 0.06, line_z))
+	var line_b := cam.unproject_position(Vector3(PLACE_HALF, 0.06, line_z))
+	fan.set_line(line_a, line_b, live)
+	var ring_at := cam.unproject_position(disc.global_position + Vector3(0.0, 0.2, 0.0))
+	fan.set_disc(ring_at, live)
 
 
 func _new_match() -> void:
@@ -134,6 +262,7 @@ func _new_match() -> void:
 
 
 func _begin_end() -> void:
+	_return_token += 1
 	shot_token += 1
 	delivering_jack = true
 	jack_length = 0.0
@@ -164,6 +293,7 @@ func _begin_end() -> void:
 	ui.show_ditch_mode(ditch_mode)
 	ui.show_match(_match_label())
 	ui.show_jack_prompt(end_number, _match_label(), match_points)
+	_begin_ready()
 
 
 func _build_rack() -> void:
@@ -352,6 +482,16 @@ func _finish_shot(token: int) -> void:
 	if throws_left > 0:
 		feel.settled(closest if closest >= 0.0 else 9.0)
 		ui.show_throw_result(disc_distance, closest, throws_left, jack_moved, bowl_ditched, respotted, spares)
+		if gesture != null:
+			gesture.busy()
+		_return_token += 1
+		var return_token := _return_token
+		await get_tree().create_timer(2.2).timeout
+		if return_token != _return_token or not is_inside_tree() or disc.shot_in_progress:
+			return
+		rink.release_head()
+		_begin_ready()
+		return
 	else:
 		var shots := _mark_shots()
 		match_points += shots
@@ -363,6 +503,8 @@ func _finish_shot(token: int) -> void:
 		_place_rack()
 		feel.settled(0.2 if shots > 0 else 9.0)
 		ui.show_end_summary(end_number, shots, closest, match_points, match_complete)
+		if gesture != null:
+			gesture.busy()
 
 
 func _finish_jack(rest_pos: Vector3) -> void:
@@ -378,6 +520,7 @@ func _finish_jack(rest_pos: Vector3) -> void:
 		disc.configure_jack()
 		disc.reset_to_start()
 		ui.show_jack_illegal(reason, travelled, detail)
+		_begin_ready()
 		return
 	delivering_jack = false
 	jack_length = travelled
@@ -392,6 +535,7 @@ func _finish_jack(rest_pos: Vector3) -> void:
 	ui.show_hand(hand_sign < 0.0, _bowl_name(bias_index))
 	_place_rack()
 	ui.show_jack_set(travelled, _bowl_name(bias_index), throws_left)
+	_begin_ready()
 
 
 func _respot_jack() -> int:

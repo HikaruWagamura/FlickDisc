@@ -206,6 +206,10 @@ func _process(delta: float) -> void:
 	_camera.look_at(look_at, Vector3.UP)
 
 
+func view_camera() -> Camera3D:
+	return _camera
+
+
 func focus_head(at: Vector3) -> void:
 	# Wide enough to show a bowl that has taken its hand a few metres
 	# off the jack, with the jack still in the middle.

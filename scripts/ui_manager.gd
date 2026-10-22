@@ -103,7 +103,7 @@ func set_power_ratio(power_ratio: float) -> void:
 func show_jack_prompt(end_number: int, match_label: String, match_points: int) -> void:
 	level_label.text = "END %d" % end_number
 	throws_label.text = "%d PTS" % match_points
-	status_label.text = "PULL THE DIAL TO PLACE THE JACK"
+	status_label.text = "TOUCH THE JACK  •  SLIDE IT ON THE LINE"
 	score_label.text = match_label
 	reset_button.visible = true
 	next_button.visible = false
@@ -120,11 +120,26 @@ func show_ditch_mode(enabled: bool) -> void:
 	ditch_button.text = "DITCH ON" if enabled else "REBOUND"
 
 
-func show_jack_aim(power_ratio: float) -> void:
-	if power_ratio < 0.08:
-		status_label.text = "AIM THE JACK, THEN PULL"
+func show_place_line(jack: bool) -> void:
+	if jack:
+		status_label.text = "TOUCH THE JACK  •  SLIDE IT ON THE LINE"
 	else:
-		status_label.text = "JACK  •  %d%%" % roundi(power_ratio * 100.0)
+		status_label.text = "TOUCH YOUR DISC  •  SLIDE IT ON THE LINE"
+
+
+func show_sliding(jack: bool) -> void:
+	if jack:
+		status_label.text = "SLIDE THE JACK  •  RELEASE TO TAKE THE SHOT"
+	else:
+		status_label.text = "SLIDE ON THE LINE  •  RELEASE TO TAKE THE SHOT"
+
+
+func show_take_shot(_jack: bool = false) -> void:
+	status_label.text = "PULL BACK  •  RELEASE ON THE MARK"
+
+
+func show_jack_aim(power_ratio: float) -> void:
+	status_label.text = "RELEASE ON THE MARK  •  %d%%" % roundi(power_ratio * 100.0)
 	set_power_ratio(power_ratio)
 
 
@@ -142,16 +157,13 @@ func show_jack_illegal(reason: String, travelled: float, detail: String) -> void
 func show_jack_set(travelled: float, bowl_name: String, throws_left: int) -> void:
 	throws_label.text = "%d BOWLS" % throws_left
 	status_label.text = "JACK AT %.1f m" % travelled
-	score_label.text = "NOW %s" % bowl_name
+	score_label.text = "JACK AT %.1f m  •  %s" % [travelled, bowl_name]
 	show_bowl_controls(true)
 	set_power_ratio(0.0)
 
 
 func show_aiming(power_ratio: float) -> void:
-	if power_ratio < 0.08:
-		status_label.text = "SET THE LINE  •  %s" % _hand_name()
-	else:
-		status_label.text = "PULL  •  %d%%  •  %s" % [roundi(power_ratio * 100.0), _hand_name()]
+	status_label.text = "RELEASE ON THE MARK  •  %d%%  •  %s" % [roundi(power_ratio * 100.0), _hand_name()]
 	set_power_ratio(power_ratio)
 
 
@@ -313,11 +325,8 @@ func _build_aim_dial() -> void:
 	dial.size = Vector2(118.0, 118.0)
 	add_child(dial)
 	aim_dial = dial
-	dial.pull_changed.connect(func(pull: Vector2) -> void: dial_pull.emit(pull))
-	dial.pull_released.connect(func(pull: Vector2) -> void: dial_released.emit(pull))
-	var caption := _make_label(Vector2(392.0, 722.0), Vector2(148.0, 16.0), 11, Color(0.98, 0.9, 0.62))
-	caption.text = "LINE  ·  PULL"
-	caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	dial.visible = false
+	dial.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 
 func _build_bias_row() -> void:

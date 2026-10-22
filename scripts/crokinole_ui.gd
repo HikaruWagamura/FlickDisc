@@ -76,18 +76,28 @@ func _ready() -> void:
 	next_button.text = "NEXT END"
 	_build_overview()
 
-func show_lane(level_number: int, discs_left: int, difficulty: String = "", you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0) -> void:
+func show_touch(level_number: int, discs_left: int, you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0) -> void:
 	hide_overview()
-	status_label.text = "ROLLING  •  PRESS STOP ON THE POINT"
+	status_label.text = "TOUCH YOUR DISC  •  SLIDE IT ON THE LINE"
 	show_match_status(level_number, discs_left, you_board, far_board, match_you, match_them)
 	reset_button.text = "RESET"
 	reset_button.visible = true
 	next_button.visible = false
-	_show_stop(true)
+	_show_stop(false)
+	show_power(0.0)
+
+func show_sliding() -> void:
+	status_label.text = "SLIDE ON THE LINE  •  RELEASE TO TAKE THE SHOT"
+
+func show_take() -> void:
+	status_label.text = "PULL BACK  •  RELEASE ON THE MARK"
+	_show_stop(false)
+
+func show_lane(level_number: int, discs_left: int, difficulty: String = "", you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0) -> void:
+	show_touch(level_number, discs_left, you_board, far_board, match_you, match_them)
 
 func show_stopped() -> void:
-	status_label.text = "STOPPED  •  DRAG BACK AND FLICK"
-	_show_stop(false)
+	show_take()
 
 func _show_stop(rolling: bool) -> void:
 	if stop_button != null:
@@ -98,7 +108,7 @@ func _show_stop(rolling: bool) -> void:
 func show_ready(level_number: int, discs_left: int, difficulty: String = "", you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0) -> void:
 	hide_overview()
 	var layout := difficulty.to_upper() if difficulty != "" else "CROKINOLE"
-	status_label.text = "LEVEL %02d  •  %s  •  DRAG BACK AND FLICK" % [level_number, layout]
+	status_label.text = "LEVEL %02d  •  %s  •  TOUCH YOUR DISC" % [level_number, layout]
 	show_match_status(level_number, discs_left, you_board, far_board, match_you, match_them)
 	reset_button.text = "RESET"
 	reset_button.visible = true
@@ -113,7 +123,7 @@ func show_match_status(level_number: int, discs_left: int, you_board: int = 0, f
 	score_label.text = "BOARD %d–%d    MATCH %d–%d" % [you_board, far_board, match_you, match_them]
 
 func show_aiming(power_ratio: float) -> void:
-	status_label.text = "RELEASE TO FLICK  •  %d%%  •  %s" % [roundi(power_ratio * 100.0), _bias_name()]
+	status_label.text = "RELEASE ON THE MARK  •  %d%%  •  %s" % [roundi(power_ratio * 100.0), _bias_name()]
 
 func show_power(ratio: float) -> void:
 	power_fill.size.x = 160.0 * clampf(ratio, 0.0, 1.0)
