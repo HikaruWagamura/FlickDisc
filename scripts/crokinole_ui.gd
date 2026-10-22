@@ -3,6 +3,7 @@ extends CanvasLayer
 signal reset_requested
 signal next_level_requested
 signal bias_cycle_requested
+signal stop_requested
 signal mode_requested(mode_name: String)
 signal leave_requested
 
@@ -13,6 +14,7 @@ var throws_label: Label
 var reset_button: Button
 var next_button: Button
 var bias_button: Button
+var stop_button: Button
 var power_fill: ColorRect
 var current_bias := 0.0
 var overview: Control
@@ -61,8 +63,37 @@ func _ready() -> void:
 
 	bias_button = _make_button("BIAS  CENTER", Vector2(144.0, 900.0), Vector2(174.0, 40.0))
 	bias_button.pressed.connect(func() -> void: bias_cycle_requested.emit())
+	stop_button = _make_button("STOP", Vector2(144.0, 892.0), Vector2(250.0, 52.0))
+	stop_button.add_theme_font_size_override("font_size", 20)
+	stop_button.add_theme_stylebox_override("normal", _button_style(Color("#ff2f86"), Color("#ffd0e8")))
+	stop_button.add_theme_stylebox_override("hover", _button_style(Color("#ff5aa3"), Color("#ffe4f2")))
+	stop_button.add_theme_stylebox_override("pressed", _button_style(Color("#c41068"), Color("#ffd0e8")))
+	stop_button.add_theme_color_override("font_color", Color("#fff7fb"))
+	stop_button.add_theme_color_override("font_hover_color", Color("#fff7fb"))
+	stop_button.add_theme_color_override("font_pressed_color", Color("#fff7fb"))
+	stop_button.pressed.connect(func() -> void: stop_requested.emit())
+	stop_button.visible = false
 	next_button.text = "NEXT END"
 	_build_overview()
+
+func show_lane(level_number: int, discs_left: int, difficulty: String = "", you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0) -> void:
+	hide_overview()
+	status_label.text = "ROLLING  •  PRESS STOP ON THE POINT"
+	show_match_status(level_number, discs_left, you_board, far_board, match_you, match_them)
+	reset_button.text = "RESET"
+	reset_button.visible = true
+	next_button.visible = false
+	_show_stop(true)
+
+func show_stopped() -> void:
+	status_label.text = "STOPPED  •  DRAG BACK AND FLICK"
+	_show_stop(false)
+
+func _show_stop(rolling: bool) -> void:
+	if stop_button != null:
+		stop_button.visible = rolling
+	if bias_button != null:
+		bias_button.visible = not rolling
 
 func show_ready(level_number: int, discs_left: int, difficulty: String = "", you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0) -> void:
 	hide_overview()
@@ -88,6 +119,7 @@ func show_power(ratio: float) -> void:
 	power_fill.size.x = 160.0 * clampf(ratio, 0.0, 1.0)
 
 func show_in_motion() -> void:
+	_show_stop(false)
 	status_label.text = "IN FLIGHT  •  PEGS AND DISCS ARE LIVE"
 
 func show_landed(shot_points: int, sunk: bool, ditched: bool) -> void:
@@ -109,6 +141,7 @@ func hide_overview() -> void:
 func show_end_overview(end_number: int, layout_name: String, you_items: Array, them_items: Array, award_you: int, award_them: int, match_you: int, match_them: int, match_target: int, has_next: bool) -> void:
 	_count_token += 1
 	var token := _count_token
+	_show_stop(false)
 	overview.visible = true
 	overview_title.text = "END %d" % end_number
 	overview_rules.text = "%s\n20 IN THE HOLE   •   15   •   10   •   5\nA DISC ON A LINE SCORES THE LOWER RING.\nTHE END SCORES THE DIFFERENCE." % layout_name.to_upper()

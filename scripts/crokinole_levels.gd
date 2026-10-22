@@ -9,9 +9,9 @@ const LEVELS := [
 		"difficulty": "Open Board",
 		"discs": 8,
 		"opponents": [
-			Vector2(0.0, -0.22),
-			Vector2(-0.24, -0.48),
-			Vector2(0.24, -0.48),
+			Vector2(0.0, -0.40),
+			Vector2(-0.24, -0.50),
+			Vector2(0.24, -0.50),
 		],
 	},
 	{
@@ -19,10 +19,10 @@ const LEVELS := [
 		"difficulty": "Peg Guard",
 		"discs": 8,
 		"opponents": [
-			Vector2(0.0, -0.22),
-			Vector2(-0.11, -0.27),
-			Vector2(0.11, -0.27),
-			Vector2(0.0, -0.54),
+			Vector2(0.0, -0.42),
+			Vector2(-0.24, -0.36),
+			Vector2(0.24, -0.36),
+			Vector2(0.0, -0.56),
 		],
 	},
 	{
@@ -32,7 +32,7 @@ const LEVELS := [
 		"opponents": [
 			Vector2(-0.16, -0.48),
 			Vector2(0.16, -0.48),
-			Vector2(0.0, -0.30),
+			Vector2(0.0, -0.44),
 			Vector2(-0.34, -0.66),
 			Vector2(0.34, -0.66),
 		],
@@ -42,8 +42,8 @@ const LEVELS := [
 		"difficulty": "Split Posts",
 		"discs": 8,
 		"opponents": [
-			Vector2(-0.22, -0.18),
-			Vector2(0.22, -0.18),
+			Vector2(-0.36, -0.22),
+			Vector2(0.36, -0.22),
 			Vector2(0.0, -0.5),
 			Vector2(-0.46, -0.42),
 		],
@@ -53,9 +53,9 @@ const LEVELS := [
 		"difficulty": "Hole Watch",
 		"discs": 8,
 		"opponents": [
-			Vector2(-0.16, -0.16),
-			Vector2(0.16, -0.16),
-			Vector2(0.0, -0.3),
+			Vector2(-0.46, -0.20),
+			Vector2(0.46, -0.20),
+			Vector2(0.0, -0.44),
 			Vector2(-0.36, -0.58),
 			Vector2(0.36, -0.58),
 		],

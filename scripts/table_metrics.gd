@@ -10,12 +10,13 @@ const RING_15 := 0.40
 const RING_10 := 0.64
 const RING_5 := 0.92
 const PEG_RADIUS := 0.036
-const PEG_RING := 0.40
-const DISC_RADIUS := 0.050
-const DISC_HEIGHT := 0.026
-const DISC_CENTER_Y := 0.014
+const PEG_RING := 0.28
+const DISC_RADIUS := 0.058
+const DISC_HEIGHT := 0.030
+const DISC_CENTER_Y := 0.016
 const DITCH_Y := -0.006
 const PLAYER_START_Z := 0.68
+const LANE_HALF := 0.30
 const DISCS_PER_ROUND := 8
 
 const MIN_SPEED := 1.15
