@@ -26,7 +26,7 @@ const STOP_GRACE_SECONDS := 0.15
 const CURL_PER_METRE := 0.0025
 const CURL_DRAW := 0.45
 const PICK_RADIUS_PX := 88.0
-const GUIDE_DOTS := 6
+const GUIDE_DOTS := 9
 const GUIDE_PORTION := 0.26
 
 var start_position := Vector3.ZERO
@@ -485,26 +485,16 @@ func _apply_visual(speed: float) -> void:
 	_shadow.position = Vector3(0.1 + lift * 0.08, 0.012, 0.06)
 
 
+func guide_points() -> PackedVector3Array:
+	if not is_aiming or power_ratio <= 0.02:
+		return PackedVector3Array()
+	return _predict_path()
+
+
 func _update_guide() -> void:
-	if _guide == null:
-		return
-	var path := _predict_path()
-	var show_line := path.size() > 1 and power_ratio > 0.02
-	_guide.visible = show_line
-	if not _guide.visible:
-		return
-	var last := path.size() - 1
-	for i in _dots.size():
-		var along := float(i + 1) / float(_dots.size())
-		var sample := int(round(along * float(last)))
-		sample = clampi(sample, 0, last)
-		_dots[i].global_position = path[sample] + Vector3(0.0, 0.06, 0.0)
-		var scale := lerpf(1.0, 0.22, along)
-		_dots[i].scale = Vector3(scale, scale, scale)
-		var mat := _dots[i].material_override as StandardMaterial3D
-		if mat != null:
-			mat.albedo_color.a = lerpf(0.9, 0.0, along)
-		_dots[i].visible = true
+	# The aim is drawn as screen dots, so the world meshes stay hidden.
+	# They sat on the white dashes and read as stray specks.
+	_hide_guide()
 
 
 func _hide_guide() -> void:
@@ -616,18 +606,18 @@ func _build_guide() -> void:
 	for i in GUIDE_DOTS:
 		var dot := MeshInstance3D.new()
 		var mesh := SphereMesh.new()
-		mesh.radius = 0.045
-		mesh.height = 0.09
+		mesh.radius = 0.055
+		mesh.height = 0.11
 		mesh.radial_segments = 12
 		mesh.rings = 8
 		dot.mesh = mesh
 		var dot_mat := StandardMaterial3D.new()
 		dot_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		dot_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		dot_mat.albedo_color = Color(0.98, 0.84, 0.32, 0.95)
+		dot_mat.albedo_color = Color(0.97, 0.98, 1.0, 0.96)
 		dot_mat.emission_enabled = true
-		dot_mat.emission = Color(1.0, 0.78, 0.28)
-		dot_mat.emission_energy_multiplier = 0.35
+		dot_mat.emission = Color(0.92, 0.96, 1.0)
+		dot_mat.emission_energy_multiplier = 0.55
 		dot.material_override = dot_mat
 		dot.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_guide.add_child(dot)

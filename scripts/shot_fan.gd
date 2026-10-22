@@ -1,7 +1,6 @@
 extends Control
 
-## Aim arrow while the line is open. The strike dial sits on the disc
-## and the number in it is the power.
+## The strike dial sits ahead of the puck. The green line is the release.
 
 var _anchor := Vector2(270, 640)
 var _power := 0.0
@@ -16,6 +15,9 @@ var _show_disc := false
 var _aim_from := Vector2.ZERO
 var _aim_to := Vector2.ZERO
 var _show_aim := false
+var _dots := PackedVector2Array()
+var _show_dots := false
+var _lift := 150.0
 
 
 func _ready() -> void:
@@ -24,13 +26,57 @@ func _ready() -> void:
 	z_index = 3
 
 
-func present(anchor: Vector2, power: float, needle: float, showing: bool, facing: float = -PI * 0.5) -> void:
+func present(anchor: Vector2, power: float, needle: float, showing: bool, facing: float = -PI * 0.5, lift: float = 150.0) -> void:
 	_anchor = anchor
 	_power = clampf(power, 0.0, 1.0)
 	_needle = clampf(needle, -1.0, 1.0)
 	_show = showing
 	_facing = facing
+	_lift = clampf(lift, 90.0, 280.0)
 	queue_redraw()
+
+
+static func project_dots(camera: Camera3D, origin: Vector3, path: PackedVector3Array, skip_distance: float, avoid: Vector2 = Vector2(-1.0, -1.0), avoid_radius: float = 0.0) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	if camera == null or path.size() < 2:
+		return out
+	var lengths: Array[float] = [0.0]
+	var total := 0.0
+	for index in range(1, path.size()):
+		total += path[index - 1].distance_to(path[index])
+		lengths.append(total)
+	if total < 0.2:
+		return out
+	var previous := Vector2(-999.0, -999.0)
+	for step in 36:
+		var distance := total * (float(step) + 0.5) / 36.0
+		if distance < skip_distance:
+			continue
+		var point := _point_at(path, lengths, distance)
+		if camera.is_position_behind(point):
+			continue
+		var screen := camera.unproject_position(point)
+		if screen.y < 148.0 or screen.y > 900.0 or screen.x < 16.0 or screen.x > 524.0:
+			continue
+		if avoid_radius > 0.0 and screen.distance_to(avoid) < avoid_radius:
+			continue
+		if previous.distance_to(screen) < 22.0:
+			continue
+		out.append(screen)
+		previous = screen
+		if out.size() >= 14:
+			break
+	return out
+
+
+static func _point_at(path: PackedVector3Array, lengths: Array[float], distance: float) -> Vector3:
+	for index in range(1, path.size()):
+		if lengths[index] < distance:
+			continue
+		var span := lengths[index] - lengths[index - 1]
+		var t := 0.0 if span < 0.0001 else (distance - lengths[index - 1]) / span
+		return path[index - 1].lerp(path[index], t)
+	return path[path.size() - 1]
 
 
 func set_line(a: Vector2, b: Vector2, showing: bool) -> void:
@@ -53,7 +99,15 @@ func set_aim(from: Vector2, to: Vector2, showing: bool) -> void:
 	queue_redraw()
 
 
+func set_dots(points: PackedVector2Array, showing: bool) -> void:
+	_dots = points
+	_show_dots = showing and points.size() > 1
+	queue_redraw()
+
+
 func _draw() -> void:
+	if _show_dots:
+		_draw_dots()
 	if _show_line and _line_a.distance_to(_line_b) > 4.0:
 		_draw_line()
 	if _show_aim:
@@ -62,6 +116,17 @@ func _draw() -> void:
 		_draw_disc_ring()
 	if _show:
 		_draw_cursor()
+
+
+func _draw_dots() -> void:
+	var last := _dots.size() - 1
+	for i in _dots.size():
+		var spot := _dots[i]
+		var along := float(i) / float(maxi(last, 1))
+		var near := clampf((spot.y - 160.0) / 620.0, 0.0, 1.0)
+		var radius := lerpf(5.0, 8.2, near) * lerpf(1.0, 0.82, along)
+		draw_circle(spot, radius + 2.6, Color(0.05, 0.07, 0.08, 0.88))
+		draw_circle(spot, radius, Color(0.98, 0.99, 1.0, 0.98))
 
 
 func _draw_line() -> void:
@@ -94,33 +159,38 @@ func _draw_disc_ring() -> void:
 
 
 func _draw_cursor() -> void:
-	# Glass dial on the disc. The arc fills with power and the needle is the mark.
-	var origin := _anchor
-	origin.y = clampf(origin.y, 140.0, 900.0)
-	var radius := 102.0
-	var spread := 0.7
-	draw_circle(origin, 34.0, Color(0.05, 0.03, 0.06, 0.72))
-	draw_arc(origin, 34.0, 0.0, TAU, 40, Color(0.93, 0.76, 0.4, 0.95), 2.0, true)
-	_plate(origin, radius + 12.0, spread + 0.12, Color(0.04, 0.02, 0.05, 0.48))
-	_band(origin, radius + 2.0, radius * 0.6, spread, Color(0.10, 0.05, 0.07, 0.94))
-	draw_arc(origin, radius + 3.0, _facing - spread, _facing + spread, 28, Color(0.95, 0.8, 0.42, 0.95), 2.5, true)
+	# The arc sits up the green so the puck itself stays free to pull.
+	var aim_dir := Vector2(cos(_facing), sin(_facing))
+	var origin := _anchor + aim_dir * _lift
+	origin.x = clampf(origin.x, 70.0, 470.0)
+	origin.y = clampf(origin.y, 150.0, 780.0)
+	var radius := 92.0
+	var spread := 0.72
+	draw_circle(origin, 28.0, Color(0.04, 0.05, 0.06, 0.82))
+	draw_arc(origin, 28.0, 0.0, TAU, 40, Color(0.78, 0.64, 0.32, 0.85), 1.4, true)
+	_plate(origin, radius + 8.0, spread + 0.08, Color(0.03, 0.04, 0.05, 0.42))
+	_band(origin, radius + 1.0, radius * 0.56, spread, Color(0.07, 0.09, 0.08, 0.94))
+	draw_arc(origin, radius + 3.0, _facing - spread, _facing + spread, 36, Color(0.86, 0.72, 0.38, 0.7), 1.6, true)
 	if _power > 0.015:
-		_span(origin, radius, radius * 0.6, -spread, lerpf(-spread, spread, _power), Color(1.0, 0.42, 0.62, 0.96))
-	_span(origin, radius - 1.0, radius * 0.62, -spread * 0.12, spread * 0.12, Color(0.99, 0.84, 0.38, 1.0))
-	var centre_dir := Vector2(cos(_facing), sin(_facing))
-	draw_line(origin + centre_dir * (radius * 0.64), origin + centre_dir * (radius - 4.0), Color(1, 1, 1, 0.95), 2.0, true)
+		_span(origin, radius, radius * 0.56, -spread, lerpf(-spread, spread, _power), Color(0.95, 0.38, 0.58, 0.92))
+	var green_dir := Vector2(cos(_facing), sin(_facing))
+	var green_near := origin + green_dir * (radius * 0.5)
+	var green_far := origin + green_dir * (radius + 8.0)
+	draw_line(green_near, green_far, Color(0.12, 0.38, 0.22, 0.95), 9.0, true)
+	draw_line(green_near, green_far, Color(0.55, 1.0, 0.72, 1.0), 3.2, true)
 	var nang := _facing + _needle * spread
 	var needle_dir := Vector2(cos(nang), sin(nang))
-	var tip := origin + needle_dir * (radius - 4.0)
-	var root := origin + needle_dir * (radius * 0.52)
-	draw_line(root, tip, Color(1.0, 0.97, 0.9, 1.0), 3.5, true)
-	draw_circle(tip, 6.0, Color(1.0, 0.97, 0.92, 1.0))
-	draw_circle(tip, 3.0, Color(1.0, 0.45, 0.62, 1.0))
+	var tip := origin + needle_dir * (radius - 2.0)
+	var root := origin + needle_dir * (radius * 0.48)
+	draw_line(root, tip, Color(0.1, 0.1, 0.1, 0.45), 5.0, true)
+	draw_line(root, tip, Color(1.0, 0.98, 0.94, 1.0), 2.6, true)
+	draw_circle(tip, 6.0, Color(0.08, 0.1, 0.09, 0.9))
+	draw_circle(tip, 3.4, Color(0.55, 1.0, 0.72, 1.0))
 	var font := ThemeDB.fallback_font
 	if font != null:
 		var label := "%d" % roundi(_power * 100.0)
-		var width := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x
-		draw_string(font, origin + Vector2(-width * 0.5, 8.0), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1.0, 0.95, 0.82))
+		var width := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x
+		draw_string(font, origin + Vector2(-width * 0.5, 7.0), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(0.9, 1.0, 0.94))
 
 
 func _plate(origin: Vector2, radius: float, half: float, color: Color) -> void:

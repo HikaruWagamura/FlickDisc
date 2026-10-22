@@ -52,7 +52,7 @@ var aim_lock := 0.0
 var line_z := 0.0
 var _return_token := 0
 const PLACE_HALF := 1.65
-const PULL_BACK := 1.25
+const PULL_BACK := 1.55
 const AIM_CONE := 0.26
 const CURSOR_SPAN := 0.05
 
@@ -251,7 +251,7 @@ func _sync_fan() -> void:
 		disc.global_position = placed + Vector3(0.0, 0.0, power * PULL_BACK)
 		if show_arrow:
 			disc.preview_take(_aim_from(0.0), 0.55)
-		elif not pulling and disc.is_aiming:
+		elif disc.is_aiming:
 			disc.preview_take(Vector3(0.0, 0.0, -1.0), 0.0)
 		if pulling:
 			feel.aim(power)
@@ -259,19 +259,19 @@ func _sync_fan() -> void:
 				ui.show_jack_aim(power)
 			else:
 				ui.show_aiming(power)
-			if power >= 0.08:
-				disc.preview_take(_aim_from(needle), power)
-			elif disc.is_aiming:
-				disc.preview_take(Vector3(0.0, 0.0, -1.0), 0.0)
 	var live_pos: Vector3 = disc.global_position
 	var cursor_at := cam.unproject_position(live_pos + Vector3(0.0, 0.16, 0.0))
-	fan.present(cursor_at, power, needle, show_cursor, _facing(live_pos, _aim_from(0.0)))
+	var rim := cam.unproject_position(live_pos + Vector3(disc.radius, 0.12, 0.0))
+	var disc_px := cursor_at.distance_to(rim)
+	var lift := disc_px + 86.0
+	fan.present(cursor_at, power, needle, show_cursor, _facing(live_pos, _aim_from(0.0)), lift)
+	var dots := PackedVector2Array()
+	if show_arrow:
+		dots = fan.project_dots(cam, live_pos, disc.guide_points(), disc.radius * 0.3, cursor_at, disc_px + 16.0)
+	fan.set_dots(dots, show_arrow)
 	fan.set_line(Vector2.ZERO, Vector2.ZERO, false)
-	var aim_tip := placed + _aim_from(0.0) * 4.5
-	var aim_from := cam.unproject_position(placed + Vector3(0.0, 0.12, 0.0))
-	var aim_to := cam.unproject_position(aim_tip + Vector3(0.0, 0.12, 0.0))
-	fan.set_aim(aim_from, aim_to, show_arrow)
-	fan.set_disc(cursor_at, live)
+	fan.set_aim(Vector2.ZERO, Vector2.ZERO, false)
+	fan.set_disc(cursor_at, false)
 
 
 func _new_match() -> void:

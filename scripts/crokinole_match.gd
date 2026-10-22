@@ -425,13 +425,17 @@ func _sync_fan() -> void:
 	if active_puck != null:
 		live_pos = active_puck.global_position
 	var cursor_at := camera.unproject_position(live_pos + Vector3(0.0, 0.06, 0.0))
-	fan.present(cursor_at, power, needle, show_cursor, _facing(live_pos, _aim_from(0.0)))
+	var rim := camera.unproject_position(live_pos + Vector3(Metrics.DISC_RADIUS, 0.0, 0.0))
+	var disc_px := cursor_at.distance_to(rim)
+	var lift := disc_px + 78.0
+	fan.present(cursor_at, power, needle, show_cursor, _facing(live_pos, _aim_from(0.0)), lift)
+	var dots := PackedVector2Array()
+	if show_arrow:
+		dots = fan.project_dots(camera, live_pos, disc.guide_points(), Metrics.DISC_RADIUS * 0.4, cursor_at, disc_px + 12.0)
+	fan.set_dots(dots, show_arrow)
 	fan.set_line(Vector2.ZERO, Vector2.ZERO, false)
-	var aim_tip := placed + _aim_from(0.0) * 0.36
-	var aim_from := camera.unproject_position(placed + Vector3(0.0, 0.05, 0.0))
-	var aim_to := camera.unproject_position(aim_tip + Vector3(0.0, 0.05, 0.0))
-	fan.set_aim(aim_from, aim_to, show_arrow)
-	fan.set_disc(cursor_at, live)
+	fan.set_aim(Vector2.ZERO, Vector2.ZERO, false)
+	fan.set_disc(cursor_at, false)
 
 
 func _clear_pucks() -> void:

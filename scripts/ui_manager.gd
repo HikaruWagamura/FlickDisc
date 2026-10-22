@@ -104,7 +104,7 @@ func set_power_ratio(power_ratio: float) -> void:
 func show_jack_prompt(end_number: int, match_label: String, match_points: int) -> void:
 	level_label.text = "END %d" % end_number
 	throws_label.text = "%d PTS" % match_points
-	status_label.text = "DRAG TO AIM  •  TAP THE JACK TO SHOOT"
+	status_label.text = "TOUCH TO AIM  •  TAP THE JACK TO LOCK"
 	score_label.text = match_label
 	reset_button.visible = true
 	next_button.visible = false
@@ -123,9 +123,9 @@ func show_ditch_mode(enabled: bool) -> void:
 
 func show_place_line(jack: bool) -> void:
 	if jack:
-		status_label.text = "DRAG TO AIM  •  TAP THE JACK TO SHOOT"
+		status_label.text = "TOUCH TO AIM  •  TAP THE JACK TO LOCK"
 	else:
-		status_label.text = "DRAG TO AIM  •  TAP THE BOWL TO SHOOT"
+		status_label.text = "TOUCH TO AIM  •  TAP THE BOWL TO LOCK"
 
 
 func show_sliding(jack: bool) -> void:
@@ -138,17 +138,17 @@ func show_aiming_line(jack: bool) -> void:
 
 func show_aim_ready(jack: bool) -> void:
 	if jack:
-		status_label.text = "LINE SET  •  TAP THE JACK TO SHOOT"
+		status_label.text = "TAP THE JACK TO LOCK"
 	else:
-		status_label.text = "LINE SET  •  TAP THE BOWL TO SHOOT"
+		status_label.text = "TAP THE BOWL TO LOCK"
 
 
 func show_take_shot(_jack: bool = false) -> void:
-	status_label.text = "PULL BACK  •  RELEASE ON THE MARK"
+	status_label.text = "PULL THE PUCK  •  RELEASE ON THE GREEN"
 
 
 func show_jack_aim(_power_ratio: float) -> void:
-	status_label.text = "RELEASE ON THE MARK"
+	status_label.text = "RELEASE ON THE GREEN"
 
 
 func show_jack_running() -> void:
@@ -171,7 +171,7 @@ func show_jack_set(travelled: float, _bowl_name: String, throws_left: int) -> vo
 
 
 func show_aiming(_power_ratio: float) -> void:
-	status_label.text = "RELEASE ON THE MARK"
+	status_label.text = "RELEASE ON THE GREEN"
 
 
 func show_in_motion(throws_left: int, bowl_name: String, forehand: bool) -> void:

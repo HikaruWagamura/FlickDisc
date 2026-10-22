@@ -1,8 +1,8 @@
 extends Node
 
-## Touch the disc and slide it on the line. Drag up from it to choose
-## the line. Releasing locks that aim and opens the strike. The pull
-## after that is power, and the cursor is only the timing.
+## Touch the disc and drag toward where the shot should start. That
+## draws the dotted line. A tap locks it. The pull after that is the
+## weight, and the needle is only the timing.
 
 signal place_at(spot: Vector3)
 signal aim_set(amount: float)
@@ -108,7 +108,7 @@ func _move(screen: Vector2) -> void:
 	_travel = maxf(_travel, _from.distance_to(screen))
 	if phase == "place":
 		# Along the line places the disc. A drag up the board points the shot.
-		if _ahead(screen) > 34.0:
+		if _ahead(screen) > 18.0:
 			_set_aim(screen)
 		else:
 			_emit_place(screen)
@@ -130,7 +130,7 @@ func _move(screen: Vector2) -> void:
 
 func _up(screen: Vector2) -> void:
 	if phase == "place":
-		if _ahead(screen) > 34.0:
+		if _ahead(screen) > 18.0:
 			_set_aim(screen)
 		elif _travel >= 10.0:
 			_emit_place(screen)
@@ -171,8 +171,9 @@ func _emit_place(screen: Vector2) -> void:
 
 
 func _set_aim(screen: Vector2) -> void:
+	# The line follows the finger. Drag toward the side you want.
 	var side := _side_pixels(_disc_screen(), screen)
-	aim = clampf(side / 160.0, -1.0, 1.0)
+	aim = clampf(-side / 110.0, -1.0, 1.0)
 	aim_set.emit(aim)
 
 

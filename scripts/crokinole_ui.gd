@@ -61,7 +61,7 @@ func _ready() -> void:
 
 func show_touch(level_number: int, discs_left: int, you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0) -> void:
 	hide_overview()
-	status_label.text = "DRAG TO AIM  •  TAP THE DISC TO SHOOT"
+	status_label.text = "TOUCH TO AIM  •  TAP THE DISC TO LOCK"
 	show_match_status(level_number, discs_left, you_board, far_board, match_you, match_them)
 	reset_button.text = "RESET"
 	reset_button.visible = true
@@ -70,14 +70,14 @@ func show_touch(level_number: int, discs_left: int, you_board: int = 0, far_boar
 	show_power(0.0)
 
 func show_sliding() -> void:
-	status_label.text = "DRAG TO AIM  •  TAP THE DISC TO SHOOT"
+	status_label.text = "TOUCH TO AIM  •  TAP THE DISC TO LOCK"
 
 
 func show_aim_ready() -> void:
-	status_label.text = "LINE SET  •  TAP THE DISC TO SHOOT"
+	status_label.text = "TAP THE DISC TO LOCK"
 
 func show_take() -> void:
-	status_label.text = "PULL BACK  •  RELEASE ON THE MARK"
+	status_label.text = "PULL THE PUCK  •  RELEASE ON THE GREEN"
 	_show_stop(false)
 
 func show_lane(level_number: int, discs_left: int, difficulty: String = "", you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0) -> void:
@@ -108,7 +108,7 @@ func show_match_status(level_number: int, discs_left: int, you_board: int = 0, f
 	score_label.text = "BOARD %d–%d    MATCH %d–%d" % [you_board, far_board, match_you, match_them]
 
 func show_aiming(_power_ratio: float) -> void:
-	status_label.text = "RELEASE ON THE MARK"
+	status_label.text = "RELEASE ON THE GREEN"
 
 func show_power(_ratio: float) -> void:
 	pass
