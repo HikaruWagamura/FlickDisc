@@ -8,3 +8,6 @@ android/
 *.aab
 *.keystore
 *.jks
+!dist/*.apk
+!dist/*.aab
+!keystore/*.keystore

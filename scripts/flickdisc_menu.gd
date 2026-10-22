@@ -7,7 +7,8 @@ signal play_requested(setup: Dictionary)
 const PINK := Color("#ff3d8a")
 const PINK_DEEP := Color("#e21862")
 const INK := Color("#09080d")
-const CARD := Color(0.075, 0.05, 0.075, 0.94)
+const CARD := Color(0.2, 0.11, 0.15, 0.96)
+const PLUM := Color(0.16, 0.09, 0.12, 0.97)
 const MUTED := Color("#cbbcc6")
 const CREAM := Color("#f6f3f7")
 
@@ -233,7 +234,7 @@ func _build_home() -> void:
 
 	var pill := Button.new()
 	_place(page, pill, Vector2(16, 16), Vector2(250, 58))
-	_paint_button(pill, Color(0.09, 0.05, 0.1, 0.94), PINK, CREAM, 28, 12)
+	_paint_button(pill, PLUM, PINK, CREAM, 28, 12)
 	pill.pressed.connect(_show.bind("profile"))
 	var avatar := Panel.new()
 	avatar.position = Vector2(8, 10)
@@ -271,17 +272,17 @@ func _build_home() -> void:
 	chip_losses = _chip(page, Vector2(436, 26))
 	var gear := _button("⚙", 18)
 	_place(page, gear, Vector2(484, 24), Vector2(40, 40))
-	_paint_button(gear, Color(0.09, 0.05, 0.1, 0.94), PINK, CREAM, 12, 0)
+	_paint_button(gear, PLUM, PINK, CREAM, 12, 0)
 	gear.pressed.connect(_show.bind("settings"))
 
 	var server := _label("SERVER ONLINE", 11, PINK, bold_font)
 	_place(page, server, Vector2(20, 80), Vector2(220, 16))
 
 	var mark := _mark_rect()
-	_place(page, mark, Vector2(145, 100), Vector2(250, 250))
+	_place(page, mark, Vector2(125, 98), Vector2(290, 290))
 
 	var play := _button("PLAY", 22)
-	_place(page, play, Vector2(20, 362), Vector2(500, 64))
+	_place(page, play, Vector2(20, 392), Vector2(500, 64))
 	_paint_button(play, PINK_DEEP, Color("#ff8ab6"), CREAM, 18, 0)
 	var play_mark := _label("▶", 18, CREAM, bold_font)
 	play_mark.position = Vector2(430, 18)
@@ -290,23 +291,23 @@ func _build_home() -> void:
 	play.pressed.connect(_open_setup.bind("classic"))
 
 	home_record = _label("0W  ·  0L", 15, Color("#a894a0"), bold_font)
-	_place(page, home_record, Vector2(20, 434), Vector2(500, 22))
+	_place(page, home_record, Vector2(20, 464), Vector2(500, 22))
 	home_record.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
-	_home_card(page, Rect2(16, 468, 164, 124), "1", "CLASSIC 1V1", "Skill. Strategy.\nVictory.", "classic")
-	_home_card(page, Rect2(188, 468, 164, 124), "2", "CLASSIC 2V2", "Team up.\nTake control.", "duo")
-	_home_card(page, Rect2(360, 468, 164, 124), "⚡", "CHAOS MODE", "Power-ups.\nNo mercy.", "chaos")
-	_home_card(page, Rect2(16, 604, 249, 112), "", "PRACTICE", "Improve your game", "practice")
-	_home_card(page, Rect2(275, 604, 249, 112), "", "CHALLENGES", "Daily shots. Big rewards.", "challenges")
-	_home_card(page, Rect2(16, 726, 249, 112), "", "FRIENDS", "Play with mates", "friends")
-	_home_card(page, Rect2(275, 726, 249, 112), "", "RANKINGS", "Climb the leaderboard", "rankings")
+	_home_card(page, Rect2(16, 496, 164, 112), "1", "CLASSIC 1V1", "Skill. Strategy.\nVictory.", "classic")
+	_home_card(page, Rect2(188, 496, 164, 112), "2", "CLASSIC 2V2", "Team up.\nTake control.", "duo")
+	_home_card(page, Rect2(360, 496, 164, 112), "⚡", "CHAOS MODE", "Power-ups.\nNo mercy.", "chaos")
+	_home_card(page, Rect2(16, 618, 249, 104), "", "PRACTICE", "Improve your game", "practice")
+	_home_card(page, Rect2(275, 618, 249, 104), "", "CHALLENGES", "Daily shots. Big rewards.", "challenges")
+	_home_card(page, Rect2(16, 732, 249, 104), "", "FRIENDS", "Play with mates", "friends")
+	_home_card(page, Rect2(275, 732, 249, 104), "", "RANKINGS", "Climb the leaderboard", "rankings")
 
 
 func _home_card(page: Control, rect: Rect2, kicker: String, title: String, body: String, target: String) -> void:
 	var button := Button.new()
 	button.text = ""
 	_place(page, button, rect.position, rect.size)
-	_paint_button(button, CARD, Color(1, 0.28, 0.55, 0.9), CREAM, 16, 12)
+	_paint_button(button, CARD, Color(1, 0.55, 0.72, 0.85), CREAM, 16, 12)
 	var y := 12.0
 	if kicker != "":
 		var kick := _label(kicker, 13, PINK, bold_font)
@@ -341,14 +342,23 @@ func _build_setup() -> void:
 	_back_on(page, "home")
 
 	var hero := Control.new()
-	hero.custom_minimum_size = Vector2(0, 156)
+	hero.custom_minimum_size = Vector2(0, 196)
 	hero.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var ghost := _mark_rect()
-	ghost.set_anchors_preset(Control.PRESET_FULL_RECT)
-	ghost.modulate = Color(1, 1, 1, 0.32)
+	ghost.anchor_left = 0.5
+	ghost.anchor_right = 0.5
+	ghost.offset_left = -78.0
+	ghost.offset_right = 78.0
+	ghost.offset_top = 0.0
+	ghost.offset_bottom = 156.0
 	hero.add_child(ghost)
-	title_label = _label("CLASSIC 1V1", 42, CREAM, title_font)
-	title_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	title_label = _label("CLASSIC 1V1", 36, CREAM, title_font)
+	title_label.anchor_left = 0.0
+	title_label.anchor_right = 1.0
+	title_label.anchor_top = 1.0
+	title_label.anchor_bottom = 1.0
+	title_label.offset_top = -40.0
+	title_label.offset_bottom = 0.0
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	hero.add_child(title_label)
@@ -650,7 +660,7 @@ func _build_settings() -> void:
 	box.add_child(sound_button)
 	box.add_child(haptic_button)
 	box.add_child(_kicker("HOW A ROUND WORKS"))
-	box.add_child(_wrapped("Crokinmode. Eight discs. Both colours score. 20 is only the hole. 15, 10 and 5 need the disc clear of that line. A disc on the line scores the lower ring. The ditch is nothing. Only the difference is added. First to the race wins.\n\nLong rink. Deliver the jack, then four bowls. Choose the hand and the bias. Bowls inside two metres of the jack count. Banks rebound unless the ditch is open."))
+	box.add_child(_wrapped("Crokinmode. The disc rolls across your line. Press stop, then drag back and flick. Eight discs. Both colours score. 20 is only the hole. 15, 10 and 5 need the disc clear of that line. A disc on the line scores the lower ring. The ditch is nothing. Only the difference is added. First to the race wins.\n\nLong rink. Deliver the jack, then four bowls. Choose the hand and the bias. Bowls inside two metres of the jack count. Banks rebound unless the ditch is open."))
 
 
 func _build_nav() -> void:
@@ -714,7 +724,7 @@ func _build_choice_layer() -> void:
 	var panel := Panel.new()
 	panel.position = Vector2(36, 280)
 	panel.size = Vector2(468, 280)
-	panel.add_theme_stylebox_override("panel", _flat(Color("#120c14"), PINK, 2, 18, 16))
+	panel.add_theme_stylebox_override("panel", _flat(PLUM, PINK, 2, 18, 16))
 	choice_layer.add_child(panel)
 	choice_box = VBoxContainer.new()
 	choice_box.position = Vector2(16, 16)
@@ -735,7 +745,7 @@ func _build_online_layer() -> void:
 	var panel := Panel.new()
 	panel.position = Vector2(30, 300)
 	panel.size = Vector2(480, 300)
-	panel.add_theme_stylebox_override("panel", _flat(Color("#120c14"), PINK, 2, 18, 16))
+	panel.add_theme_stylebox_override("panel", _flat(PLUM, PINK, 2, 18, 16))
 	online_layer.add_child(panel)
 	online_title = _label("ONLINE CASUAL", 28, CREAM, title_font)
 	online_title.position = Vector2(20, 18)
@@ -1100,14 +1110,14 @@ func _back_on(page: Control, target: String) -> void:
 	var button := _button("‹   Back", 15)
 	button.position = Vector2(16, 16)
 	button.size = Vector2(124, 40)
-	_paint_button(button, Color(0.08, 0.05, 0.09, 0.94), PINK, CREAM, 18, 10)
+	_paint_button(button, PLUM, PINK, CREAM, 18, 10)
 	button.pressed.connect(_show.bind(target))
 	page.add_child(button)
 
 
 func _code_row() -> PanelContainer:
 	var panel := PanelContainer.new()
-	panel.add_theme_stylebox_override("panel", _flat(Color("#120c14"), PINK, 1, 14, 12))
+	panel.add_theme_stylebox_override("panel", _flat(PLUM, PINK, 1, 14, 12))
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
 	code_label = _label(room_code, 28, CREAM, title_font)
@@ -1154,7 +1164,7 @@ func _wide_card(title: String, body: String, trailing: String) -> Button:
 	button.text = ""
 	button.custom_minimum_size = Vector2(0, 86)
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_paint_button(button, CARD, Color(1, 0.28, 0.55, 0.85), CREAM, 16, 14)
+	_paint_button(button, CARD, Color(1, 0.55, 0.72, 0.85), CREAM, 16, 14)
 	var heading := _label(title, 16, CREAM, bold_font)
 	heading.name = "Heading"
 	heading.position = Vector2(14, 12)
@@ -1217,7 +1227,7 @@ func _row_button(text: String, on_press: Callable) -> Button:
 	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	button.custom_minimum_size = Vector2(0, 54)
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_paint_button(button, Color("#120c14"), Color(1, 0.28, 0.55, 0.85), CREAM, 14, 16)
+	_paint_button(button, PLUM, Color(1, 0.55, 0.72, 0.9), CREAM, 14, 16)
 	_chevron(button)
 	if on_press.is_valid():
 		button.pressed.connect(on_press)
@@ -1280,7 +1290,7 @@ func _gap(height: float) -> Control:
 func _chip(page: Control, pos: Vector2) -> Label:
 	var panel := Panel.new()
 	_place(page, panel, pos, Vector2(38, 38))
-	panel.add_theme_stylebox_override("panel", _flat(Color("#120c14"), PINK, 1, 10, 0))
+	panel.add_theme_stylebox_override("panel", _flat(PLUM, PINK, 1, 10, 0))
 	var label := _label("0", 16, CREAM, bold_font)
 	label.set_anchors_preset(Control.PRESET_FULL_RECT)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1328,6 +1338,11 @@ func _flat(fill: Color, border: Color, width: int, radius: int, side: int) -> St
 	style.content_margin_right = side
 	style.content_margin_top = 6
 	style.content_margin_bottom = 6
+	if radius >= 12 and fill.a > 0.5:
+		style.shadow_color = Color(0.0, 0.0, 0.0, 0.45)
+		style.shadow_size = 7
+		style.shadow_offset = Vector2(0, 3)
+		style.anti_aliasing = true
 	return style
 
 
@@ -1337,9 +1352,9 @@ func _style_edit(edit: LineEdit) -> void:
 	edit.add_theme_color_override("font_color", CREAM)
 	edit.add_theme_color_override("font_placeholder_color", Color("#8d7d88"))
 	edit.add_theme_color_override("caret_color", PINK)
-	var box := _flat(Color("#120c14"), PINK, 1, 14, 14)
+	var box := _flat(PLUM, PINK, 1, 14, 14)
 	edit.add_theme_stylebox_override("normal", box)
-	edit.add_theme_stylebox_override("focus", _flat(Color("#120c14"), Color("#ffd0ea"), 2, 14, 14))
+	edit.add_theme_stylebox_override("focus", _flat(PLUM, Color("#ffd0ea"), 2, 14, 14))
 
 
 class Mark extends Control:
