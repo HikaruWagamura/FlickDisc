@@ -6,10 +6,10 @@ extends Node3D
 
 const DISC_RADIUS := 0.18
 const JACK_RADIUS := 0.16
-const DISC_MASS := 1.0
-const JACK_MASS := 0.7
-const DISC_RESTITUTION := 0.4
-const JACK_RESTITUTION := 0.52
+const DISC_MASS := 1.7
+const JACK_MASS := 0.85
+const DISC_RESTITUTION := 0.62
+const JACK_RESTITUTION := 0.58
 
 var radius := DISC_RADIUS
 var mass := DISC_MASS
@@ -29,11 +29,10 @@ var _score_ring: MeshInstance3D
 
 
 static func palette(index: int) -> Array:
+	var purple := Color(0.53, 0.24, 1.0)
 	var looks := [
-		[Color(0.09, 0.08, 0.07), Color(0.93, 0.90, 0.84), Color(0.98, 0.95, 0.88), Color(0.12, 0.10, 0.08)],
-		[Color(0.55, 0.52, 0.46), Color(0.93, 0.90, 0.82), Color(0.98, 0.96, 0.90), Color(0.12, 0.22, 0.38)],
-		[Color(0.04, 0.08, 0.16), Color(0.10, 0.22, 0.46), Color(0.20, 0.38, 0.72), Color(0.93, 0.78, 0.38)],
-		[Color(0.10, 0.28, 0.16), Color(0.16, 0.46, 0.28), Color(0.55, 0.72, 0.42), Color(0.96, 0.92, 0.72)],
+		[Color(0.04, 0.035, 0.05), Color(0.10, 0.09, 0.12), Color(0.16, 0.14, 0.18), purple],
+		[Color(0.42, 0.04, 0.07), Color(0.72, 0.08, 0.12), Color(0.55, 0.06, 0.09), purple],
 	]
 	return looks[index % looks.size()]
 
@@ -232,10 +231,13 @@ func _make_shadow(size: float) -> MeshInstance3D:
 
 
 func _puck(parent: Node3D, rim: Material, body: Material) -> void:
-	_cylinder(parent, Vector3(0.0, 0.032, 0.0), 0.18, 0.168, 0.048, rim)
-	var gold := _mat(Color(0.86, 0.68, 0.28), 0.28, 0.78)
-	_cylinder(parent, Vector3(0.0, 0.054, 0.0), 0.15, 0.15, 0.006, gold)
-	_cylinder(parent, Vector3(0.0, 0.062, 0.0), 0.128, 0.128, 0.012, body)
+	_cylinder(parent, Vector3(0.0, 0.048, 0.0), 0.18, 0.17, 0.086, rim)
+	var violet := _mat(Color(0.53, 0.24, 1.0), 0.22, 0.35)
+	violet.emission_enabled = true
+	violet.emission = Color(0.62, 0.28, 1.0)
+	violet.emission_energy_multiplier = 1.1
+	_cylinder(parent, Vector3(0.0, 0.086, 0.0), 0.148, 0.148, 0.014, violet)
+	_cylinder(parent, Vector3(0.0, 0.098, 0.0), 0.122, 0.122, 0.016, body)
 
 
 func _cylinder(parent: Node3D, pos: Vector3, bottom_r: float, top_r: float, height: float, mat: Material) -> void:

@@ -4,13 +4,13 @@ extends CanvasLayer
 
 signal play_requested(setup: Dictionary)
 
-const PINK := Color("#ff3d8a")
-const PINK_DEEP := Color("#e21862")
-const INK := Color("#09080d")
-const CARD := Color(0.32, 0.16, 0.22, 0.98)
-const PLUM := Color(0.24, 0.12, 0.17, 0.98)
-const MUTED := Color("#cbbcc6")
-const CREAM := Color("#f6f3f7")
+const PINK := Color("#873EFF")
+const PINK_DEEP := Color("#5425A5")
+const INK := Color("#080719")
+const CARD := Color(0.14, 0.09, 0.24, 0.98)
+const PLUM := Color(0.09, 0.06, 0.16, 0.98)
+const MUTED := Color("#A69DBD")
+const CREAM := Color("#E7E0F5")
 
 var profile
 var root: Control

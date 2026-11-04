@@ -321,7 +321,7 @@ func _build_rack() -> void:
 	for i in BOWLS_PER_END:
 		var bowl = BowlScript.new()
 		bowl.name = "Rack%d" % (i + 1)
-		bowl.setup_disc(0, hand_sign)
+		bowl.setup_disc(i % 2, hand_sign)
 		add_child(bowl)
 		rack.append(bowl)
 
@@ -331,8 +331,8 @@ func _place_rack() -> void:
 		var bowl = rack[i]
 		bowl.set_hand(hand_sign)
 		bowl.set_scoring(false)
-		bowl.rest_at(Vector3(-2.05, 0.0, -9.0 - float(i) * 0.7))
-		bowl.visible = not delivering_jack and i > throw_index
+		bowl.rest_at(Vector3(1.45, 0.0, -0.7 - float(i) * 0.52))
+		bowl.visible = i >= throw_index
 
 
 func _match_label() -> String:
@@ -459,7 +459,7 @@ func _finish_shot(token: int) -> void:
 		return
 	var thrown = BowlScript.new()
 	thrown.name = "Bowl%d" % (throw_index + 1)
-	thrown.setup_disc(0, hand_sign)
+	thrown.setup_disc(throw_index % 2, hand_sign)
 	add_child(thrown)
 	var bowl_ditched: bool = disc.in_ditch
 	if bowl_ditched:
@@ -478,6 +478,7 @@ func _finish_shot(token: int) -> void:
 	disc.reset_to_start()
 	if throws_left > 0:
 		disc.configure_bowl(bias_index, hand_sign)
+		disc.set_palette(throw_index % 2)
 		ui.show_bias(bias_index)
 		ui.show_hand(hand_sign < 0.0, _bowl_name(bias_index))
 	_place_rack()
@@ -545,6 +546,7 @@ func _finish_jack(rest_pos: Vector3) -> void:
 	jack.visible = true
 	rink.place_head(Vector2(rest_pos.x, rest_pos.z))
 	disc.configure_bowl(bias_index, hand_sign)
+	disc.set_palette(throw_index % 2)
 	disc.reset_to_start()
 	disc.obstacles = _table()
 	ui.show_bias(bias_index)

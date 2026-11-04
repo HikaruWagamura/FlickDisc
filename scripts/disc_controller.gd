@@ -395,7 +395,7 @@ func _bounce(a, b) -> void:
 		_impact_speed = impact
 		_impact_jack = jack_hit
 		_impact_bank = false
-	var hit_punch := clampf(impact / 10.0, 0.2, 1.0)
+	var hit_punch := clampf(impact / 6.0, 0.35, 1.0)
 	_punch(a, hit_punch)
 	_punch(b, hit_punch)
 
@@ -479,7 +479,7 @@ func _apply_visual(speed: float) -> void:
 		return
 	punch = move_toward(punch, 0.0, 0.08)
 	var lift := clampf(speed / MAX_SPEED, 0.0, 1.0)
-	_visual.position.y = lift * 0.05 + punch * 0.07
+	_visual.position.y = lift * 0.05 + punch * 0.14
 	_visual.rotation.z = shot_bias * 0.2 * lift
 	_spin.rotation.y = spin_angle
 	_shadow.position = Vector3(0.1 + lift * 0.08, 0.012, 0.06)
@@ -561,17 +561,20 @@ func _build_visual() -> void:
 	_spin = Node3D.new()
 	_visual.add_child(_spin)
 
-	_rim_mat = _disc_mat(Color(0.09, 0.08, 0.07), 0.4, 0.15)
-	_body_mat = _disc_mat(Color(0.93, 0.90, 0.84), 0.32, 0.08)
-	_cap_mat = _disc_mat(Color(0.98, 0.95, 0.88), 0.28, 0.08)
+	_rim_mat = _disc_mat(Color(0.04, 0.035, 0.05), 0.35, 0.2)
+	_body_mat = _disc_mat(Color(0.10, 0.09, 0.12), 0.3, 0.12)
+	_cap_mat = _disc_mat(Color(0.16, 0.14, 0.18), 0.28, 0.1)
 	_mark_mat = StandardMaterial3D.new()
 	_mark_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_mark_mat.albedo_color = Color(0.12, 0.10, 0.08)
 
-	_add_cylinder(_spin, Vector3(0.0, 0.032, 0.0), 0.18, 0.168, 0.048, _rim_mat)
-	var gold := _disc_mat(Color(0.86, 0.68, 0.28), 0.28, 0.78)
-	_add_cylinder(_spin, Vector3(0.0, 0.054, 0.0), 0.15, 0.15, 0.006, gold)
-	_add_cylinder(_spin, Vector3(0.0, 0.062, 0.0), 0.128, 0.128, 0.012, _body_mat)
+	_add_cylinder(_spin, Vector3(0.0, 0.048, 0.0), 0.18, 0.17, 0.086, _rim_mat)
+	var violet := _disc_mat(Color(0.53, 0.24, 1.0), 0.22, 0.35)
+	violet.emission_enabled = true
+	violet.emission = Color(0.62, 0.28, 1.0)
+	violet.emission_energy_multiplier = 1.1
+	_add_cylinder(_spin, Vector3(0.0, 0.086, 0.0), 0.148, 0.148, 0.014, violet)
+	_add_cylinder(_spin, Vector3(0.0, 0.098, 0.0), 0.122, 0.122, 0.016, _body_mat)
 	_bias_pip = MeshInstance3D.new()
 	var pip_mesh := SphereMesh.new()
 	pip_mesh.radius = 0.02

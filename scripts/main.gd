@@ -34,6 +34,18 @@ func _apply_host() -> void:
 		print("HOST_SETUP rink=lawn")
 		return
 	var host := _host_launch()
+	if bool(host["play"]):
+		_play({
+			"rink": host["rink"],
+			"match_index": host["match_index"],
+			"back": "home",
+			"goal": "",
+			"target": 100,
+			"level": 0,
+			"ditch": false,
+		})
+		print("HOST_PLAY rink=%s" % str(host["rink"]))
+		return
 	if bool(host["direct"]):
 		menu.rink = str(host["rink"])
 		menu.open_screen("setup")
@@ -43,12 +55,15 @@ func _apply_host() -> void:
 func _host_launch() -> Dictionary:
 	var table := ""
 	var embed := false
+	var play_now := false
 	var match_index := 1
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--table="):
 			table = arg.trim_prefix("--table=")
 		elif arg == "--embed" or arg == "--embed=1":
 			embed = true
+		elif arg == "--play":
+			play_now = true
 		elif arg.begins_with("--match="):
 			match_index = int(arg.trim_prefix("--match="))
 	var rink_name := table if table != "" else "lawn"
@@ -56,6 +71,7 @@ func _host_launch() -> Dictionary:
 		rink_name = "lawn"
 	return {
 		"direct": embed or table != "",
+		"play": play_now,
 		"rink": rink_name,
 		"match_index": match_index,
 	}
