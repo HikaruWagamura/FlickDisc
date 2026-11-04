@@ -18,7 +18,7 @@ var backdrop: Control
 var pages := {}
 var screen := ""
 var kind := "classic"
-var rink := "crokinole"
+var rink := "lawn"
 var difficulty := 1
 var race := 1
 var room_code := ""
@@ -389,8 +389,8 @@ func _build_setup() -> void:
 		rink = "lawn"
 		_sync_setup()
 	)
-	row.add_child(crokin_card)
 	row.add_child(lawn_card)
+	row.add_child(crokin_card)
 	box.add_child(row)
 	box.add_child(_gap(8))
 
