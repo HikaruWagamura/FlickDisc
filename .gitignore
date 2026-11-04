@@ -1,0 +1,5 @@
+# Godot 4 regenerates this cache after import.
+.godot/
+
+# Texture import sidecars are recreated by the editor.
+*.import
