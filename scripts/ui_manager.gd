@@ -54,8 +54,7 @@ func _ready() -> void:
 
 	var menu_button := _make_button("MENU", Vector2(16.0, 12.0), Vector2(104.0, 32.0))
 	menu_button.add_theme_font_size_override("font_size", 13)
-	menu_button.add_theme_stylebox_override("normal", _button_style(Color("#ff4d9a"), Color("#ffd0e8")))
-	menu_button.add_theme_color_override("font_color", Color("#1a0a12"))
+	_paint_sync(menu_button, true)
 	menu_button.pressed.connect(func() -> void: leave_requested.emit())
 
 	level_label = _make_label(Vector2(340.0, 18.0), Vector2(180.0, 26.0), 16, Color(0.96, 0.99, 0.97))
@@ -65,10 +64,12 @@ func _ready() -> void:
 
 	ditch_button = _make_button("REBOUND", Vector2(372.0, 70.0), Vector2(148.0, 34.0))
 	ditch_button.add_theme_font_size_override("font_size", 12)
+	_paint_sync(ditch_button, false)
 	ditch_button.pressed.connect(func() -> void: ditch_option_requested.emit())
 
 	match_button = _make_button("4 ENDS", Vector2(22.0, 74.0), Vector2(156.0, 34.0))
 	match_button.add_theme_font_size_override("font_size", 12)
+	_paint_sync(match_button, false)
 	match_button.pressed.connect(func() -> void: match_cycle_requested.emit())
 	_build_summary()
 
@@ -81,6 +82,7 @@ func _ready() -> void:
 
 	reset_button = _make_button("RESET", Vector2(128.0, 12.0), Vector2(96.0, 32.0))
 	reset_button.add_theme_font_size_override("font_size", 12)
+	_paint_sync(reset_button, false)
 	reset_button.pressed.connect(func() -> void: reset_requested.emit())
 
 	next_button = _make_button("NEXT END", Vector2(150.0, 888.0), Vector2(240.0, 48.0))
@@ -430,6 +432,17 @@ func _make_button(button_text: String, button_position: Vector2, button_size: Ve
 	button.add_theme_stylebox_override("pressed", _button_style(Color("#f3bd56"), Color("#ffe9a4")))
 	add_child(button)
 	return button
+
+
+func _paint_sync(button: Button, gold: bool) -> void:
+	var fill := Color("#E7BC57") if gold else Color("#080719")
+	var font := Color("#080719") if gold else Color("#F7F4FF")
+	button.add_theme_stylebox_override("normal", _button_style(fill, Color("#E7BC57")))
+	button.add_theme_stylebox_override("hover", _button_style(Color("#C4AEFF"), Color("#E7BC57")))
+	button.add_theme_stylebox_override("pressed", _button_style(Color("#E7BC57"), Color("#F7F4FF")))
+	button.add_theme_color_override("font_color", font)
+	button.add_theme_color_override("font_hover_color", Color("#080719"))
+	button.add_theme_color_override("font_pressed_color", Color("#080719"))
 
 
 func _paint_selected(button: Button) -> void:

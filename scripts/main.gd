@@ -24,18 +24,20 @@ func _ready() -> void:
 	add_child(menu)
 	menu.play_requested.connect(_play)
 	menu.setup(profile)
+	call_deferred("_apply_host")
+
+
+func _apply_host() -> void:
+	if OS.has_feature("web"):
+		menu.rink = "lawn"
+		menu.open_screen("setup")
+		print("HOST_SETUP rink=lawn")
+		return
 	var host := _host_launch()
 	if bool(host["direct"]):
-		print("HOST_LAUNCH rink=%s match=%s" % [host["rink"], str(host["match_index"])])
-		_play({
-			"rink": host["rink"],
-			"match_index": host["match_index"],
-			"back": "home",
-			"goal": "",
-			"target": 100,
-			"level": 0,
-			"ditch": false,
-		})
+		menu.rink = str(host["rink"])
+		menu.open_screen("setup")
+		print("HOST_SETUP rink=%s" % str(host["rink"]))
 
 
 func _host_launch() -> Dictionary:
@@ -49,18 +51,6 @@ func _host_launch() -> Dictionary:
 			embed = true
 		elif arg.begins_with("--match="):
 			match_index = int(arg.trim_prefix("--match="))
-	if OS.has_feature("web"):
-		var raw = JavaScriptBridge.eval(
-			"(function(){try{var p=new URLSearchParams(window.location.search);return [p.get('table')||'',p.get('embed')||'',p.get('match')||''].join('|');}catch(e){return '||';}})()",
-			true
-		)
-		var parts := str(raw).split("|")
-		if parts.size() > 0 and parts[0] != "":
-			table = parts[0]
-		if parts.size() > 1 and (parts[1] == "1" or parts[1] == "true"):
-			embed = true
-		if parts.size() > 2 and parts[2].is_valid_int():
-			match_index = int(parts[2])
 	var rink_name := table if table != "" else "lawn"
 	if rink_name != "lawn" and rink_name != "crokinole":
 		rink_name = "lawn"

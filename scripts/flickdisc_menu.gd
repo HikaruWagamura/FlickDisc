@@ -369,7 +369,7 @@ func _build_setup() -> void:
 	hero.add_child(title_label)
 	box.add_child(hero)
 
-	sub_label = _label("FlickDisc classic. First to 100, net scoring.", 15, MUTED, body_font)
+	sub_label = _label("Set the rink, then choose who you bowl.", 15, MUTED, body_font)
 	sub_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	sub_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(sub_label)
@@ -411,7 +411,8 @@ func _build_setup() -> void:
 	)
 	box.add_child(race_button)
 	box.add_child(_gap(6))
-	big_play = _primary("PLAY VERSUS AI", func() -> void: _launch("ai"))
+	box.add_child(_row_button("PLAY ON YOUR OWN", func() -> void: _practice("jack")))
+	big_play = _primary("PLAY THE COMPUTER", func() -> void: _launch("ai"))
 	box.add_child(big_play)
 
 	duo_note = _label("Both teams play on this device. Pass the phone each shot.", 14, MUTED, body_font)
@@ -422,7 +423,7 @@ func _build_setup() -> void:
 	online_box = VBoxContainer.new()
 	online_box.add_theme_constant_override("separation", 10)
 	online_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	online_box.add_child(_row_button("Local match", func() -> void: _launch("local")))
+	online_box.add_child(_row_button("PLAY A FRIEND", func() -> void: _launch("local")))
 	online_box.add_child(_row_button("Online casual", func() -> void: _show_online("casual")))
 	online_box.add_child(_row_button("Online ranked", func() -> void: _show_online("ranked")))
 	online_box.add_child(_row_button("Create private room", _create_room))
@@ -800,7 +801,7 @@ func _sync_setup() -> void:
 		return
 	var classic := kind == "classic"
 	title_label.text = "CLASSIC 1V1" if classic else "CLASSIC 2V2"
-	sub_label.text = "FlickDisc classic. First to 100, net scoring." if classic else "Two teams on one phone. Pass it each shot."
+	sub_label.text = "Set the rink, then choose who you bowl." if classic else "Two teams on one phone. Pass it each shot."
 	big_play.text = "PLAY VERSUS AI" if classic else "PLAY LOCAL"
 	online_box.visible = classic
 	duo_note.visible = not classic

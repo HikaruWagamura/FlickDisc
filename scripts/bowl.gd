@@ -232,10 +232,10 @@ func _make_shadow(size: float) -> MeshInstance3D:
 
 
 func _puck(parent: Node3D, rim: Material, body: Material) -> void:
-	_cylinder(parent, Vector3(0.0, 0.014, 0.0), 0.18, 0.172, 0.02, rim)
+	_cylinder(parent, Vector3(0.0, 0.032, 0.0), 0.18, 0.168, 0.048, rim)
 	var gold := _mat(Color(0.86, 0.68, 0.28), 0.28, 0.78)
-	_cylinder(parent, Vector3(0.0, 0.022, 0.0), 0.15, 0.15, 0.004, gold)
-	_cylinder(parent, Vector3(0.0, 0.026, 0.0), 0.132, 0.132, 0.006, body)
+	_cylinder(parent, Vector3(0.0, 0.054, 0.0), 0.15, 0.15, 0.006, gold)
+	_cylinder(parent, Vector3(0.0, 0.062, 0.0), 0.128, 0.128, 0.012, body)
 
 
 func _cylinder(parent: Node3D, pos: Vector3, bottom_r: float, top_r: float, height: float, mat: Material) -> void:
