@@ -146,7 +146,7 @@ func _prepare_fonts() -> void:
 	bold_font = FONT_INTER_BOLD
 
 
-const LOGO := preload("res://assets/flickdisc_mark.png")
+const LOGO := preload("res://assets/syncbowls_logo.png")
 
 
 func _logo_texture() -> Texture2D:
@@ -161,7 +161,7 @@ func _show(next: String) -> void:
 		page.visible = str(key) == next
 	var hub := next == "home" or next == "profile" or next == "customise" or next == "shop" or next == "settings"
 	nav.visible = hub
-	backdrop.visible = next != "splash"
+	backdrop.visible = true
 	choice_layer.visible = false
 	online_layer.visible = false
 	_paint_nav(next)
@@ -191,7 +191,7 @@ func _build_splash() -> void:
 	root.add_child(page)
 	var black := ColorRect.new()
 	black.set_anchors_preset(Control.PRESET_FULL_RECT)
-	black.color = Color("#050507")
+	black.color = Color(0, 0, 0, 0)
 	black.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	page.add_child(black)
 	var hit := Button.new()
@@ -276,13 +276,13 @@ func _build_home() -> void:
 	var plate := Panel.new()
 	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_place(page, plate, Vector2(36, 102), Vector2(468, 262))
-	plate.add_theme_stylebox_override("panel", _flat(Color(0.1, 0.04, 0.07, 0.78), Color(1.0, 0.35, 0.58, 0.9), 1, 28, 0))
+	plate.add_theme_stylebox_override("panel", _flat(Color(0.05, 0.04, 0.12, 0.55), Color("#873EFF"), 1, 28, 0))
 	var mark := _mark_rect()
 	_place(page, mark, Vector2(115, 108), Vector2(310, 248))
 
 	var play := _button("PLAY", 22)
 	_place(page, play, Vector2(20, 392), Vector2(500, 64))
-	_paint_button(play, PINK_DEEP, Color("#ff8ab6"), CREAM, 18, 0)
+	_paint_button(play, PINK_DEEP, Color("#C4AEFF"), CREAM, 18, 0)
 	var play_mark := _label("▶", 18, CREAM, bold_font)
 	play_mark.position = Vector2(430, 18)
 	play_mark.size = Vector2(40, 28)
@@ -341,15 +341,15 @@ func _build_setup() -> void:
 	_back_on(page, "home")
 
 	var hero := Control.new()
-	hero.custom_minimum_size = Vector2(0, 196)
+	hero.custom_minimum_size = Vector2(0, 248)
 	hero.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var ghost := _mark_rect()
 	ghost.anchor_left = 0.5
 	ghost.anchor_right = 0.5
-	ghost.offset_left = -78.0
-	ghost.offset_right = 78.0
+	ghost.offset_left = -160.0
+	ghost.offset_right = 160.0
 	ghost.offset_top = 0.0
-	ghost.offset_bottom = 156.0
+	ghost.offset_bottom = 188.0
 	hero.add_child(ghost)
 	title_label = _label("CLASSIC 1V1", 36, CREAM, title_font)
 	title_label.anchor_left = 0.0

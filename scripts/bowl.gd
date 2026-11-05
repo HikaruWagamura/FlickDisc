@@ -31,8 +31,8 @@ var _score_ring: MeshInstance3D
 static func palette(index: int) -> Array:
 	var purple := Color(0.53, 0.24, 1.0)
 	var looks := [
-		[Color(0.04, 0.035, 0.05), Color(0.10, 0.09, 0.12), Color(0.16, 0.14, 0.18), purple],
-		[Color(0.42, 0.04, 0.07), Color(0.72, 0.08, 0.12), Color(0.55, 0.06, 0.09), purple],
+		[Color(0.03, 0.03, 0.04), Color(0.07, 0.06, 0.08), Color(0.12, 0.10, 0.14), purple],
+		[Color(0.45, 0.03, 0.06), Color(0.78, 0.07, 0.12), Color(0.55, 0.05, 0.08), purple],
 	]
 	return looks[index % looks.size()]
 
@@ -145,7 +145,7 @@ func present(speed: float) -> void:
 func set_hand(hand: float) -> void:
 	if _pip == null:
 		return
-	_pip.position = Vector3(signf(hand) * 0.13, 0.02, 0.0)
+	_pip.position = Vector3(signf(hand) * 0.11, 0.18, 0.04)
 
 
 func set_scoring(on: bool) -> void:
@@ -164,8 +164,8 @@ func _build_disc(colors: Array, hand: float) -> void:
 	_puck(_spin, rim, body)
 	_pip = MeshInstance3D.new()
 	var pip_mesh := SphereMesh.new()
-	pip_mesh.radius = 0.02
-	pip_mesh.height = 0.04
+	pip_mesh.radius = 0.035
+	pip_mesh.height = 0.07
 	pip_mesh.radial_segments = 10
 	pip_mesh.rings = 6
 	_pip.mesh = pip_mesh
@@ -230,14 +230,23 @@ func _make_shadow(size: float) -> MeshInstance3D:
 	return shadow
 
 
-func _puck(parent: Node3D, rim: Material, body: Material) -> void:
-	_cylinder(parent, Vector3(0.0, 0.048, 0.0), 0.18, 0.17, 0.086, rim)
-	var violet := _mat(Color(0.53, 0.24, 1.0), 0.22, 0.35)
+func _puck(parent: Node3D, _rim: Material, body: Material) -> void:
+	var ball := MeshInstance3D.new()
+	var mesh := SphereMesh.new()
+	mesh.radius = 0.16
+	mesh.height = 0.30
+	mesh.radial_segments = 36
+	mesh.rings = 18
+	ball.mesh = mesh
+	ball.position = Vector3(0.0, 0.125, 0.0)
+	ball.scale = Vector3(1.15, 0.82, 1.15)
+	ball.material_override = body
+	parent.add_child(ball)
+	var violet := _mat(Color(0.53, 0.24, 1.0), 0.18, 0.45)
 	violet.emission_enabled = true
-	violet.emission = Color(0.62, 0.28, 1.0)
-	violet.emission_energy_multiplier = 1.1
-	_cylinder(parent, Vector3(0.0, 0.086, 0.0), 0.148, 0.148, 0.014, violet)
-	_cylinder(parent, Vector3(0.0, 0.098, 0.0), 0.122, 0.122, 0.016, body)
+	violet.emission = Color(0.66, 0.28, 1.0)
+	violet.emission_energy_multiplier = 1.35
+	_cylinder(parent, Vector3(0.0, 0.125, 0.0), 0.175, 0.175, 0.02, violet)
 
 
 func _cylinder(parent: Node3D, pos: Vector3, bottom_r: float, top_r: float, height: float, mat: Material) -> void:

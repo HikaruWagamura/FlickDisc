@@ -568,17 +568,26 @@ func _build_visual() -> void:
 	_mark_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_mark_mat.albedo_color = Color(0.12, 0.10, 0.08)
 
-	_add_cylinder(_spin, Vector3(0.0, 0.048, 0.0), 0.18, 0.17, 0.086, _rim_mat)
-	var violet := _disc_mat(Color(0.53, 0.24, 1.0), 0.22, 0.35)
+	var ball := MeshInstance3D.new()
+	var ball_mesh := SphereMesh.new()
+	ball_mesh.radius = 0.16
+	ball_mesh.height = 0.30
+	ball_mesh.radial_segments = 36
+	ball_mesh.rings = 18
+	ball.mesh = ball_mesh
+	ball.position = Vector3(0.0, 0.125, 0.0)
+	ball.scale = Vector3(1.15, 0.82, 1.15)
+	ball.material_override = _body_mat
+	_spin.add_child(ball)
+	var violet := _disc_mat(Color(0.53, 0.24, 1.0), 0.18, 0.45)
 	violet.emission_enabled = true
-	violet.emission = Color(0.62, 0.28, 1.0)
-	violet.emission_energy_multiplier = 1.1
-	_add_cylinder(_spin, Vector3(0.0, 0.086, 0.0), 0.148, 0.148, 0.014, violet)
-	_add_cylinder(_spin, Vector3(0.0, 0.098, 0.0), 0.122, 0.122, 0.016, _body_mat)
+	violet.emission = Color(0.66, 0.28, 1.0)
+	violet.emission_energy_multiplier = 1.35
+	_add_cylinder(_spin, Vector3(0.0, 0.125, 0.0), 0.175, 0.175, 0.02, violet)
 	_bias_pip = MeshInstance3D.new()
 	var pip_mesh := SphereMesh.new()
-	pip_mesh.radius = 0.02
-	pip_mesh.height = 0.04
+	pip_mesh.radius = 0.035
+	pip_mesh.height = 0.07
 	pip_mesh.radial_segments = 12
 	pip_mesh.rings = 8
 	_bias_pip.mesh = pip_mesh
@@ -600,7 +609,7 @@ func _build_visual() -> void:
 func _place_pip() -> void:
 	if _bias_pip == null:
 		return
-	_bias_pip.position = Vector3(hand_sign * 0.13, 0.02, 0.0)
+	_bias_pip.position = Vector3(hand_sign * 0.11, 0.18, 0.04)
 
 
 func _build_guide() -> void:
