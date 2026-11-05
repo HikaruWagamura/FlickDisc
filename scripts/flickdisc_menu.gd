@@ -131,25 +131,19 @@ func refresh() -> void:
 		friend_code.text = room_code
 
 
+const FONT_ANTON := preload("res://assets/fonts/Anton-Regular.ttf")
+const FONT_PACIFICO := preload("res://assets/fonts/Pacifico-Regular.ttf")
+const FONT_INTER := preload("res://assets/fonts/Inter-Regular.ttf")
+const FONT_INTER_BOLD := preload("res://assets/fonts/Inter-Bold.ttf")
+
+
 func _prepare_fonts() -> void:
-	title_font = _load_font("res://assets/fonts/Anton-Regular.ttf", 700, false)
-	script_font = _load_font("res://assets/fonts/Pacifico-Regular.ttf", 700, true)
-	body_font = _load_font("res://assets/fonts/Inter-Regular.ttf", 500, false)
-	bold_font = _load_font("res://assets/fonts/Inter-Bold.ttf", 700, false)
-
-
-func _load_font(path: String, weight: int, italic: bool) -> Font:
-	var dynamic := FontFile.new()
-	var loaded := false
-	if dynamic.has_method("load_dynamic_font"):
-		loaded = int(dynamic.call("load_dynamic_font", path)) == OK
-	if loaded:
-		return dynamic
-	var system := SystemFont.new()
-	system.font_names = PackedStringArray(["Inter"])
-	system.font_weight = weight
-	system.font_italic = italic
-	return system
+	# Preload packs the font files into the web export. A runtime file load
+	# does not, which is why the hosted menu was missing these four faces.
+	title_font = FONT_ANTON
+	script_font = FONT_PACIFICO
+	body_font = FONT_INTER
+	bold_font = FONT_INTER_BOLD
 
 
 const LOGO := preload("res://assets/flickdisc_mark.png")
