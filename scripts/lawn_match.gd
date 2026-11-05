@@ -19,13 +19,12 @@ var feel
 var jack
 var settled: Array = []
 var jack_home := Vector3.ZERO
-const BOWLS_PER_END := 4
-const SHOT_METRES := 2.0
+const BOWLS_EACH := 4
+const BOWLS_PER_END := BOWLS_EACH * 2
 const MATCHES := [
-	{"ends": 2, "points": 0, "label": "2 ENDS"},
+	{"ends": 1, "points": 0, "label": "1 END"},
 	{"ends": 4, "points": 0, "label": "4 ENDS"},
-	{"ends": 6, "points": 0, "label": "6 ENDS"},
-	{"ends": 0, "points": 11, "label": "TO 11"},
+	{"ends": 0, "points": 10, "label": "TO 10"},
 	{"ends": 0, "points": 21, "label": "TO 21"},
 ]
 
@@ -39,7 +38,12 @@ var ditch_mode := false
 var jack_length := 0.0
 var match_index := 1
 var end_number := 1
-var match_points := 0
+var you_points := 0
+var them_points := 0
+var opponent := "local"
+var difficulty := 1
+var fast_play := false
+var _ai_token := 0
 var match_complete := false
 var match_reported := false
 var goal := ""
@@ -94,8 +98,14 @@ func _ready() -> void:
 	ui.bias_selected.connect(_on_bias_selected)
 	_wire_shot()
 	_lock_portrait_on_device()
+	if _wants_bowltest():
+		fast_play = true
+		match_index = 0
+		opponent = "local"
 	_build_rack()
 	_new_match()
+	if fast_play:
+		call_deferred("_bowltest")
 
 
 func _process(delta: float) -> void:
@@ -146,6 +156,13 @@ func _begin_ready() -> void:
 	aim_lock = 0.0
 	disc.start_position = Vector3(0.0, 0.0, line_z)
 	disc.global_position = disc.start_position
+	if _computer_turn():
+		if gesture != null:
+			gesture.busy()
+		ui.show_computer(_side_name(1), _bowls_left(1))
+		_ai_token += 1
+		_play_computer(_ai_token)
+		return
 	if gesture != null:
 		gesture.arm()
 		gesture.anchor = disc.start_position
@@ -276,7 +293,8 @@ func _sync_fan() -> void:
 
 func _new_match() -> void:
 	end_number = 1
-	match_points = 0
+	you_points = 0
+	them_points = 0
 	match_complete = false
 	match_reported = false
 	_begin_end()
@@ -313,12 +331,12 @@ func _begin_end() -> void:
 	ui.set_power_ratio(0.0)
 	ui.show_ditch_mode(ditch_mode)
 	ui.show_match(_match_label())
-	ui.show_jack_prompt(end_number, _match_label(), match_points)
+	ui.show_jack_prompt(end_number, _match_label(), _score_line())
 	_begin_ready()
 
 
 func _build_rack() -> void:
-	for i in BOWLS_PER_END:
+	for i in BOWLS_EACH:
 		var bowl = BowlScript.new()
 		bowl.name = "Rack%d" % (i + 1)
 		bowl.setup_disc(0, hand_sign)
@@ -327,12 +345,16 @@ func _build_rack() -> void:
 
 
 func _place_rack() -> void:
+	var side := 0 if delivering_jack else _side()
+	var left := BOWLS_EACH if delivering_jack else _bowls_left(side)
 	for i in rack.size():
 		var bowl = rack[i]
-		bowl.set_hand(hand_sign)
+		bowl.paint(side, hand_sign)
 		bowl.set_scoring(false)
-		bowl.rest_at(Vector3(-2.05, 0.0, -9.0 - float(i) * 0.7))
-		bowl.visible = not delivering_jack and i > throw_index
+		bowl.roll_basis = Basis.IDENTITY
+		bowl.visible = i < left
+		if bowl.visible:
+			bowl.rest_at(Vector3(1.7, 0.0, -0.45 - float(i) * 0.58))
 
 
 func _match_label() -> String:
@@ -344,7 +366,8 @@ func _is_match_over() -> bool:
 	var ends_target := int(fmt["ends"])
 	var points_target := int(fmt["points"])
 	if points_target > 0:
-		return match_points >= points_target
+		var lead := maxi(you_points, them_points)
+		return lead >= points_target and you_points != them_points
 	return end_number >= ends_target
 
 
@@ -421,12 +444,12 @@ func _on_ditch_option_requested() -> void:
 
 
 func _on_match_cycle_requested() -> void:
-	if disc.shot_in_progress or not delivering_jack or end_number > 1 or match_points > 0:
+	if disc.shot_in_progress or not delivering_jack or end_number > 1 or you_points > 0 or them_points > 0:
 		return
 	feel.tap()
 	match_index = (match_index + 1) % MATCHES.size()
 	ui.show_match(_match_label())
-	ui.show_jack_prompt(end_number, _match_label(), match_points)
+	ui.show_jack_prompt(end_number, _match_label(), _score_line())
 
 
 func _on_disc_shot_started() -> void:
@@ -436,7 +459,7 @@ func _on_disc_shot_started() -> void:
 	else:
 		throws_left -= 1
 		ui.set_power_ratio(0.0)
-		ui.show_in_motion(throws_left, _bowl_name(bias_index), hand_sign < 0.0)
+		ui.show_in_motion(_side_name(_side()), _bowl_name(bias_index), hand_sign < 0.0, _score_line())
 	feel.release(disc.power_ratio)
 
 
@@ -459,15 +482,15 @@ func _finish_shot(token: int) -> void:
 		return
 	var thrown = BowlScript.new()
 	thrown.name = "Bowl%d" % (throw_index + 1)
-	thrown.setup_disc(0, hand_sign)
+	thrown.setup_disc(throw_index % 2, hand_sign)
+	thrown.side = throw_index % 2
+	thrown.roll_basis = disc.roll_basis
 	add_child(thrown)
 	var bowl_ditched: bool = disc.in_ditch
 	if bowl_ditched:
 		thrown.drop_in_ditch(rest_pos)
 	else:
 		thrown.rest_at(rest_pos)
-	thrown.spin_angle = disc.spin_angle
-	thrown.present(0.0)
 	settled.append(thrown)
 	throw_index += 1
 	var respotted := false
@@ -477,7 +500,13 @@ func _finish_shot(token: int) -> void:
 		respotted = true
 	disc.reset_to_start()
 	if throws_left > 0:
-		disc.configure_bowl(bias_index, hand_sign)
+		var next_hand := hand_sign
+		if _computer_turn():
+			next_hand = -1.0
+			bias_index = 1
+		disc.configure_bowl(bias_index, next_hand)
+		disc.set_palette(_side())
+		hand_sign = disc.hand_sign
 		ui.show_bias(bias_index)
 		ui.show_hand(hand_sign < 0.0, _bowl_name(bias_index))
 	_place_rack()
@@ -497,9 +526,13 @@ func _finish_shot(token: int) -> void:
 	rink.focus_head(jack_pos)
 	if throws_left > 0:
 		feel.settled(closest if closest >= 0.0 else 9.0)
-		ui.show_throw_result(disc_distance, closest, throws_left, jack_moved, bowl_ditched, respotted, spares)
+		ui.show_throw_result(disc_distance, closest, _side_name(_side()), jack_moved, bowl_ditched, respotted, spares, _score_line())
 		if gesture != null:
 			gesture.busy()
+		if fast_play:
+			rink.release_head()
+			_begin_ready()
+			return
 		_return_token += 1
 		var return_token := _return_token
 		await get_tree().create_timer(2.2).timeout
@@ -509,16 +542,22 @@ func _finish_shot(token: int) -> void:
 		_begin_ready()
 		return
 	else:
-		var shots := _mark_shots()
-		match_points += shots
+		var count := _count_end()
+		var shots: int = count["shots"]
+		var holder: int = count["side"]
+		if holder == 0:
+			you_points += shots
+		elif holder == 1:
+			them_points += shots
 		match_complete = _is_match_over()
-		if match_complete and not match_reported:
+		if match_complete and not match_reported and you_points != them_points:
 			match_reported = true
-			match_decided.emit(true)
+			match_decided.emit(you_points > them_points)
 		disc.visible = false
 		_place_rack()
 		feel.settled(0.2 if shots > 0 else 9.0)
-		ui.show_end_summary(end_number, shots, closest, match_points, match_complete)
+		var holder_name := "TIED" if shots <= 0 else _side_name(holder)
+		ui.show_end_summary(end_number, holder_name, shots, closest, _score_line(), match_complete)
 		if gesture != null:
 			gesture.busy()
 
@@ -545,12 +584,13 @@ func _finish_jack(rest_pos: Vector3) -> void:
 	jack.visible = true
 	rink.place_head(Vector2(rest_pos.x, rest_pos.z))
 	disc.configure_bowl(bias_index, hand_sign)
+	disc.set_palette(throw_index % 2)
 	disc.reset_to_start()
 	disc.obstacles = _table()
 	ui.show_bias(bias_index)
 	ui.show_hand(hand_sign < 0.0, _bowl_name(bias_index))
 	_place_rack()
-	ui.show_jack_set(travelled, _bowl_name(bias_index), throws_left)
+	ui.show_jack_set(travelled, _bowl_name(bias_index), _side_name(0))
 	_begin_ready()
 
 
@@ -583,28 +623,41 @@ func _clear_spot(spot: Vector3) -> Vector3:
 	return spot
 
 
-func _mark_shots() -> int:
+func _count_end() -> Dictionary:
 	var jack_pos: Vector3 = jack.global_position
-	var shots := 0
-	var best := -1.0
+	var nearest := [-1.0, -1.0]
 	for body in settled:
 		body.set_scoring(false)
 		if body.in_ditch:
 			continue
 		var dist := _distance(body.global_position, jack_pos)
-		if best < 0.0 or dist < best:
-			best = dist
-		if dist <= SHOT_METRES:
-			body.set_scoring(true)
-			shots += 1
-	if shots == 0:
+		var side := int(body.side)
+		if nearest[side] < 0.0 or dist < nearest[side]:
+			nearest[side] = dist
+	var closest := -1.0
+	if nearest[0] >= 0.0 and nearest[1] >= 0.0:
+		closest = minf(nearest[0], nearest[1])
+	elif nearest[0] >= 0.0:
+		closest = nearest[0]
+	elif nearest[1] >= 0.0:
+		closest = nearest[1]
+	var holder := -1
+	if nearest[0] >= 0.0 and (nearest[1] < 0.0 or nearest[0] + 0.01 < nearest[1]):
+		holder = 0
+	elif nearest[1] >= 0.0 and (nearest[0] < 0.0 or nearest[1] + 0.01 < nearest[0]):
+		holder = 1
+	var shots := 0
+	if holder >= 0:
+		var other := 1 - holder
+		var limit: float = nearest[other]
 		for body in settled:
-			if body.in_ditch:
+			if body.in_ditch or int(body.side) != holder:
 				continue
-			if absf(_distance(body.global_position, jack_pos) - best) < 0.001:
+			var dist := _distance(body.global_position, jack_pos)
+			if limit < 0.0 or dist + 0.01 < limit:
 				body.set_scoring(true)
-				break
-	return shots
+				shots += 1
+	return {"side": holder, "shots": shots, "closest": closest}
 
 
 func _check_draw(distance: float, ditched: bool) -> void:
@@ -617,6 +670,162 @@ func _check_draw(distance: float, ditched: bool) -> void:
 
 func _bowl_name(index: int) -> String:
 	return str(BowlScript.bowl_type(index)["name"])
+
+
+func _side() -> int:
+	return throw_index % 2
+
+
+func _side_name(side: int) -> String:
+	return "BLACK" if side == 0 else "RED"
+
+
+func _bowls_left(side: int) -> int:
+	var left := 0
+	for i in range(throw_index, BOWLS_PER_END):
+		if i % 2 == side:
+			left += 1
+	return left
+
+
+func _score_line() -> String:
+	return "BLACK %d   RED %d" % [you_points, them_points]
+
+
+func _computer_turn() -> bool:
+	return opponent == "ai" and not delivering_jack and _side() == 1
+
+
+func _play_computer(token: int) -> void:
+	await get_tree().create_timer(0.7 if fast_play else 0.9).timeout
+	if token != _ai_token or not is_inside_tree() or not _computer_turn() or disc.shot_in_progress:
+		return
+	bias_index = 1
+	var hand := -1.0
+	disc.configure_bowl(bias_index, hand)
+	disc.set_palette(1)
+	hand_sign = disc.hand_sign
+	var miss := 0.55
+	if difficulty == 0:
+		miss = 1.15
+	elif difficulty >= 2:
+		miss = 0.18
+	var target: Vector3 = jack.global_position + Vector3(randf_range(-miss, miss), 0.0, 0.7)
+	var from := Vector3(randf_range(-0.25, 0.25), 0.0, line_z)
+	place_x = from.x
+	disc.start_position = from
+	var along := maxf(from.z - target.z, 6.0)
+	var power: float = disc.weight_for_length(along, disc.bias_ratio)
+	var best_aim := Vector3(0.4, 0.0, -1.0).normalized()
+	var best_err := 9999.0
+	for sample in 7:
+		var aim_x: float = target.x - from.x + 1.35 + (float(sample) - 3.0) * 0.4
+		var aim := Vector3(aim_x, 0.0, -along).normalized()
+		var rest: Vector3 = disc.predict_rest(from, aim, power, disc.bias_ratio)
+		var err := Vector2(rest.x, rest.z).distance_to(Vector2(target.x, target.z))
+		if err < best_err:
+			best_err = err
+			best_aim = aim
+	disc.fire_taken(best_aim, power)
+
+
+func _wants_bowltest() -> bool:
+	return OS.get_cmdline_user_args().has("--bowltest")
+
+
+func _bowltest() -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var jack_power: float = disc.weight_for_length(22.0, 0.0)
+	disc.fire_taken(Vector3(0.0, 0.0, -1.0), jack_power)
+	if not await _wait_jack():
+		_fail_test("jack never settled")
+		return
+	if jack_length < 16.0 or jack_length > 30.0:
+		_fail_test("jack length %.2f" % jack_length)
+		return
+	var first_rest := Vector3.ZERO
+	var knock := 0.0
+	var rolled := false
+	for n in BOWLS_PER_END:
+		if delivering_jack or disc.shot_in_progress or not disc.visible:
+			_fail_test("not ready for bowl %d" % n)
+			return
+		var side := n % 2
+		var hand := -1.0 if n < 2 or side == 0 else 1.0
+		disc.configure_bowl(1, hand)
+		disc.set_palette(side)
+		var aim_x := 0.65 if n < 2 else (0.35 if side == 0 else -0.45)
+		var power: float = disc.weight_for_length(maxf(jack_length - 0.35, 8.0), disc.bias_ratio)
+		if n == 1:
+			first_rest = settled[0].global_position
+		disc.fire_taken(Vector3(aim_x, 0.0, -1.0).normalized(), power)
+		if not await _wait_bowls(n + 1):
+			_fail_test("bowl %d hung" % n)
+			return
+		var basis: Basis = settled[n].roll_basis
+		if basis.get_rotation_quaternion().get_angle() > 0.4:
+			rolled = true
+		if n == 1:
+			knock = settled[0].global_position.distance_to(first_rest)
+	var black := 0
+	var red := 0
+	for body in settled:
+		if int(body.side) == 0:
+			black += 1
+		else:
+			red += 1
+	var saved_you := you_points
+	var saved_them := them_points
+	var saved_end := end_number
+	var saved_index := match_index
+	match_index = 2
+	you_points = 10
+	them_points = 4
+	var to10: bool = _is_match_over()
+	you_points = 9
+	var short10: bool = not _is_match_over()
+	you_points = 10
+	them_points = 10
+	var tied10: bool = not _is_match_over()
+	match_index = 3
+	you_points = 21
+	them_points = 18
+	var to21: bool = _is_match_over()
+	match_index = 0
+	end_number = 1
+	var one_end: bool = _is_match_over()
+	you_points = saved_you
+	them_points = saved_them
+	end_number = saved_end
+	match_index = saved_index
+	var formats_ok := to10 and short10 and tied10 and to21 and one_end
+	var ok := black == 4 and red == 4 and match_complete and rolled and knock > 0.05 and formats_ok
+	print("BOWLTEST jack=%.2f black=%d red=%d you=%d them=%d over=%s rolled=%s knock=%.3f" % [jack_length, black, red, you_points, them_points, match_complete, rolled, knock])
+	get_tree().quit(0 if ok else 2)
+
+
+func _wait_jack() -> bool:
+	for _i in 1200:
+		await get_tree().process_frame
+		if not delivering_jack and not disc.shot_in_progress and jack.visible:
+			return true
+	return false
+
+
+func _wait_bowls(expected: int) -> bool:
+	for _i in 1200:
+		await get_tree().process_frame
+		if disc.shot_in_progress or settled.size() < expected:
+			continue
+		if match_complete or (gesture != null and str(gesture.phase) == "idle"):
+			return true
+	return false
+
+
+func _fail_test(reason: String) -> void:
+	print("BOWLTEST FAIL %s" % reason)
+	get_tree().quit(2)
 
 
 func _distance(a: Vector3, b: Vector3) -> float:

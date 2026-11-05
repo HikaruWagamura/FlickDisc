@@ -24,6 +24,57 @@ func _ready() -> void:
 	add_child(menu)
 	menu.play_requested.connect(_play)
 	menu.setup(profile)
+	call_deferred("_apply_host")
+
+
+func _apply_host() -> void:
+	if OS.has_feature("web"):
+		menu.rink = "lawn"
+		menu.open_screen("setup")
+		print("HOST_SETUP rink=lawn")
+		return
+	var host := _host_launch()
+	if bool(host["play"]):
+		_play({
+			"rink": host["rink"],
+			"match_index": host["match_index"],
+			"back": "home",
+			"goal": "",
+			"target": 100,
+			"level": 0,
+			"ditch": false,
+		})
+		print("HOST_PLAY rink=%s" % str(host["rink"]))
+		return
+	if bool(host["direct"]):
+		menu.rink = str(host["rink"])
+		menu.open_screen("setup")
+		print("HOST_SETUP rink=%s" % str(host["rink"]))
+
+
+func _host_launch() -> Dictionary:
+	var table := ""
+	var embed := false
+	var play_now := false
+	var match_index := 1
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--table="):
+			table = arg.trim_prefix("--table=")
+		elif arg == "--embed" or arg == "--embed=1":
+			embed = true
+		elif arg == "--play":
+			play_now = true
+		elif arg.begins_with("--match="):
+			match_index = int(arg.trim_prefix("--match="))
+	var rink_name := table if table != "" else "lawn"
+	if rink_name != "lawn" and rink_name != "crokinole":
+		rink_name = "lawn"
+	return {
+		"direct": embed or table != "",
+		"play": play_now,
+		"rink": rink_name,
+		"match_index": match_index,
+	}
 
 
 func _play(setup: Dictionary) -> void:
@@ -31,7 +82,7 @@ func _play(setup: Dictionary) -> void:
 	return_screen = str(setup.get("back", "home"))
 	pending_challenge = str(setup.get("challenge", ""))
 	profile.note_round()
-	var rink_name := str(setup.get("rink", "crokinole"))
+	var rink_name := str(setup.get("rink", "lawn"))
 	var packed: PackedScene = CROKINOLE_SCENE if rink_name == "crokinole" else LAWN_SCENE
 	current = packed.instantiate()
 	current.goal = str(setup.get("goal", ""))
@@ -41,6 +92,8 @@ func _play(setup: Dictionary) -> void:
 		current.player_tint = profile.disc_color()
 	else:
 		current.match_index = int(setup.get("match_index", 1))
+		current.opponent = str(setup.get("opponent", "local"))
+		current.difficulty = int(setup.get("difficulty", 1))
 		current.ditch_mode = bool(setup.get("ditch", false))
 	get_tree().root.set_meta("flickdisc_sound", profile.sound)
 	get_tree().root.set_meta("flickdisc_haptics", profile.haptics)

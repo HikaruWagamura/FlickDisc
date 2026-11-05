@@ -4,13 +4,13 @@ extends CanvasLayer
 
 signal play_requested(setup: Dictionary)
 
-const PINK := Color("#ff3d8a")
-const PINK_DEEP := Color("#e21862")
-const INK := Color("#09080d")
-const CARD := Color(0.32, 0.16, 0.22, 0.98)
-const PLUM := Color(0.24, 0.12, 0.17, 0.98)
-const MUTED := Color("#cbbcc6")
-const CREAM := Color("#f6f3f7")
+const PINK := Color("#873EFF")
+const PINK_DEEP := Color("#5425A5")
+const INK := Color("#080719")
+const CARD := Color(0.14, 0.09, 0.24, 0.98)
+const PLUM := Color(0.09, 0.06, 0.16, 0.98)
+const MUTED := Color("#A69DBD")
+const CREAM := Color("#E7E0F5")
 
 var profile
 var root: Control
@@ -18,7 +18,7 @@ var backdrop: Control
 var pages := {}
 var screen := ""
 var kind := "classic"
-var rink := "crokinole"
+var rink := "lawn"
 var difficulty := 1
 var race := 1
 var room_code := ""
@@ -131,28 +131,22 @@ func refresh() -> void:
 		friend_code.text = room_code
 
 
+const FONT_ANTON := preload("res://assets/fonts/Anton-Regular.ttf")
+const FONT_PACIFICO := preload("res://assets/fonts/Pacifico-Regular.ttf")
+const FONT_INTER := preload("res://assets/fonts/Inter-Regular.ttf")
+const FONT_INTER_BOLD := preload("res://assets/fonts/Inter-Bold.ttf")
+
+
 func _prepare_fonts() -> void:
-	title_font = _load_font("res://assets/fonts/Anton-Regular.ttf", 700, false)
-	script_font = _load_font("res://assets/fonts/Pacifico-Regular.ttf", 700, true)
-	body_font = _load_font("res://assets/fonts/Inter-Regular.ttf", 500, false)
-	bold_font = _load_font("res://assets/fonts/Inter-Bold.ttf", 700, false)
+	# Preload packs the font files into the web export. A runtime file load
+	# does not, which is why the hosted menu was missing these four faces.
+	title_font = FONT_ANTON
+	script_font = FONT_PACIFICO
+	body_font = FONT_INTER
+	bold_font = FONT_INTER_BOLD
 
 
-func _load_font(path: String, weight: int, italic: bool) -> Font:
-	var dynamic := FontFile.new()
-	var loaded := false
-	if dynamic.has_method("load_dynamic_font"):
-		loaded = int(dynamic.call("load_dynamic_font", path)) == OK
-	if loaded:
-		return dynamic
-	var system := SystemFont.new()
-	system.font_names = PackedStringArray(["Inter"])
-	system.font_weight = weight
-	system.font_italic = italic
-	return system
-
-
-const LOGO := preload("res://assets/flickdisc_mark.png")
+const LOGO := preload("res://assets/syncbowls_logo.png")
 
 
 func _logo_texture() -> Texture2D:
@@ -167,7 +161,7 @@ func _show(next: String) -> void:
 		page.visible = str(key) == next
 	var hub := next == "home" or next == "profile" or next == "customise" or next == "shop" or next == "settings"
 	nav.visible = hub
-	backdrop.visible = next != "splash"
+	backdrop.visible = true
 	choice_layer.visible = false
 	online_layer.visible = false
 	_paint_nav(next)
@@ -197,7 +191,7 @@ func _build_splash() -> void:
 	root.add_child(page)
 	var black := ColorRect.new()
 	black.set_anchors_preset(Control.PRESET_FULL_RECT)
-	black.color = Color("#050507")
+	black.color = Color(0, 0, 0, 0)
 	black.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	page.add_child(black)
 	var hit := Button.new()
@@ -282,13 +276,13 @@ func _build_home() -> void:
 	var plate := Panel.new()
 	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_place(page, plate, Vector2(36, 102), Vector2(468, 262))
-	plate.add_theme_stylebox_override("panel", _flat(Color(0.1, 0.04, 0.07, 0.78), Color(1.0, 0.35, 0.58, 0.9), 1, 28, 0))
+	plate.add_theme_stylebox_override("panel", _flat(Color(0.05, 0.04, 0.12, 0.55), Color("#873EFF"), 1, 28, 0))
 	var mark := _mark_rect()
 	_place(page, mark, Vector2(115, 108), Vector2(310, 248))
 
 	var play := _button("PLAY", 22)
 	_place(page, play, Vector2(20, 392), Vector2(500, 64))
-	_paint_button(play, PINK_DEEP, Color("#ff8ab6"), CREAM, 18, 0)
+	_paint_button(play, PINK_DEEP, Color("#C4AEFF"), CREAM, 18, 0)
 	var play_mark := _label("▶", 18, CREAM, bold_font)
 	play_mark.position = Vector2(430, 18)
 	play_mark.size = Vector2(40, 28)
@@ -347,15 +341,15 @@ func _build_setup() -> void:
 	_back_on(page, "home")
 
 	var hero := Control.new()
-	hero.custom_minimum_size = Vector2(0, 196)
+	hero.custom_minimum_size = Vector2(0, 248)
 	hero.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var ghost := _mark_rect()
 	ghost.anchor_left = 0.5
 	ghost.anchor_right = 0.5
-	ghost.offset_left = -78.0
-	ghost.offset_right = 78.0
+	ghost.offset_left = -160.0
+	ghost.offset_right = 160.0
 	ghost.offset_top = 0.0
-	ghost.offset_bottom = 156.0
+	ghost.offset_bottom = 188.0
 	hero.add_child(ghost)
 	title_label = _label("CLASSIC 1V1", 36, CREAM, title_font)
 	title_label.anchor_left = 0.0
@@ -369,7 +363,7 @@ func _build_setup() -> void:
 	hero.add_child(title_label)
 	box.add_child(hero)
 
-	sub_label = _label("FlickDisc classic. First to 100, net scoring.", 15, MUTED, body_font)
+	sub_label = _label("Set the rink, then choose who you bowl.", 15, MUTED, body_font)
 	sub_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	sub_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(sub_label)
@@ -389,8 +383,8 @@ func _build_setup() -> void:
 		rink = "lawn"
 		_sync_setup()
 	)
-	row.add_child(crokin_card)
 	row.add_child(lawn_card)
+	row.add_child(crokin_card)
 	box.add_child(row)
 	box.add_child(_gap(8))
 
@@ -404,14 +398,15 @@ func _build_setup() -> void:
 		_open_choices(_difficulty_options(), difficulty, _set_difficulty)
 	)
 	box.add_child(difficulty_button)
-	box.add_child(_kicker("RACE TO"))
+	box.add_child(_kicker("MATCH"))
 	race_button = _choice_button()
 	race_button.pressed.connect(func() -> void:
 		_open_choices(_race_options(), race, _set_race)
 	)
 	box.add_child(race_button)
 	box.add_child(_gap(6))
-	big_play = _primary("PLAY VERSUS AI", func() -> void: _launch("ai"))
+	box.add_child(_row_button("PLAY ON YOUR OWN", func() -> void: _practice("jack")))
+	big_play = _primary("PLAY THE COMPUTER", func() -> void: _launch("ai"))
 	box.add_child(big_play)
 
 	duo_note = _label("Both teams play on this device. Pass the phone each shot.", 14, MUTED, body_font)
@@ -422,7 +417,7 @@ func _build_setup() -> void:
 	online_box = VBoxContainer.new()
 	online_box.add_theme_constant_override("separation", 10)
 	online_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	online_box.add_child(_row_button("Local match", func() -> void: _launch("local")))
+	online_box.add_child(_row_button("PLAY A FRIEND", func() -> void: _launch("local")))
 	online_box.add_child(_row_button("Online casual", func() -> void: _show_online("casual")))
 	online_box.add_child(_row_button("Online ranked", func() -> void: _show_online("ranked")))
 	online_box.add_child(_row_button("Create private room", _create_room))
@@ -665,7 +660,7 @@ func _build_settings() -> void:
 	box.add_child(sound_button)
 	box.add_child(haptic_button)
 	box.add_child(_kicker("HOW A ROUND WORKS"))
-	box.add_child(_wrapped("Crokinole. An empty board. Touch the disc and drag the white dots to aim, then tap to lock. Pull the disc back and release on the green line. You and the far side take turns. Eight discs each. Both colours score. 20 is only the hole. 15, 10 and 5 need the disc clear of that line. A disc on the line scores the lower ring. The ditch is nothing. Only the difference is added. First to the race wins.\n\nLong rink. Touch the jack and drag the white dots to aim, then tap to lock. Pull back and release on the green line. The same shot plays each bowl. Bowls sit on the right. Forehand and backhand are the small button at the bottom right. The dots show only the start of the run. The bowl keeps that hand and will not run straight. Bowls inside two metres of the jack count. Banks rebound unless the ditch is open."))
+	box.add_child(_wrapped("Crokinole. An empty board. Touch the disc and drag the white dots to aim, then tap to lock. Pull the disc back and release on the green line. You and the far side take turns. Eight discs each. Both colours score. 20 is only the hole. 15, 10 and 5 need the disc clear of that line. A disc on the line scores the lower ring. The ditch is nothing. Only the difference is added. First to the race wins.\n\nLong rink. Touch the jack and drag the white dots to aim, then tap to lock. Pull back and release on the green line. Black bowls four, then red bowls four, alternating. The side closest to the jack scores every bowl nearer than the other side. Play one end, four ends, first to 10, or first to 21. Forehand and backhand are the small button at the bottom right. The dots show only the start of the run. The bowl keeps that hand and will not run straight. Banks rebound unless the ditch is open."))
 
 
 func _build_nav() -> void:
@@ -800,11 +795,11 @@ func _sync_setup() -> void:
 		return
 	var classic := kind == "classic"
 	title_label.text = "CLASSIC 1V1" if classic else "CLASSIC 2V2"
-	sub_label.text = "FlickDisc classic. First to 100, net scoring." if classic else "Two teams on one phone. Pass it each shot."
+	sub_label.text = "Set the rink, then choose who you bowl." if classic else "Two teams on one phone. Pass it each shot."
 	big_play.text = "PLAY VERSUS AI" if classic else "PLAY LOCAL"
 	online_box.visible = classic
 	duo_note.visible = not classic
-	hint_label.text = "The original round board and scoring rules." if rink == "crokinole" else "Bowls and curling style. About 10 seconds to the jack."
+	hint_label.text = "The original round board and scoring rules." if rink == "crokinole" else "Four bowls each. One end, four ends, first to 10, or first to 21."
 	difficulty_button.text = _difficulty_options()[difficulty]
 	race_button.text = _race_options()[race]
 	_paint_rinks()
@@ -834,7 +829,7 @@ func _difficulty_options() -> PackedStringArray:
 
 func _race_options() -> PackedStringArray:
 	if rink == "lawn":
-		return PackedStringArray(["Quick — 2 ends", "Standard — 4 ends", "Long — first to 21"])
+		return PackedStringArray(["1 end", "4 ends", "First to 10", "First to 21"])
 	return PackedStringArray(["Quick — first to 50", "Standard — first to 100", "Long — first to 150"])
 
 
@@ -890,11 +885,13 @@ func _launch(channel: String) -> void:
 		"match_index": 1,
 	}
 	if rink == "lawn":
-		setup["match_index"] = [0, 1, 4][race]
+		setup["match_index"] = mini(race, 3)
+		setup["opponent"] = "ai" if channel == "ai" else "local"
+		setup["difficulty"] = difficulty
 		setup["ditch"] = difficulty == 2
 	else:
-		setup["target"] = [50, 100, 150][race]
-		setup["level"] = [0, 1, 4][difficulty]
+		setup["target"] = [50, 100, 150][mini(race, 2)]
+		setup["level"] = [0, 1, 4][mini(difficulty, 2)]
 	play_requested.emit(setup)
 
 
@@ -1230,9 +1227,9 @@ func _choice_button() -> Button:
 func _row_button(text: String, on_press: Callable) -> Button:
 	var button := _button(text, 16)
 	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	button.custom_minimum_size = Vector2(0, 54)
+	button.custom_minimum_size = Vector2(0, 60)
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_paint_button(button, PLUM, Color(1, 0.55, 0.72, 0.9), CREAM, 14, 16)
+	_paint_button(button, Color(0.08, 0.07, 0.16, 0.88), Color("#873EFF"), CREAM, 16, 18, 2)
 	_chevron(button)
 	if on_press.is_valid():
 		button.pressed.connect(on_press)
@@ -1241,13 +1238,9 @@ func _row_button(text: String, on_press: Callable) -> Button:
 
 func _primary(text: String, on_press: Callable) -> Button:
 	var button := _button(text, 18)
-	button.custom_minimum_size = Vector2(0, 62)
+	button.custom_minimum_size = Vector2(0, 68)
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_paint_button(button, PINK_DEEP, Color("#ff8ab6"), CREAM, 16, 8)
-	var disc := _label("●", 16, CREAM, bold_font)
-	disc.position = Vector2(16, 18)
-	disc.size = Vector2(28, 24)
-	button.add_child(disc)
+	_paint_button(button, Color("#873EFF"), Color("#C4AEFF"), Color("#F7F4FF"), 16, 12, 0)
 	_chevron(button)
 	button.pressed.connect(on_press)
 	return button
@@ -1324,7 +1317,7 @@ func _place(parent: Control, node: Control, pos: Vector2, box: Vector2) -> void:
 func _paint_button(button: Button, fill: Color, border: Color, font_color: Color, radius: int, side: int, width: int = 1) -> void:
 	button.add_theme_stylebox_override("normal", _flat(fill, border, width, radius, side))
 	button.add_theme_stylebox_override("hover", _flat(fill.lightened(0.12), border, width, radius, side))
-	button.add_theme_stylebox_override("pressed", _flat(fill.darkened(0.08), Color("#ffd0ea"), width, radius, side))
+	button.add_theme_stylebox_override("pressed", _flat(fill.darkened(0.08), Color("#C4AEFF"), width, radius, side))
 	button.add_theme_stylebox_override("disabled", _flat(fill, border, width, radius, side))
 	button.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	button.add_theme_color_override("font_color", font_color)
