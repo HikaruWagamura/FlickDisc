@@ -1,22 +1,25 @@
 class_name Bowl
 extends Node3D
 
-## A disc or the jack on the green. Motion is owned by the table in DiscController.
-## These stay where they stop, and later bowls can knock them.
+## A bowl or the jack on the green. Motion is owned by the table in DiscController.
+## Settled bowls stay where they stop, and later bowls can knock them.
+## Black is one side, red is the other. Each side bowls four in an end.
 
-const DISC_RADIUS := 0.18
+const DISC_RADIUS := 0.20
 const JACK_RADIUS := 0.16
-const DISC_MASS := 1.7
-const JACK_MASS := 0.85
-const DISC_RESTITUTION := 0.62
-const JACK_RESTITUTION := 0.58
+const DISC_MASS := 2.45
+const JACK_MASS := 0.52
+const DISC_RESTITUTION := 0.46
+const JACK_RESTITUTION := 0.4
 
 var radius := DISC_RADIUS
 var mass := DISC_MASS
 var velocity := Vector3.ZERO
 var moving := false
 var is_jack := false
+var side := 0
 var spin_angle := 0.0
+var roll_basis := Basis.IDENTITY
 var stop_timer := 0.0
 var punch := 0.0
 var in_ditch := false
@@ -26,6 +29,10 @@ var _spin: Node3D
 var _shadow: MeshInstance3D
 var _pip: MeshInstance3D
 var _score_ring: MeshInstance3D
+var _rim_mat: StandardMaterial3D
+var _body_mat: StandardMaterial3D
+var _cap_mat: StandardMaterial3D
+var _mark_mat: StandardMaterial3D
 
 
 static func palette(index: int) -> Array:
@@ -78,7 +85,7 @@ static func resolve(a_pos: Vector3, a_vel: Vector3, a_radius: float, a_mass: flo
 		var tangent := relative - normal * closing
 		var tangent_len := tangent.length()
 		if tangent_len > 0.001:
-			var friction_impulse := minf(impulse * 0.25, tangent_len / inv_sum)
+			var friction_impulse := minf(impulse * 0.34, tangent_len / inv_sum)
 			var tangent_dir := tangent / tangent_len
 			a_vel.x -= tangent_dir.x * friction_impulse * inv_a
 			a_vel.z -= tangent_dir.y * friction_impulse * inv_a
@@ -93,11 +100,35 @@ static func resolve(a_pos: Vector3, a_vel: Vector3, a_radius: float, a_mass: flo
 
 
 func setup_disc(index: int, hand: float = -1.0) -> void:
+	paint(index, hand)
+
+
+func paint(index: int, hand: float = -1.0) -> void:
 	palette_index = index
+	side = index % 2
 	radius = DISC_RADIUS
 	mass = DISC_MASS
 	is_jack = false
-	_build_disc(palette(index), hand)
+	var colors := palette(index)
+	if _spin == null:
+		_build_disc(colors, hand)
+		return
+	_rim_mat.albedo_color = colors[0]
+	_body_mat.albedo_color = colors[1]
+	_cap_mat.albedo_color = colors[2]
+	_mark_mat.albedo_color = colors[3]
+	set_hand(hand)
+
+
+static func roll_basis_by(current: Basis, travel: Vector3, body_radius: float) -> Basis:
+	var flat := Vector3(travel.x, 0.0, travel.z)
+	var dist := flat.length()
+	if dist < 0.00005 or body_radius < 0.001:
+		return current
+	var axis := Vector3.UP.cross(flat / dist)
+	if axis.length() < 0.001:
+		return current
+	return Basis(axis.normalized(), dist / body_radius) * current
 
 
 func setup_jack() -> void:
@@ -136,8 +167,8 @@ func present(speed: float) -> void:
 		return
 	punch = move_toward(punch, 0.0, 0.08)
 	var lift := clampf(speed / 21.5, 0.0, 1.0)
-	_spin.position.y = lift * 0.04 + punch * 0.07
-	_spin.rotation.y = spin_angle
+	_spin.position.y = lift * 0.03 + punch * 0.06
+	_spin.transform.basis = roll_basis
 	if _shadow != null:
 		_shadow.position = Vector3(0.08 + lift * 0.05, 0.012, 0.05)
 
@@ -145,7 +176,7 @@ func present(speed: float) -> void:
 func set_hand(hand: float) -> void:
 	if _pip == null:
 		return
-	_pip.position = Vector3(signf(hand) * 0.11, 0.18, 0.04)
+	_pip.position = Vector3(signf(hand) * 0.155, 0.12, 0.02)
 
 
 func set_scoring(on: bool) -> void:
@@ -154,24 +185,16 @@ func set_scoring(on: bool) -> void:
 
 
 func _build_disc(colors: Array, hand: float) -> void:
-	_shadow = _make_shadow(0.16)
+	_shadow = _make_shadow(0.22)
 	add_child(_shadow)
 	_spin = Node3D.new()
 	add_child(_spin)
-	var rim := _mat(colors[0], 0.42, 0.12)
-	var body := _mat(colors[1], 0.34, 0.08)
-	var mark := _flat(colors[3])
-	_puck(_spin, rim, body)
-	_pip = MeshInstance3D.new()
-	var pip_mesh := SphereMesh.new()
-	pip_mesh.radius = 0.035
-	pip_mesh.height = 0.07
-	pip_mesh.radial_segments = 10
-	pip_mesh.rings = 6
-	_pip.mesh = pip_mesh
-	_pip.material_override = mark
-	_pip.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_spin.add_child(_pip)
+	var dressed: Dictionary = dress_stone(_spin, colors, hand)
+	_rim_mat = dressed["rim"]
+	_body_mat = dressed["body"]
+	_cap_mat = dressed["cap"]
+	_mark_mat = dressed["mark"]
+	_pip = dressed["weight"]
 	set_hand(hand)
 	_score_ring = MeshInstance3D.new()
 	_score_ring.mesh = _annulus(0.2, 0.26, 28)
@@ -230,23 +253,57 @@ func _make_shadow(size: float) -> MeshInstance3D:
 	return shadow
 
 
-func _puck(parent: Node3D, _rim: Material, body: Material) -> void:
-	var ball := MeshInstance3D.new()
-	var mesh := SphereMesh.new()
-	mesh.radius = 0.16
-	mesh.height = 0.30
+static func dress_stone(parent: Node3D, colors: Array, hand: float) -> Dictionary:
+	var rim := _stone_mat(colors[0], 0.34, 0.28)
+	var body := _stone_mat(colors[1], 0.3, 0.18)
+	var cap := _stone_mat(colors[2], 0.26, 0.22)
+	var mark := StandardMaterial3D.new()
+	mark.albedo_color = colors[3]
+	mark.roughness = 0.22
+	mark.metallic = 0.35
+	mark.emission_enabled = true
+	mark.emission = Color(0.62, 0.24, 1.0)
+	mark.emission_energy_multiplier = 1.65
+	# A curling stone: thick running band, rounded shoulders, a handle on top.
+	_stone_cylinder(parent, Vector3(0.0, 0.05, 0.0), 0.145, 0.205, 0.055, rim)
+	_stone_cylinder(parent, Vector3(0.0, 0.125, 0.0), 0.21, 0.21, 0.1, body)
+	_stone_cylinder(parent, Vector3(0.0, 0.195, 0.0), 0.21, 0.12, 0.045, cap)
+	_stone_cylinder(parent, Vector3(0.0, 0.228, 0.0), 0.055, 0.04, 0.028, rim)
+	var weight := MeshInstance3D.new()
+	var weight_mesh := SphereMesh.new()
+	weight_mesh.radius = 0.052
+	weight_mesh.height = 0.104
+	weight_mesh.radial_segments = 16
+	weight_mesh.rings = 8
+	weight.mesh = weight_mesh
+	weight.scale = Vector3(0.85, 0.7, 1.25)
+	weight.position = Vector3(signf(hand) * 0.155, 0.12, 0.02)
+	weight.material_override = mark
+	weight.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	parent.add_child(weight)
+	return {"rim": rim, "body": body, "cap": cap, "mark": mark, "weight": weight}
+
+
+static func _stone_mat(color: Color, roughness: float, metallic: float) -> StandardMaterial3D:
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	mat.roughness = roughness
+	mat.metallic = metallic
+	mat.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
+	return mat
+
+
+static func _stone_cylinder(parent: Node3D, pos: Vector3, bottom_r: float, top_r: float, height: float, mat: Material) -> void:
+	var mi := MeshInstance3D.new()
+	var mesh := CylinderMesh.new()
+	mesh.bottom_radius = bottom_r
+	mesh.top_radius = top_r
+	mesh.height = height
 	mesh.radial_segments = 36
-	mesh.rings = 18
-	ball.mesh = mesh
-	ball.position = Vector3(0.0, 0.125, 0.0)
-	ball.scale = Vector3(1.15, 0.82, 1.15)
-	ball.material_override = body
-	parent.add_child(ball)
-	var violet := _mat(Color(0.53, 0.24, 1.0), 0.18, 0.45)
-	violet.emission_enabled = true
-	violet.emission = Color(0.66, 0.28, 1.0)
-	violet.emission_energy_multiplier = 1.35
-	_cylinder(parent, Vector3(0.0, 0.125, 0.0), 0.175, 0.175, 0.02, violet)
+	mi.mesh = mesh
+	mi.position = pos
+	mi.material_override = mat
+	parent.add_child(mi)
 
 
 func _cylinder(parent: Node3D, pos: Vector3, bottom_r: float, top_r: float, height: float, mat: Material) -> void:

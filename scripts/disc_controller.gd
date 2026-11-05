@@ -9,7 +9,7 @@ signal shot_started
 signal shot_stopped
 signal impacted(speed: float, hit_jack: bool, hit_bank: bool)
 
-const DISC_RADIUS := 0.18
+const DISC_RADIUS := 0.20
 const MAX_DRAG_PIXELS := 210.0
 const MAX_SPEED := 66.0
 const MIN_SPEED := 5.0
@@ -54,6 +54,7 @@ var _line_locked := false
 var velocity := Vector3.ZERO
 var stop_timer := 0.0
 var spin_angle := 0.0
+var roll_basis := Basis.IDENTITY
 var punch := 0.0
 var palette_index := 0
 var obstacles: Array = []
@@ -277,6 +278,7 @@ func reset_to_start() -> void:
 	stop_timer = 0.0
 	shot_bias = 0.0
 	spin_angle = 0.0
+	roll_basis = Basis.IDENTITY
 	punch = 0.0
 	visible = true
 	_hide_guide()
@@ -304,6 +306,7 @@ func _advance(body, delta: float, use_shot_bias: bool) -> void:
 		return
 	var bias := shot_bias if use_shot_bias else 0.0
 	var length_power := shot_power if use_shot_bias else 0.0
+	var before_pos: Vector3 = body.global_position
 	var moved := _move_planar(body.global_position, body.velocity, body.radius, bias, use_shot_bias, delta, length_power)
 	var fell: bool = moved[3]
 	if fell:
@@ -320,16 +323,13 @@ func _advance(body, delta: float, use_shot_bias: bool) -> void:
 		return
 	body.global_position = moved[0]
 	body.velocity = moved[1]
+	body.roll_basis = BowlScript.roll_basis_by(body.roll_basis, body.global_position - before_pos, body.radius)
 	var wall_hit: float = moved[2]
 	if wall_hit > 1.2 and wall_hit > _impact_speed:
 		_impact_speed = wall_hit
 		_impact_jack = false
 		_impact_bank = true
-	var speed: float = body.velocity.length()
-	if speed > STOP_SPEED:
-		var spin_sign := -1.0 if bias < 0.0 else 1.0
-		body.spin_angle += spin_sign * lerpf(2.2, 13.0, speed / MAX_SPEED) * delta
-	else:
+	if body.velocity.length() <= STOP_SPEED:
 		body.velocity = Vector3.ZERO
 
 
@@ -444,6 +444,36 @@ func _move_planar(pos: Vector3, vel: Vector3, body_radius: float, bias: float, u
 	return [pos, vel, wall, false]
 
 
+func weight_for_length(metres: float, bias: float) -> float:
+	var goal := maxf(metres, 2.0)
+	var low := 0.12
+	var high := 1.0
+	for _step in 12:
+		var mid := (low + high) * 0.5
+		if _forward_travel(mid, bias) < goal:
+			low = mid
+		else:
+			high = mid
+	return clampf((low + high) * 0.5, 0.12, 0.98)
+
+
+func predict_rest(from: Vector3, aim: Vector3, power: float, bias: float) -> Vector3:
+	var pos := from
+	var vel := _delivery_velocity(aim, power)
+	var step := 0.05
+	for _i in 480:
+		var moved := _move_planar(pos, vel, radius, bias, true, step, power)
+		pos = moved[0]
+		vel = moved[1]
+		if bool(moved[3]) or vel.length() < STOP_SPEED:
+			break
+	return pos
+
+
+func _forward_travel(power: float, bias: float) -> float:
+	return -predict_rest(Vector3.ZERO, Vector3(0.0, 0.0, -1.0), power, bias).z
+
+
 func _ditch_park(pos: Vector3) -> Vector3:
 	var parked := pos
 	var near_side := absf(parked.x) > green_max.x - 0.7
@@ -479,9 +509,12 @@ func _apply_visual(speed: float) -> void:
 		return
 	punch = move_toward(punch, 0.0, 0.08)
 	var lift := clampf(speed / MAX_SPEED, 0.0, 1.0)
-	_visual.position.y = lift * 0.05 + punch * 0.14
-	_visual.rotation.z = shot_bias * 0.2 * lift
-	_spin.rotation.y = spin_angle
+	_visual.position.y = lift * 0.035 + punch * 0.08
+	_visual.rotation = Vector3.ZERO
+	if delivering_jack and _jack_visual != null:
+		_jack_visual.transform.basis = roll_basis
+	elif _spin != null:
+		_spin.transform.basis = roll_basis
 	_shadow.position = Vector3(0.1 + lift * 0.08, 0.012, 0.06)
 
 
@@ -561,39 +594,12 @@ func _build_visual() -> void:
 	_spin = Node3D.new()
 	_visual.add_child(_spin)
 
-	_rim_mat = _disc_mat(Color(0.04, 0.035, 0.05), 0.35, 0.2)
-	_body_mat = _disc_mat(Color(0.10, 0.09, 0.12), 0.3, 0.12)
-	_cap_mat = _disc_mat(Color(0.16, 0.14, 0.18), 0.28, 0.1)
-	_mark_mat = StandardMaterial3D.new()
-	_mark_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_mark_mat.albedo_color = Color(0.12, 0.10, 0.08)
-
-	var ball := MeshInstance3D.new()
-	var ball_mesh := SphereMesh.new()
-	ball_mesh.radius = 0.16
-	ball_mesh.height = 0.30
-	ball_mesh.radial_segments = 36
-	ball_mesh.rings = 18
-	ball.mesh = ball_mesh
-	ball.position = Vector3(0.0, 0.125, 0.0)
-	ball.scale = Vector3(1.15, 0.82, 1.15)
-	ball.material_override = _body_mat
-	_spin.add_child(ball)
-	var violet := _disc_mat(Color(0.53, 0.24, 1.0), 0.18, 0.45)
-	violet.emission_enabled = true
-	violet.emission = Color(0.66, 0.28, 1.0)
-	violet.emission_energy_multiplier = 1.35
-	_add_cylinder(_spin, Vector3(0.0, 0.125, 0.0), 0.175, 0.175, 0.02, violet)
-	_bias_pip = MeshInstance3D.new()
-	var pip_mesh := SphereMesh.new()
-	pip_mesh.radius = 0.035
-	pip_mesh.height = 0.07
-	pip_mesh.radial_segments = 12
-	pip_mesh.rings = 8
-	_bias_pip.mesh = pip_mesh
-	_bias_pip.material_override = _mark_mat
-	_bias_pip.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_spin.add_child(_bias_pip)
+	var dressed: Dictionary = BowlScript.dress_stone(_spin, BowlScript.palette(0), -1.0)
+	_rim_mat = dressed["rim"]
+	_body_mat = dressed["body"]
+	_cap_mat = dressed["cap"]
+	_mark_mat = dressed["mark"]
+	_bias_pip = dressed["weight"]
 	_place_pip()
 
 	_jack_visual = Node3D.new()
@@ -609,7 +615,7 @@ func _build_visual() -> void:
 func _place_pip() -> void:
 	if _bias_pip == null:
 		return
-	_bias_pip.position = Vector3(hand_sign * 0.11, 0.18, 0.04)
+	_bias_pip.position = Vector3(hand_sign * 0.155, 0.12, 0.02)
 
 
 func _build_guide() -> void:

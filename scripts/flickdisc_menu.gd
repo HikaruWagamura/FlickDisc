@@ -398,7 +398,7 @@ func _build_setup() -> void:
 		_open_choices(_difficulty_options(), difficulty, _set_difficulty)
 	)
 	box.add_child(difficulty_button)
-	box.add_child(_kicker("RACE TO"))
+	box.add_child(_kicker("MATCH"))
 	race_button = _choice_button()
 	race_button.pressed.connect(func() -> void:
 		_open_choices(_race_options(), race, _set_race)
@@ -660,7 +660,7 @@ func _build_settings() -> void:
 	box.add_child(sound_button)
 	box.add_child(haptic_button)
 	box.add_child(_kicker("HOW A ROUND WORKS"))
-	box.add_child(_wrapped("Crokinole. An empty board. Touch the disc and drag the white dots to aim, then tap to lock. Pull the disc back and release on the green line. You and the far side take turns. Eight discs each. Both colours score. 20 is only the hole. 15, 10 and 5 need the disc clear of that line. A disc on the line scores the lower ring. The ditch is nothing. Only the difference is added. First to the race wins.\n\nLong rink. Touch the jack and drag the white dots to aim, then tap to lock. Pull back and release on the green line. The same shot plays each bowl. Bowls sit on the right. Forehand and backhand are the small button at the bottom right. The dots show only the start of the run. The bowl keeps that hand and will not run straight. Bowls inside two metres of the jack count. Banks rebound unless the ditch is open."))
+	box.add_child(_wrapped("Crokinole. An empty board. Touch the disc and drag the white dots to aim, then tap to lock. Pull the disc back and release on the green line. You and the far side take turns. Eight discs each. Both colours score. 20 is only the hole. 15, 10 and 5 need the disc clear of that line. A disc on the line scores the lower ring. The ditch is nothing. Only the difference is added. First to the race wins.\n\nLong rink. Touch the jack and drag the white dots to aim, then tap to lock. Pull back and release on the green line. Black bowls four, then red bowls four, alternating. The side closest to the jack scores every bowl nearer than the other side. Play one end, four ends, first to 10, or first to 21. Forehand and backhand are the small button at the bottom right. The dots show only the start of the run. The bowl keeps that hand and will not run straight. Banks rebound unless the ditch is open."))
 
 
 func _build_nav() -> void:
@@ -799,7 +799,7 @@ func _sync_setup() -> void:
 	big_play.text = "PLAY VERSUS AI" if classic else "PLAY LOCAL"
 	online_box.visible = classic
 	duo_note.visible = not classic
-	hint_label.text = "The original round board and scoring rules." if rink == "crokinole" else "Bowls and curling style. About 10 seconds to the jack."
+	hint_label.text = "The original round board and scoring rules." if rink == "crokinole" else "Four bowls each. One end, four ends, first to 10, or first to 21."
 	difficulty_button.text = _difficulty_options()[difficulty]
 	race_button.text = _race_options()[race]
 	_paint_rinks()
@@ -829,7 +829,7 @@ func _difficulty_options() -> PackedStringArray:
 
 func _race_options() -> PackedStringArray:
 	if rink == "lawn":
-		return PackedStringArray(["Quick — 2 ends", "Standard — 4 ends", "Long — first to 21"])
+		return PackedStringArray(["1 end", "4 ends", "First to 10", "First to 21"])
 	return PackedStringArray(["Quick — first to 50", "Standard — first to 100", "Long — first to 150"])
 
 
@@ -885,11 +885,13 @@ func _launch(channel: String) -> void:
 		"match_index": 1,
 	}
 	if rink == "lawn":
-		setup["match_index"] = [0, 1, 4][race]
+		setup["match_index"] = mini(race, 3)
+		setup["opponent"] = "ai" if channel == "ai" else "local"
+		setup["difficulty"] = difficulty
 		setup["ditch"] = difficulty == 2
 	else:
-		setup["target"] = [50, 100, 150][race]
-		setup["level"] = [0, 1, 4][difficulty]
+		setup["target"] = [50, 100, 150][mini(race, 2)]
+		setup["level"] = [0, 1, 4][mini(difficulty, 2)]
 	play_requested.emit(setup)
 
 

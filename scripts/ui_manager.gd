@@ -103,11 +103,11 @@ func set_power_ratio(power_ratio: float) -> void:
 		power_cap.position = Vector2(4.0 + power_fill.size.x - 7.0, 4.0)
 
 
-func show_jack_prompt(end_number: int, match_label: String, match_points: int) -> void:
+func show_jack_prompt(end_number: int, match_label: String, score_line: String) -> void:
 	level_label.text = "END %d" % end_number
-	throws_label.text = "%d PTS" % match_points
+	throws_label.text = "4 EACH"
 	status_label.text = "TOUCH TO AIM  •  TAP THE JACK TO LOCK"
-	score_label.text = match_label
+	score_label.text = "%s  •  %s" % [match_label, score_line]
 	reset_button.visible = true
 	next_button.visible = false
 	show_bowl_controls(false)
@@ -146,7 +146,7 @@ func show_aim_ready(jack: bool) -> void:
 
 
 func show_take_shot(_jack: bool = false) -> void:
-	status_label.text = "PULL THE PUCK  •  RELEASE ON THE GREEN"
+	status_label.text = "PULL THE BOWL  •  RELEASE ON THE GREEN"
 
 
 func show_jack_aim(_power_ratio: float) -> void:
@@ -164,10 +164,10 @@ func show_jack_illegal(reason: String, travelled: float, detail: String) -> void
 	score_label.text = "%.1f m  •  %s" % [travelled, detail]
 
 
-func show_jack_set(travelled: float, _bowl_name: String, throws_left: int) -> void:
-	throws_label.text = "%d BOWLS" % throws_left
+func show_jack_set(travelled: float, bowl_name: String, side_name: String) -> void:
+	throws_label.text = "4 EACH"
 	status_label.text = "JACK AT %.1f m" % travelled
-	score_label.text = "%d BOWLS" % throws_left
+	score_label.text = "%s TO BOWL  •  %s" % [side_name, bowl_name]
 	show_bowl_controls(true)
 	set_power_ratio(0.0)
 
@@ -176,18 +176,25 @@ func show_aiming(_power_ratio: float) -> void:
 	status_label.text = "RELEASE ON THE GREEN"
 
 
-func show_in_motion(throws_left: int, bowl_name: String, forehand: bool) -> void:
-	throws_label.text = "%d BOWLS" % throws_left
-	status_label.text = "%s  •  %s" % [bowl_name, "FOREHAND" if forehand else "BACKHAND"]
-	score_label.text = "%d BOWLS REMAINING" % throws_left
+func show_in_motion(side_name: String, bowl_name: String, forehand: bool, score_line: String) -> void:
+	throws_label.text = score_line
+	status_label.text = "%s  •  %s  •  %s" % [side_name, bowl_name, "FOREHAND" if forehand else "BACKHAND"]
+	score_label.text = "BOWL ROLLING"
+
+
+func show_computer(side_name: String, left: int) -> void:
+	throws_label.text = "%s %d LEFT" % [side_name, left]
+	status_label.text = "COMPUTER  •  %s BOWL" % side_name
+	score_label.text = "DRAWING TO THE JACK"
+	show_bowl_controls(false)
 
 
 func show_contact(hit_jack: bool) -> void:
-	status_label.text = "JACK STRUCK" if hit_jack else "DISCS MEET"
+	status_label.text = "JACK STRUCK" if hit_jack else "BOWLS MEET"
 
 
-func show_throw_result(disc_distance: float, closest: float, throws_left: int, jack_moved: bool, in_ditch: bool, respotted: bool, spares: int) -> void:
-	throws_label.text = "%d BOWLS" % throws_left
+func show_throw_result(disc_distance: float, closest: float, next_side: String, jack_moved: bool, in_ditch: bool, respotted: bool, spares: int, score_line: String) -> void:
+	throws_label.text = score_line
 	if in_ditch:
 		status_label.text = "IN THE DITCH"
 	else:
@@ -198,29 +205,30 @@ func show_throw_result(disc_distance: float, closest: float, throws_left: int, j
 	elif jack_moved:
 		note = "  •  JACK MOVED"
 	if closest < 0.0:
-		score_label.text = "NO BOWL ON THE GREEN%s" % note
+		score_label.text = "%s TO BOWL  •  NO BOWL ON THE GREEN%s" % [next_side, note]
 	else:
-		score_label.text = "CLOSEST %.2f m%s" % [closest, note]
+		score_label.text = "%s TO BOWL  •  CLOSEST %.2f m%s" % [next_side, closest, note]
 
 
-func show_end_summary(end_number: int, shots: int, closest: float, match_points: int, match_over: bool) -> void:
+func show_end_summary(end_number: int, side_name: String, shots: int, closest: float, score_line: String, match_over: bool) -> void:
 	summary.visible = true
 	if match_over:
 		summary_title.text = "MATCH"
 	else:
 		summary_title.text = "END %d" % end_number
-	if shots == 1:
-		summary_shots.text = "1 SHOT"
+	if shots <= 0:
+		summary_shots.text = "TIED END"
+	elif shots == 1:
+		summary_shots.text = "%s  1" % side_name
 	else:
-		summary_shots.text = "%d SHOTS" % shots
+		summary_shots.text = "%s  %d" % [side_name, shots]
 	var nearest := "NO BOWL ON THE GREEN"
 	if closest >= 0.0:
 		nearest = "CLOSEST  %.2f m" % closest
-	var total := "FINAL  %d" if match_over else "MATCH  %d"
-	summary_detail.text = "%s\n%s" % [nearest, total % match_points]
-	throws_label.text = "%d PTS" % match_points
-	status_label.text = "END COMPLETE"
-	score_label.text = nearest
+	summary_detail.text = "%s\n%s" % [nearest, score_line]
+	throws_label.text = score_line
+	status_label.text = "MATCH COMPLETE" if match_over else "END COMPLETE"
+	score_label.text = score_line
 	next_button.text = "NEW MATCH" if match_over else "NEXT END"
 	next_button.visible = true
 	reset_button.visible = true

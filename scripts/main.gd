@@ -92,6 +92,8 @@ func _play(setup: Dictionary) -> void:
 		current.player_tint = profile.disc_color()
 	else:
 		current.match_index = int(setup.get("match_index", 1))
+		current.opponent = str(setup.get("opponent", "local"))
+		current.difficulty = int(setup.get("difficulty", 1))
 		current.ditch_mode = bool(setup.get("ditch", false))
 	get_tree().root.set_meta("flickdisc_sound", profile.sound)
 	get_tree().root.set_meta("flickdisc_haptics", profile.haptics)
