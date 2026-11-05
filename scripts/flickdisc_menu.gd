@@ -1225,9 +1225,9 @@ func _choice_button() -> Button:
 func _row_button(text: String, on_press: Callable) -> Button:
 	var button := _button(text, 16)
 	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	button.custom_minimum_size = Vector2(0, 54)
+	button.custom_minimum_size = Vector2(0, 60)
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_paint_button(button, PLUM, Color(1, 0.55, 0.72, 0.9), CREAM, 14, 16)
+	_paint_button(button, Color(0.08, 0.07, 0.16, 0.88), Color("#873EFF"), CREAM, 16, 18, 2)
 	_chevron(button)
 	if on_press.is_valid():
 		button.pressed.connect(on_press)
@@ -1236,13 +1236,9 @@ func _row_button(text: String, on_press: Callable) -> Button:
 
 func _primary(text: String, on_press: Callable) -> Button:
 	var button := _button(text, 18)
-	button.custom_minimum_size = Vector2(0, 62)
+	button.custom_minimum_size = Vector2(0, 68)
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_paint_button(button, PINK_DEEP, Color("#ff8ab6"), CREAM, 16, 8)
-	var disc := _label("●", 16, CREAM, bold_font)
-	disc.position = Vector2(16, 18)
-	disc.size = Vector2(28, 24)
-	button.add_child(disc)
+	_paint_button(button, Color("#873EFF"), Color("#C4AEFF"), Color("#F7F4FF"), 16, 12, 0)
 	_chevron(button)
 	button.pressed.connect(on_press)
 	return button
@@ -1319,7 +1315,7 @@ func _place(parent: Control, node: Control, pos: Vector2, box: Vector2) -> void:
 func _paint_button(button: Button, fill: Color, border: Color, font_color: Color, radius: int, side: int, width: int = 1) -> void:
 	button.add_theme_stylebox_override("normal", _flat(fill, border, width, radius, side))
 	button.add_theme_stylebox_override("hover", _flat(fill.lightened(0.12), border, width, radius, side))
-	button.add_theme_stylebox_override("pressed", _flat(fill.darkened(0.08), Color("#ffd0ea"), width, radius, side))
+	button.add_theme_stylebox_override("pressed", _flat(fill.darkened(0.08), Color("#C4AEFF"), width, radius, side))
 	button.add_theme_stylebox_override("disabled", _flat(fill, border, width, radius, side))
 	button.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	button.add_theme_color_override("font_color", font_color)
