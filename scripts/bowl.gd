@@ -3,7 +3,9 @@ extends Node3D
 
 ## A bowl or the jack on the green. Motion is owned by the table in DiscController.
 ## Settled bowls stay where they stop, and later bowls can knock them.
-## Black is one side, red is the other. Each side bowls four in an end.
+## Red is one side, blue is the other. Each side bowls four in an end.
+## The running bowl is the sculpted lawn bowl: bias face, grip rings, and
+## finger grooves, then team colour over the same mesh.
 
 const DISC_RADIUS := 0.20
 const JACK_RADIUS := 0.16
@@ -11,6 +13,10 @@ const DISC_MASS := 2.45
 const JACK_MASS := 0.52
 const DISC_RESTITUTION := 0.46
 const JACK_RESTITUTION := 0.4
+## Uploaded GLB sits on Y=0 and stands 0.978 tall, about 0.978 across.
+const MESH_HEIGHT := 0.97834063
+const BOWL_SCENE := preload("res://assets/bowls/lawn_bowl.glb")
+const ALBEDO_BLUE := preload("res://assets/bowls/bowl_albedo_blue.jpg")
 
 var radius := DISC_RADIUS
 var mass := DISC_MASS
@@ -27,7 +33,7 @@ var palette_index := 0
 
 var _spin: Node3D
 var _shadow: MeshInstance3D
-var _pip: MeshInstance3D
+var _pip: Node3D
 var _score_ring: MeshInstance3D
 var _rim_mat: StandardMaterial3D
 var _body_mat: StandardMaterial3D
@@ -36,12 +42,31 @@ var _mark_mat: StandardMaterial3D
 
 
 static func palette(index: int) -> Array:
-	var purple := Color(0.53, 0.24, 1.0)
 	var looks := [
-		[Color(0.03, 0.03, 0.04), Color(0.07, 0.06, 0.08), Color(0.12, 0.10, 0.14), purple],
-		[Color(0.45, 0.03, 0.06), Color(0.78, 0.07, 0.12), Color(0.55, 0.05, 0.08), purple],
+		[Color(0.55, 0.06, 0.08), Color(0.78, 0.10, 0.14), Color(0.62, 0.08, 0.12), Color(0.96, 0.90, 0.88)],
+		[Color(0.08, 0.18, 0.48), Color(0.12, 0.32, 0.78), Color(0.10, 0.24, 0.62), Color(0.88, 0.92, 0.98)],
 	]
 	return looks[index % looks.size()]
+
+
+static func apply_team(mat: StandardMaterial3D, index: int) -> void:
+	if mat == null:
+		return
+	if not mat.has_meta("albedo_red"):
+		mat.set_meta("albedo_red", mat.albedo_texture)
+	if index % 2 == 1:
+		mat.albedo_texture = ALBEDO_BLUE
+		mat.albedo_color = Color(0.82, 0.90, 1.0)
+	else:
+		mat.albedo_texture = mat.get_meta("albedo_red")
+		mat.albedo_color = Color(1.0, 0.94, 0.92)
+
+
+static func hand_yaw(hand: float) -> float:
+	# The sculpt's grip dimples sit on ±Z. Turn them to ±X so a bowl
+	# running toward the jack is held left and right. The other hand
+	# flips 180 so the bias face matches the curve.
+	return 0.5 * PI if signf(hand) < 0.0 else 1.5 * PI
 
 
 static func bowl_type(index: int) -> Dictionary:
@@ -109,14 +134,10 @@ func paint(index: int, hand: float = -1.0) -> void:
 	radius = DISC_RADIUS
 	mass = DISC_MASS
 	is_jack = false
-	var colors := palette(index)
 	if _spin == null:
-		_build_disc(colors, hand)
+		_build_disc(index, hand)
 		return
-	_rim_mat.albedo_color = colors[0]
-	_body_mat.albedo_color = colors[1]
-	_cap_mat.albedo_color = colors[2]
-	_mark_mat.albedo_color = colors[3]
+	apply_team(_body_mat, index)
 	set_hand(hand)
 
 
@@ -167,7 +188,7 @@ func present(speed: float) -> void:
 		return
 	punch = move_toward(punch, 0.0, 0.08)
 	var lift := clampf(speed / 21.5, 0.0, 1.0)
-	_spin.position.y = lift * 0.03 + punch * 0.06
+	_spin.position.y = radius + lift * 0.03 + punch * 0.06
 	_spin.transform.basis = roll_basis
 	if _shadow != null:
 		_shadow.position = Vector3(0.08 + lift * 0.05, 0.012, 0.05)
@@ -176,7 +197,7 @@ func present(speed: float) -> void:
 func set_hand(hand: float) -> void:
 	if _pip == null:
 		return
-	_pip.position = Vector3(signf(hand) * 0.155, 0.12, 0.02)
+	_pip.rotation = Vector3(0.0, hand_yaw(hand), 0.0)
 
 
 func set_scoring(on: bool) -> void:
@@ -184,12 +205,12 @@ func set_scoring(on: bool) -> void:
 		_score_ring.visible = on
 
 
-func _build_disc(colors: Array, hand: float) -> void:
+func _build_disc(index: int, hand: float) -> void:
 	_shadow = _make_shadow(0.22)
 	add_child(_shadow)
 	_spin = Node3D.new()
 	add_child(_spin)
-	var dressed: Dictionary = dress_stone(_spin, colors, hand)
+	var dressed: Dictionary = dress_stone(_spin, index, hand)
 	_rim_mat = dressed["rim"]
 	_body_mat = dressed["body"]
 	_cap_mat = dressed["cap"]
@@ -253,70 +274,42 @@ func _make_shadow(size: float) -> MeshInstance3D:
 	return shadow
 
 
-static func dress_stone(parent: Node3D, colors: Array, hand: float) -> Dictionary:
-	var rim := _stone_mat(colors[0], 0.34, 0.28)
-	var body := _stone_mat(colors[1], 0.3, 0.18)
-	var cap := _stone_mat(colors[2], 0.26, 0.22)
-	var mark := StandardMaterial3D.new()
-	mark.albedo_color = colors[3]
-	mark.roughness = 0.22
-	mark.metallic = 0.35
-	mark.emission_enabled = true
-	mark.emission = Color(0.62, 0.24, 1.0)
-	mark.emission_energy_multiplier = 1.65
-	# A curling stone: thick running band, rounded shoulders, a handle on top.
-	_stone_cylinder(parent, Vector3(0.0, 0.05, 0.0), 0.145, 0.205, 0.055, rim)
-	_stone_cylinder(parent, Vector3(0.0, 0.125, 0.0), 0.21, 0.21, 0.1, body)
-	_stone_cylinder(parent, Vector3(0.0, 0.195, 0.0), 0.21, 0.12, 0.045, cap)
-	_stone_cylinder(parent, Vector3(0.0, 0.228, 0.0), 0.055, 0.04, 0.028, rim)
-	var weight := MeshInstance3D.new()
-	var weight_mesh := SphereMesh.new()
-	weight_mesh.radius = 0.052
-	weight_mesh.height = 0.104
-	weight_mesh.radial_segments = 16
-	weight_mesh.rings = 8
-	weight.mesh = weight_mesh
-	weight.scale = Vector3(0.85, 0.7, 1.25)
-	weight.position = Vector3(signf(hand) * 0.155, 0.12, 0.02)
-	weight.material_override = mark
-	weight.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	parent.add_child(weight)
-	return {"rim": rim, "body": body, "cap": cap, "mark": mark, "weight": weight}
-
-
-static func _stone_mat(color: Color, roughness: float, metallic: float) -> StandardMaterial3D:
+static func dress_stone(parent: Node3D, index: int, hand: float) -> Dictionary:
+	var holder := Node3D.new()
+	holder.name = "LawnBowl"
+	parent.add_child(holder)
+	var sculpt: Node = BOWL_SCENE.instantiate()
+	var mesh_scale := (DISC_RADIUS * 2.0) / MESH_HEIGHT
+	sculpt.scale = Vector3.ONE * mesh_scale
+	# Scale is around the GLB origin (the green). Shift so the centre
+	# sits on the spin origin and the bowl can roll without dipping.
+	sculpt.position = Vector3(0.0, -DISC_RADIUS, 0.0)
+	holder.add_child(sculpt)
+	holder.rotation = Vector3(0.0, hand_yaw(hand), 0.0)
+	var mesh := _first_mesh(sculpt)
 	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
-	mat.roughness = roughness
-	mat.metallic = metallic
+	if mesh != null:
+		var source: Material = mesh.material_override
+		if source == null:
+			source = mesh.get_active_material(0)
+		if source is StandardMaterial3D:
+			mat = (source as StandardMaterial3D).duplicate()
+		mesh.material_override = mat
+	mat.roughness = 0.52
+	mat.metallic = 0.04
 	mat.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
-	return mat
+	apply_team(mat, index)
+	return {"rim": mat, "body": mat, "cap": mat, "mark": mat, "weight": holder}
 
 
-static func _stone_cylinder(parent: Node3D, pos: Vector3, bottom_r: float, top_r: float, height: float, mat: Material) -> void:
-	var mi := MeshInstance3D.new()
-	var mesh := CylinderMesh.new()
-	mesh.bottom_radius = bottom_r
-	mesh.top_radius = top_r
-	mesh.height = height
-	mesh.radial_segments = 36
-	mi.mesh = mesh
-	mi.position = pos
-	mi.material_override = mat
-	parent.add_child(mi)
-
-
-func _cylinder(parent: Node3D, pos: Vector3, bottom_r: float, top_r: float, height: float, mat: Material) -> void:
-	var mi := MeshInstance3D.new()
-	var mesh := CylinderMesh.new()
-	mesh.bottom_radius = bottom_r
-	mesh.top_radius = top_r
-	mesh.height = height
-	mesh.radial_segments = 28
-	mi.mesh = mesh
-	mi.position = pos
-	mi.material_override = mat
-	parent.add_child(mi)
+static func _first_mesh(node: Node) -> MeshInstance3D:
+	if node is MeshInstance3D:
+		return node
+	for child in node.get_children():
+		var found := _first_mesh(child)
+		if found != null:
+			return found
+	return null
 
 
 func _mat(color: Color, roughness: float, metallic: float) -> StandardMaterial3D:

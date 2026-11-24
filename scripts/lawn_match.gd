@@ -677,7 +677,7 @@ func _side() -> int:
 
 
 func _side_name(side: int) -> String:
-	return "BLACK" if side == 0 else "RED"
+	return "RED" if side == 0 else "BLUE"
 
 
 func _bowls_left(side: int) -> int:
@@ -689,7 +689,7 @@ func _bowls_left(side: int) -> int:
 
 
 func _score_line() -> String:
-	return "BLACK %d   RED %d" % [you_points, them_points]
+	return "RED %d   BLUE %d" % [you_points, them_points]
 
 
 func _computer_turn() -> bool:
@@ -801,7 +801,7 @@ func _bowltest() -> void:
 	match_index = saved_index
 	var formats_ok := to10 and short10 and tied10 and to21 and one_end
 	var ok := black == 4 and red == 4 and match_complete and rolled and knock > 0.05 and formats_ok
-	print("BOWLTEST jack=%.2f black=%d red=%d you=%d them=%d over=%s rolled=%s knock=%.3f" % [jack_length, black, red, you_points, them_points, match_complete, rolled, knock])
+	print("BOWLTEST jack=%.2f red=%d blue=%d you=%d them=%d over=%s rolled=%s knock=%.3f" % [jack_length, black, red, you_points, them_points, match_complete, rolled, knock])
 	get_tree().quit(0 if ok else 2)
 
 

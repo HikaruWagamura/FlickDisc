@@ -73,7 +73,7 @@ var _shadow: MeshInstance3D
 var _guide: Node3D
 var _dots: Array[MeshInstance3D] = []
 var _jack_visual: Node3D
-var _bias_pip: MeshInstance3D
+var _bias_pip: Node3D
 
 
 func _ready() -> void:
@@ -286,14 +286,10 @@ func reset_to_start() -> void:
 
 
 func set_palette(index: int) -> void:
-	palette_index = index % 4
-	if _rim_mat == null:
+	palette_index = index % 2
+	if _body_mat == null:
 		return
-	var colors: Array = BowlScript.palette(palette_index)
-	_rim_mat.albedo_color = colors[0]
-	_body_mat.albedo_color = colors[1]
-	_cap_mat.albedo_color = colors[2]
-	_mark_mat.albedo_color = colors[3]
+	BowlScript.apply_team(_body_mat, palette_index)
 
 
 func set_green(bounds_min: Vector2, bounds_max: Vector2) -> void:
@@ -509,7 +505,8 @@ func _apply_visual(speed: float) -> void:
 		return
 	punch = move_toward(punch, 0.0, 0.08)
 	var lift := clampf(speed / MAX_SPEED, 0.0, 1.0)
-	_visual.position.y = lift * 0.035 + punch * 0.08
+	var sit := 0.0 if delivering_jack else radius
+	_visual.position.y = sit + lift * 0.035 + punch * 0.08
 	_visual.rotation = Vector3.ZERO
 	if delivering_jack and _jack_visual != null:
 		_jack_visual.transform.basis = roll_basis
@@ -594,7 +591,7 @@ func _build_visual() -> void:
 	_spin = Node3D.new()
 	_visual.add_child(_spin)
 
-	var dressed: Dictionary = BowlScript.dress_stone(_spin, BowlScript.palette(0), -1.0)
+	var dressed: Dictionary = BowlScript.dress_stone(_spin, palette_index, hand_sign)
 	_rim_mat = dressed["rim"]
 	_body_mat = dressed["body"]
 	_cap_mat = dressed["cap"]
@@ -615,7 +612,7 @@ func _build_visual() -> void:
 func _place_pip() -> void:
 	if _bias_pip == null:
 		return
-	_bias_pip.position = Vector3(hand_sign * 0.155, 0.12, 0.02)
+	_bias_pip.rotation = Vector3(0.0, BowlScript.hand_yaw(hand_sign), 0.0)
 
 
 func _build_guide() -> void:

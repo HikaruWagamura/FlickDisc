@@ -1,0 +1,37 @@
+[remap]
+
+importer="texture"
+type="CompressedTexture2D"
+uid="uid://c8rm6rvsecfg1"
+path="res://.godot/imported/lawn_bowl_extracted_normal_tripo_node_b864fccc-e095-4599-b543-5e7d2562232a.jpg-dc906b32c25337463710ff8a89180cd4.ctex"
+metadata={
+"vram_texture": false
+}
+generator_parameters={
+"md5": "ff6437550502e0d0e83c56b090c2721f"
+}
+
+[deps]
+
+source_file="res://assets/bowls/lawn_bowl_extracted_normal_tripo_node_b864fccc-e095-4599-b543-5e7d2562232a.jpg"
+dest_files=["res://.godot/imported/lawn_bowl_extracted_normal_tripo_node_b864fccc-e095-4599-b543-5e7d2562232a.jpg-dc906b32c25337463710ff8a89180cd4.ctex"]
+
+[params]
+
+compress/mode=0
+compress/high_quality=false
+compress/lossy_quality=0.7
+compress/hdr_compression=1
+compress/normal_map=1
+compress/channel_pack=0
+mipmaps/generate=true
+mipmaps/limit=-1
+roughness/mode=0
+roughness/src_normal=""
+process/fix_alpha_border=true
+process/premult_alpha=false
+process/normal_map_invert_y=false
+process/hdr_as_srgb=false
+process/hdr_clamp_exposure=false
+process/size_limit=0
+detect_3d/compress_to=1
