@@ -1,23 +1,167 @@
 extends Node3D
 
-## High-resolution crokinole table: recessed ditch, scoring rings, and eight pegs.
+## FlickDisc table. The paid crokinole mesh is the board you play on.
+## Peg collision still uses NCA measures so scoring stays honest.
 
 const Metrics = preload("res://scripts/table_metrics.gd")
+const CLUB_BOARD := preload("res://assets/board/crokinole.fbx")
 
 const LOGO_PATH := "res://assets/flick_disc_logo.png"
 const COURSE_PATH := "res://assets/course_background.png"
 
 func _ready() -> void:
 	_build_room()
-	_build_body()
-	_build_surface()
-	_build_rail()
+	if not _mount_club():
+		_build_body()
+		_build_surface()
+		_build_rail()
 	_build_pegs()
 	_build_lane()
 
+
+func _mount_club() -> bool:
+	if CLUB_BOARD == null:
+		return false
+	var raw: Node = CLUB_BOARD.instantiate()
+	if raw == null:
+		return false
+	var playfield := _named_mesh(raw, "playfield")
+	if playfield == null or playfield.mesh == null:
+		raw.free()
+		return false
+	var holder := Node3D.new()
+	holder.name = "ClubBoard"
+	add_child(holder)
+	holder.add_child(raw)
+	# Fit the painted playfield to the NCA surface so the ditch and the
+	# 20-hole stay where the discs already play.
+	var face := _world_aabb(playfield)
+	var radius := maxf(face.size.x, face.size.z) * 0.5
+	if radius < 0.001:
+		radius = 0.2748
+	holder.scale = Vector3.ONE * (Metrics.SURFACE_RADIUS / radius)
+	# Drop the playing face onto y=0 so buttons rest on the wood.
+	var box := _world_aabb(raw)
+	holder.position.y -= box.position.y + box.size.y
+	_hide_packed_discs(raw)
+	_hide_named(raw, "pins")
+	_hide_named(raw, "AnimationPlayer")
+	_dress_club(raw)
+	return true
+
+
+func _dress_club(node: Node) -> void:
+	var playfield := _pbr(
+		"res://assets/board/textures/crokinole_playfield_Mat_BaseColor.jpg",
+		"res://assets/board/textures/crokinole_playfield_Mat_Normal.jpg",
+		"res://assets/board/textures/crokinole_playfield_Mat_Roughness.jpg",
+		"res://assets/board/textures/crokinole_playfield_Mat_Metallic.jpg"
+	)
+	var figures := _pbr(
+		"res://assets/board/textures/crokinole_figures_Mat_BaseColor.jpg",
+		"res://assets/board/textures/crokinole_figures_Mat_Normal.jpg",
+		"res://assets/board/textures/crokinole_figures_Mat_Roughness.jpg",
+		"res://assets/board/textures/crokinole_figures_Mat_Metallic.jpg"
+	)
+	_apply_mats(node, playfield, figures)
+
+
+func _pbr(albedo_path: String, normal_path: String, rough_path: String, metal_path: String) -> StandardMaterial3D:
+	var mat := StandardMaterial3D.new()
+	var albedo: Texture2D = load(albedo_path)
+	var normal: Texture2D = load(normal_path)
+	var rough: Texture2D = load(rough_path)
+	var metal: Texture2D = load(metal_path)
+	if albedo != null:
+		mat.albedo_texture = albedo
+		mat.albedo_color = Color(1, 1, 1)
+	else:
+		mat.albedo_color = Color(0.62, 0.42, 0.24)
+	if normal != null:
+		mat.normal_enabled = true
+		mat.normal_texture = normal
+		mat.normal_scale = 0.7
+	if rough != null:
+		mat.roughness_texture = rough
+		mat.roughness = 0.72
+	else:
+		mat.roughness = 0.55
+	if metal != null:
+		mat.metallic_texture = metal
+		mat.metallic = 0.04
+	else:
+		mat.metallic = 0.04
+	mat.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	return mat
+
+
+func _apply_mats(node: Node, playfield: StandardMaterial3D, figures: StandardMaterial3D) -> void:
+	if node is MeshInstance3D:
+		var n := str(node.name).to_lower()
+		var mat := figures if ("pin" in n or "disc" in n) else playfield
+		(node as MeshInstance3D).material_override = mat
+	for child in node.get_children():
+		_apply_mats(child, playfield, figures)
+
+
+func _named_mesh(node: Node, key: String) -> MeshInstance3D:
+	if node is MeshInstance3D:
+		var n := str(node.name).to_lower()
+		if key in n:
+			return node
+	for child in node.get_children():
+		var found := _named_mesh(child, key)
+		if found != null:
+			return found
+	return null
+
+
+func _hide_packed_discs(node: Node) -> void:
+	if "disc" in str(node.name).to_lower() and node is Node3D:
+		(node as Node3D).visible = false
+	for child in node.get_children():
+		_hide_packed_discs(child)
+
+
+func _hide_named(node: Node, key: String) -> void:
+	if key.to_lower() in str(node.name).to_lower():
+		if node is Node3D:
+			(node as Node3D).visible = false
+		elif node is AnimationPlayer:
+			(node as AnimationPlayer).stop()
+			node.queue_free()
+		return
+	for child in node.get_children():
+		_hide_named(child, key)
+
+
+func _world_aabb(node: Node) -> AABB:
+	var box := AABB()
+	var first := true
+	if node is MeshInstance3D and (node as MeshInstance3D).mesh != null:
+		var mi := node as MeshInstance3D
+		var local := mi.mesh.get_aabb()
+		for i in 8:
+			var p: Vector3 = mi.global_transform * local.get_endpoint(i)
+			if first:
+				box = AABB(p, Vector3.ZERO)
+				first = false
+			else:
+				box = box.expand(p)
+	for child in node.get_children():
+		var child_box := _world_aabb(child)
+		if child_box.size.length() > 0.00001:
+			if first:
+				box = child_box
+				first = false
+			else:
+				box = box.merge(child_box)
+	return box
+
 func _build_room() -> void:
 	var floor_material := StandardMaterial3D.new()
-	floor_material.albedo_color = Color("#1a6b3c")
+	floor_material.albedo_color = Color("#1a241c")
 	floor_material.roughness = 0.92
 	Metrics.add_mesh(self, _box(Vector3(18.0, 0.04, 22.0)), floor_material, Vector3(0.0, -0.64, -4.0))
 	var rug := StandardMaterial3D.new()
