@@ -1,6 +1,11 @@
 class_name UIManager
 extends CanvasLayer
 
+const BowlScript := preload("res://scripts/bowl.gd")
+const BiasChipScript := preload("res://scripts/bias_chip.gd")
+const HandSwitchScript := preload("res://scripts/hand_switch.gd")
+const HUD_FONT := preload("res://assets/fonts/Inter-Bold.ttf")
+
 signal reset_requested
 signal next_level_requested
 signal bias_cycle_requested
@@ -33,8 +38,10 @@ var hand_label: Label
 var fore_button: Button
 var back_button: Button
 var turn_mark: Control
-var bias_buttons: Array[Button] = []
-var bias_rail: Panel
+var bias_buttons: Array = []
+var bias_rail: Control
+var hand_switch: Control
+var bias_team := 0
 var summary: Panel
 var summary_title: Label
 var summary_shots: Label
@@ -55,8 +62,8 @@ func _ready() -> void:
 	scrim.material = scrim_mat
 	add_child(scrim)
 
-	var menu_button := _make_button("MENU", Vector2(16.0, 12.0), Vector2(104.0, 32.0))
-	menu_button.add_theme_font_size_override("font_size", 13)
+	var menu_button := _make_button("MENU", Vector2(16.0, 14.0), Vector2(96.0, 40.0))
+	menu_button.add_theme_font_size_override("font_size", 14)
 	_paint_sync(menu_button, true)
 	menu_button.pressed.connect(func() -> void: leave_requested.emit())
 
@@ -65,18 +72,18 @@ func _ready() -> void:
 	throws_label = _make_label(Vector2(340.0, 44.0), Vector2(180.0, 22.0), 13, Color(0.55, 0.86, 0.9))
 	throws_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 
-	ditch_button = _make_button("REBOUND", Vector2(372.0, 70.0), Vector2(148.0, 34.0))
-	ditch_button.add_theme_font_size_override("font_size", 12)
+	ditch_button = _make_button("REBOUND", Vector2(280.0, 62.0), Vector2(148.0, 40.0))
+	ditch_button.add_theme_font_size_override("font_size", 13)
 	_paint_sync(ditch_button, false)
 	ditch_button.pressed.connect(func() -> void: ditch_option_requested.emit())
 
-	match_button = _make_button("4 ENDS", Vector2(16.0, 74.0), Vector2(118.0, 34.0))
-	match_button.add_theme_font_size_override("font_size", 12)
+	match_button = _make_button("4 ENDS", Vector2(16.0, 62.0), Vector2(118.0, 40.0))
+	match_button.add_theme_font_size_override("font_size", 13)
 	_paint_sync(match_button, false)
 	match_button.pressed.connect(func() -> void: match_cycle_requested.emit())
 
-	camera_button = _make_button("FOLLOW", Vector2(144.0, 74.0), Vector2(132.0, 34.0))
-	camera_button.add_theme_font_size_override("font_size", 11)
+	camera_button = _make_button("FOLLOW", Vector2(144.0, 62.0), Vector2(124.0, 40.0))
+	camera_button.add_theme_font_size_override("font_size", 13)
 	camera_button.pressed.connect(func() -> void: camera_requested.emit())
 	show_camera_mode(false)
 	_build_summary()
@@ -88,8 +95,8 @@ func _ready() -> void:
 	_build_bias_row()
 	_build_hand_bar()
 
-	reset_button = _make_button("RESET", Vector2(128.0, 12.0), Vector2(96.0, 32.0))
-	reset_button.add_theme_font_size_override("font_size", 12)
+	reset_button = _make_button("RESET", Vector2(122.0, 14.0), Vector2(96.0, 40.0))
+	reset_button.add_theme_font_size_override("font_size", 14)
 	_paint_sync(reset_button, false)
 	reset_button.pressed.connect(func() -> void: reset_requested.emit())
 
@@ -331,31 +338,33 @@ func hide_summary() -> void:
 		summary.visible = false
 
 
-func show_hand(forehand: bool, _bowl_name: String) -> void:
+func show_hand(forehand: bool, bowl_name: String) -> void:
 	current_bias = -1.0 if forehand else 1.0
-	if fore_button != null:
-		fore_button.text = "FORE" if forehand else "BACK"
-		_style_arrow(fore_button, true)
+	if hand_switch != null and hand_switch.has_method("set_forehand"):
+		hand_switch.set_forehand(forehand)
+	if score_label != null and "TO BOWL" in score_label.text:
+		var side := score_label.text.split(" TO BOWL")[0]
+		score_label.text = "%s TO BOWL  •  %s" % [side, bowl_name]
 
 
-func show_bias(index: int) -> void:
+func show_bias(index: int, team: int = -1) -> void:
+	if team >= 0:
+		bias_team = team % 2
 	for i in bias_buttons.size():
-		var selected := i == index
-		var fill := Color("#f3bd56") if selected else Color(0.10, 0.07, 0.09, 0.94)
-		var border := Color("#ffe9a4") if selected else Color("#c6a15a")
-		var font := Color("#1a1408") if selected else Color("#f8f1e4")
-		bias_buttons[i].add_theme_stylebox_override("normal", _premium_style(fill, border))
-		bias_buttons[i].add_theme_stylebox_override("hover", _premium_style(Color("#ffe09a"), Color("#fff4d2")))
-		bias_buttons[i].add_theme_color_override("font_color", font)
+		var chip = bias_buttons[i]
+		if chip.has_method("set_chip"):
+			chip.set_chip(i, bias_team, BowlScript.chip_texture(bias_team, i), i == index)
 
 
 func show_bowl_controls(enabled: bool) -> void:
 	if bias_rail != null:
 		bias_rail.visible = enabled
+	if hand_switch != null:
+		hand_switch.visible = enabled
 	if fore_button != null:
-		fore_button.visible = enabled
-	for button in bias_buttons:
-		button.visible = enabled
+		fore_button.visible = false
+	for chip in bias_buttons:
+		chip.visible = enabled
 
 
 func _hand_name() -> String:
@@ -427,26 +436,21 @@ func _build_aim_dial() -> void:
 
 
 func _build_bias_row() -> void:
-	bias_rail = Panel.new()
-	bias_rail.position = Vector2(444.0, 168.0)
-	bias_rail.size = Vector2(84.0, 328.0)
+	bias_rail = Control.new()
+	bias_rail.position = Vector2(454.0, 168.0)
+	bias_rail.size = Vector2(76.0, 400.0)
 	bias_rail.visible = false
 	bias_rail.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var rail := StyleBoxFlat.new()
-	rail.bg_color = Color(0.05, 0.03, 0.05, 0.62)
-	rail.border_color = Color(0.86, 0.68, 0.38, 0.85)
-	rail.set_border_width_all(1)
-	rail.set_corner_radius_all(22)
-	bias_rail.add_theme_stylebox_override("panel", rail)
 	add_child(bias_rail)
-	var names := ["NARROW", "MEDIUM", "WIDE", "HOOK"]
-	for i in names.size():
-		var button := _make_button(names[i], Vector2(451.0, 178.0 + float(i) * 78.0), Vector2(70.0, 66.0))
-		button.add_theme_font_size_override("font_size", 11)
-		button.visible = false
-		button.pressed.connect(_emit_bias.bind(i))
-		bias_buttons.append(button)
-	show_bias(1)
+	for i in 4:
+		var chip := BiasChipScript.new()
+		chip.position = Vector2(2.0, float(i) * 98.0)
+		chip.size = Vector2(72.0, 96.0)
+		chip.visible = false
+		chip.picked.connect(_emit_bias)
+		bias_rail.add_child(chip)
+		bias_buttons.append(chip)
+	show_bias(1, 0)
 
 
 func _emit_bias(index: int) -> void:
@@ -454,10 +458,15 @@ func _emit_bias(index: int) -> void:
 
 
 func _build_hand_bar() -> void:
+	hand_switch = HandSwitchScript.new()
+	hand_switch.position = Vector2(16.0, 820.0)
+	hand_switch.size = Vector2(210.0, 64.0)
+	hand_switch.visible = false
+	hand_switch.chosen.connect(func(fore: bool) -> void: hand_selected.emit(fore))
+	add_child(hand_switch)
 	fore_button = _make_button("FORE", Vector2(448.0, 900.0), Vector2(76.0, 40.0))
-	fore_button.add_theme_font_size_override("font_size", 12)
 	fore_button.visible = false
-	fore_button.pressed.connect(func() -> void: hand_selected.emit(current_bias >= 0.0))
+	fore_button.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 
 func _style_arrow(button: Button, selected: bool) -> void:
@@ -508,9 +517,10 @@ func _make_label(label_position: Vector2, label_size: Vector2, font_size: int, c
 	var label := Label.new()
 	label.position = label_position
 	label.size = label_size
+	label.add_theme_font_override("font", HUD_FONT)
 	label.add_theme_font_size_override("font_size", font_size)
 	label.add_theme_color_override("font_color", color)
-	label.add_theme_color_override("font_outline_color", Color(0.0, 0.02, 0.04, 0.72))
+	label.add_theme_color_override("font_outline_color", Color(0.18, 0.02, 0.16, 0.85))
 	label.add_theme_constant_override("outline_size", 4)
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(label)
@@ -522,8 +532,10 @@ func _make_button(button_text: String, button_position: Vector2, button_size: Ve
 	button.text = button_text
 	button.position = button_position
 	button.size = button_size
+	button.add_theme_font_override("font", HUD_FONT)
 	button.add_theme_font_size_override("font_size", 13)
-	button.add_theme_color_override("font_color", Color("#e9fbff"))
+	button.action_mode = BaseButton.ACTION_MODE_BUTTON_PRESS
+	button.add_theme_color_override("font_color", Color("#FFF6FF"))
 	button.add_theme_color_override("font_hover_color", Color("#07131e"))
 	button.add_theme_color_override("font_pressed_color", Color("#07131e"))
 	button.add_theme_stylebox_override("normal", _button_style(Color("#123849"), Color("#397d88")))
@@ -533,22 +545,19 @@ func _make_button(button_text: String, button_position: Vector2, button_size: Ve
 	return button
 
 
-func _paint_sync(button: Button, gold: bool) -> void:
-	var fill := Color("#E7BC57") if gold else Color("#080719")
-	var font := Color("#080719") if gold else Color("#F7F4FF")
-	button.add_theme_stylebox_override("normal", _button_style(fill, Color("#E7BC57")))
-	button.add_theme_stylebox_override("hover", _button_style(Color("#C4AEFF"), Color("#E7BC57")))
-	button.add_theme_stylebox_override("pressed", _button_style(Color("#E7BC57"), Color("#F7F4FF")))
-	button.add_theme_color_override("font_color", font)
-	button.add_theme_color_override("font_hover_color", Color("#080719"))
-	button.add_theme_color_override("font_pressed_color", Color("#080719"))
+func _paint_sync(button: Button, hot: bool) -> void:
+	var fill := Color("#FF2E8A") if hot else Color(0.30, 0.08, 0.48, 0.94)
+	var border := Color("#FFE4F6") if hot else Color("#5CFFF2")
+	button.add_theme_stylebox_override("normal", _pill(fill, border))
+	button.add_theme_stylebox_override("hover", _pill(fill.lightened(0.12), border))
+	button.add_theme_stylebox_override("pressed", _pill(Color("#FF5CAA"), Color("#FFFFFF")))
+	button.add_theme_color_override("font_color", Color("#FFF6FF"))
+	button.add_theme_color_override("font_hover_color", Color("#FFF6FF"))
+	button.add_theme_color_override("font_pressed_color", Color("#1A0610"))
 
 
 func _paint_selected(button: Button) -> void:
-	button.add_theme_stylebox_override("normal", _button_style(Color(0.95, 0.74, 0.34), Color(1.0, 0.91, 0.64)))
-	button.add_theme_stylebox_override("hover", _button_style(Color(1.0, 0.86, 0.55), Color(1.0, 0.95, 0.75)))
-	button.add_theme_color_override("font_color", Color(0.1, 0.08, 0.05))
-	button.add_theme_color_override("font_hover_color", Color(0.1, 0.08, 0.05))
+	_paint_sync(button, true)
 
 func _premium_style(fill: Color, border: Color) -> StyleBoxFlat:
 	var style := _button_style(fill, border)
@@ -559,12 +568,21 @@ func _premium_style(fill: Color, border: Color) -> StyleBoxFlat:
 	return style
 
 
+func _pill(fill: Color, border: Color) -> StyleBoxFlat:
+	var style := _button_style(fill, border)
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(20)
+	style.shadow_color = Color(1.0, 0.15, 0.45, 0.28)
+	style.shadow_size = 6
+	return style
+
+
 func _button_style(fill: Color, border: Color) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = fill
 	style.border_color = border
-	style.set_border_width_all(1)
-	style.set_corner_radius_all(12)
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(20)
 	style.content_margin_top = 4
 	style.content_margin_bottom = 4
 	return style

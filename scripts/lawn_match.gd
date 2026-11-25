@@ -191,6 +191,7 @@ func _begin_ready() -> void:
 	if _computer_turn():
 		if gesture != null:
 			gesture.busy()
+		disc.set_palette(1)
 		ui.show_computer(_side_name(1), _bowls_left(1))
 		_ai_token += 1
 		_play_computer(_ai_token)
@@ -509,7 +510,7 @@ func _on_bias_selected(index: int) -> void:
 	feel.tap()
 	bias_index = clampi(index, 0, 3)
 	disc.configure_bowl(bias_index, hand_sign)
-	ui.show_bias(bias_index)
+	ui.show_bias(bias_index, _side())
 	ui.show_hand(hand_sign < 0.0, _bowl_name(bias_index))
 
 
@@ -608,7 +609,7 @@ func _finish_shot(token: int) -> void:
 		disc.configure_bowl(bias_index, next_hand)
 		disc.set_palette(_side())
 		hand_sign = disc.hand_sign
-		ui.show_bias(bias_index)
+		ui.show_bias(bias_index, _side())
 		ui.show_hand(hand_sign < 0.0, _bowl_name(bias_index))
 	_place_rack()
 	disc.obstacles = _table()
@@ -688,7 +689,7 @@ func _finish_jack(rest_pos: Vector3) -> void:
 	disc.set_palette(throw_index % 2)
 	disc.reset_to_start()
 	disc.obstacles = _table()
-	ui.show_bias(bias_index)
+	ui.show_bias(bias_index, _side())
 	ui.show_hand(hand_sign < 0.0, _bowl_name(bias_index))
 	_place_rack()
 	ui.show_jack_set(travelled, _bowl_name(bias_index), _side_name(0))
@@ -778,7 +779,7 @@ func _side() -> int:
 
 
 func _side_name(side: int) -> String:
-	return "BLACK" if side == 0 else "RED"
+	return "RED" if side == 0 else "BLUE"
 
 
 func _bowls_left(side: int) -> int:
@@ -790,7 +791,7 @@ func _bowls_left(side: int) -> int:
 
 
 func _score_line() -> String:
-	return "BLACK %d   RED %d" % [you_points, them_points]
+	return "RED %d   BLUE %d" % [you_points, them_points]
 
 
 func _computer_turn() -> bool:
@@ -862,7 +863,7 @@ func _begin_drive() -> void:
 	ui.show_ditch_mode(true)
 	ui.show_camera_mode(rink.chase)
 	ui.show_match("LONG GREEN")
-	ui.show_bias(1)
+	ui.show_bias(1, 0)
 	ui.show_hand(true, _bowl_name(1))
 	_begin_ready()
 	ui.show_drive_prompt(drive_left, drive_long, drive_best)
@@ -974,7 +975,7 @@ func _begin_solo() -> void:
 	ui.show_ditch_mode(false)
 	ui.show_camera_mode(rink.chase)
 	ui.show_match("SOLO")
-	ui.show_bias(bias_index)
+	ui.show_bias(bias_index, _side())
 	ui.show_hand(hand < 0.0, _bowl_name(bias_index))
 	_begin_ready()
 	ui.show_solo_prompt(solo_index + 1, ends.size(), str(layout["name"]), str(layout["blurb"]))
@@ -1164,7 +1165,7 @@ func _showcase() -> void:
 	disc.set_palette(0)
 	bias_index = 2
 	hand_sign = disc.hand_sign
-	ui.show_bias(bias_index)
+	ui.show_bias(bias_index, _side())
 	ui.show_hand(true, _bowl_name(bias_index))
 	# Wide, on the forehand, with a little line. It runs, draws, and leaves by the side ditch.
 	disc.fire_taken(Vector3(-0.34, 0.0, -1.0).normalized(), 0.78)
@@ -1182,7 +1183,7 @@ func _play_shown(bowl_index: int, hand: float, aim: Vector3, metres: float, side
 	disc.set_palette(side)
 	bias_index = bowl_index
 	hand_sign = disc.hand_sign
-	ui.show_bias(bias_index)
+	ui.show_bias(bias_index, side)
 	ui.show_hand(hand < 0.0, _bowl_name(bias_index))
 	var power: float = disc.weight_for_length(metres, disc.bias_ratio)
 	disc.fire_taken(aim.normalized(), power)

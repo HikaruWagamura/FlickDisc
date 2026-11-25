@@ -327,6 +327,9 @@ func set_palette(index: int) -> void:
 	if _rim_mat == null:
 		return
 	BowlScript.apply_team(_body_mat, palette_index, false)
+	BowlScript.tint_band(_rim_mat, palette_index)
+	BowlScript.tint_band(_cap_mat, palette_index)
+	BowlScript.tint_band(_mark_mat, palette_index)
 
 
 func set_green(bounds_min: Vector2, bounds_max: Vector2) -> void:

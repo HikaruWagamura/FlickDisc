@@ -6,6 +6,9 @@ uniform vec3 stripe_b : source_color = vec3(0.345, 0.545, 0.176);
 uniform float stripe_width = 0.48;
 uniform float half_width = 2.9;
 uniform float depth_fade = 0.16;
+uniform sampler2D grass_tex : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform float grass_tex_scale = 2.4;
+uniform bool use_grass_tex = false;
 
 varying vec3 world_position;
 
@@ -39,6 +42,10 @@ void fragment() {
 	color = mix(color, color * vec3(0.72, 0.95, 0.55), edge * 0.35);
 	float depth = clamp((-world_position.z) / 40.0, 0.0, 1.0);
 	color = mix(color, color * vec3(0.86, 1.0, 0.82), depth * depth_fade);
+	if (use_grass_tex) {
+		vec2 tile = world_position.xz / max(grass_tex_scale, 0.05);
+		color = texture(grass_tex, tile).rgb;
+	}
 	ALBEDO = color;
 	ROUGHNESS = 0.78;
 	SPECULAR = 0.12;

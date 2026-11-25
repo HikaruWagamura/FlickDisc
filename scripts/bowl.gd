@@ -71,31 +71,29 @@ static func is_wide(bias: int) -> bool:
 	return bias % 4 == WIDE_BIAS
 
 
-static func apply_team(mat: StandardMaterial3D, index: int, wide: bool = false) -> void:
+static func team_color(index: int) -> Color:
+	return Color(0.14, 0.34, 0.88) if index % 2 == 1 else Color(0.82, 0.08, 0.14)
+
+
+static func apply_team(mat: StandardMaterial3D, index: int, _wide: bool = false) -> void:
 	if mat == null:
 		return
-	if wide:
-		if not mat.has_meta("albedo_red"):
-			mat.set_meta("albedo_red", mat.albedo_texture)
-		if index % 2 == 1:
-			mat.albedo_texture = ALBEDO_BLUE
-			mat.albedo_color = Color(0.82, 0.90, 1.0)
-		else:
-			mat.albedo_texture = mat.get_meta("albedo_red")
-			mat.albedo_color = Color(1.0, 0.94, 0.92)
-		return
+	# One colour for the whole bowl. The grooves stay in the normal map.
 	var maps := _club_maps()
 	_apply_pbr(mat, maps)
-	var team_tex: Texture2D = maps["blue"] if index % 2 == 1 else maps["red"]
-	if team_tex != null:
-		mat.albedo_texture = team_tex
-		mat.albedo_color = Color(1.0, 1.0, 1.0)
-	elif maps["albedo"] != null:
-		mat.albedo_texture = maps["albedo"]
-		mat.albedo_color = palette(index)[1]
-	else:
-		mat.albedo_texture = null
-		mat.albedo_color = palette(index)[1]
+	mat.albedo_texture = null
+	mat.albedo_color = team_color(index)
+	mat.roughness = 0.4
+	if maps["normal"] != null:
+		mat.normal_scale = 1.2
+
+
+static func tint_band(mat: StandardMaterial3D, index: int) -> void:
+	if mat == null:
+		return
+	mat.albedo_texture = null
+	mat.albedo_color = team_color(index)
+	mat.roughness = 0.34
 
 
 static func _club_maps() -> Dictionary:
@@ -211,14 +209,11 @@ static func chip_texture(team: int, bias: int) -> Texture2D:
 	var key := "%d_%d" % [team % 2, bias % 4]
 	if _chip_cache.has(key):
 		return _chip_cache[key]
-	var maps := _club_maps()
-	var src: Texture2D = maps["blue"] if team % 2 == 1 else maps["red"]
-	var src_img: Image = src.get_image() if src != null else null
-	if src_img != null and src_img.is_compressed():
-		src_img.decompress()
 	var size := 128
 	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
-	var open := 0.16 + float(bias % 4) * 0.13
+	var body := team_color(team)
+	var groove := body.darkened(0.32)
+	var open := 0.10 + float(bias % 4) * 0.16
 	for y in size:
 		for x in size:
 			var nx := (float(x) + 0.5) / float(size) * 2.0 - 1.0
@@ -227,22 +222,14 @@ static func chip_texture(team: int, bias: int) -> Texture2D:
 			if r2 > 1.0:
 				continue
 			var nz := sqrt(maxf(0.0, 1.0 - r2))
-			var u := 0.5 + atan2(nx, nz) / TAU
-			var v := 0.5 - ny * 0.48
-			var col := Color(0.72, 0.12, 0.14) if team % 2 == 0 else Color(0.12, 0.30, 0.74)
-			if src_img != null:
-				var sx := clampi(int(clampf(u, 0.0, 0.999) * float(src_img.get_width())), 0, src_img.get_width() - 1)
-				var sy := clampi(int(clampf(v, 0.0, 0.999) * float(src_img.get_height())), 0, src_img.get_height() - 1)
-				col = src_img.get_pixel(sx, sy)
-			var ring := absf(ny)
-			if ring > 0.20 and ring < 0.28:
-				col = col.lerp(Color(0.94, 0.91, 0.84), 0.78)
-			if ring > 0.32 and ring < 0.39:
-				col = col.lerp(Color(0.94, 0.91, 0.84), 0.52)
-			var pip := Vector2(open, -0.05)
-			if Vector2(nx, ny).distance_to(pip) < 0.20:
-				col = col.lerp(Color(0.97, 0.95, 0.90), 0.72)
-			var light := clampf(0.40 + nz * 0.72 + nx * 0.14 - ny * 0.08, 0.22, 1.18)
+			var col := body
+			var band := absf(fmod(ny * 6.0 + 3.0, 1.0) - 0.5)
+			if band < 0.07:
+				col = col.lerp(groove, 0.65)
+			var pip := Vector2(open, -0.04)
+			if Vector2(nx, ny).distance_to(pip) < 0.16:
+				col = col.lightened(0.42)
+			var light := clampf(0.42 + nz * 0.7 + nx * 0.12 - ny * 0.06, 0.28, 1.15)
 			var alpha := 1.0
 			if r2 > 0.90:
 				alpha = clampf((1.0 - r2) / 0.10, 0.0, 1.0)
@@ -314,7 +301,10 @@ func paint(index: int, hand: float = -1.0, bias: int = -1) -> void:
 	if _spin == null:
 		_build_disc(index, hand)
 		return
-	apply_team(_body_mat, index, is_wide(bias_type))
+	apply_team(_body_mat, index, false)
+	tint_band(_rim_mat, index)
+	tint_band(_cap_mat, index)
+	tint_band(_mark_mat, index)
 	set_hand(hand)
 
 
@@ -481,14 +471,14 @@ static func _dress_club(parent: Node3D, index: int, hand: float, variant: int = 
 	body.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
 	apply_team(body, index, false)
 	var ring := StandardMaterial3D.new()
-	ring.albedo_color = Color(0.94, 0.91, 0.84)
-	ring.roughness = 0.26
-	ring.metallic = 0.14
+	ring.roughness = 0.32
+	ring.metallic = 0.04
 	ring.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
+	tint_band(ring, index)
 	var mark := StandardMaterial3D.new()
-	mark.albedo_color = Color(0.98, 0.97, 0.93)
-	mark.roughness = 0.22
+	mark.roughness = 0.3
 	mark.metallic = 0.04
+	tint_band(mark, index)
 	if mi.mesh != null and mi.mesh.get_surface_count() > 1:
 		mi.set_surface_override_material(0, body)
 		mi.set_surface_override_material(1, ring)
