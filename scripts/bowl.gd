@@ -96,13 +96,17 @@ static func _club_maps() -> Dictionary:
 		return _maps_cache
 	var maps := {
 		"albedo": null,
-		"normal": null,
-		"roughness": null,
+		"normal": _load_tex("res://assets/bowls/textures/bowl_normal.jpg"),
+		"roughness": _load_tex("res://assets/bowls/textures/bowl_scratches.jpg"),
 		"metallic": null,
-		"red": null,
-		"blue": null,
+		"red": _load_tex("res://assets/bowls/textures/bowl_color_3.jpg"),
+		"blue": _load_tex("res://assets/bowls/textures/bowl_color_1.jpg"),
 		"jack": null,
 	}
+	if maps["red"] == null:
+		maps["red"] = _load_tex("res://assets/bowls/textures/bowl_red.jpg")
+	if maps["blue"] == null:
+		maps["blue"] = _load_tex("res://assets/bowls/textures/bowl_blue.jpg")
 	for path in _texture_paths():
 		var kind := _classify_tex(path)
 		var tex: Texture2D = load(path)
@@ -112,6 +116,12 @@ static func _club_maps() -> Dictionary:
 			maps[kind] = tex
 	_maps_cache = maps
 	return maps
+
+
+static func _load_tex(path: String) -> Texture2D:
+	if ResourceLoader.exists(path):
+		return load(path)
+	return null
 
 
 static func _texture_paths() -> PackedStringArray:
@@ -146,7 +156,7 @@ static func _classify_tex(path: String) -> String:
 	var n := path.get_file().to_lower()
 	if "normal" in n or "_nor" in n or n.contains("_n."):
 		return "normal"
-	if "rough" in n:
+	if "rough" in n or "scratch" in n:
 		return "roughness"
 	if "metal" in n:
 		return "metallic"
@@ -164,9 +174,11 @@ static func _classify_tex(path: String) -> String:
 static func _apply_pbr(mat: StandardMaterial3D, maps: Dictionary) -> void:
 	if maps["normal"] != null:
 		mat.normal_enabled = true
+		mat.normal_scale = 0.55
 		mat.normal_texture = maps["normal"]
 	if maps["roughness"] != null:
 		mat.roughness_texture = maps["roughness"]
+		mat.roughness = 0.42
 	if maps["metallic"] != null:
 		mat.metallic_texture = maps["metallic"]
 		mat.metallic = 1.0
@@ -508,8 +520,8 @@ static func apply_jack(mat: StandardMaterial3D) -> void:
 	if maps["jack"] != null:
 		mat.albedo_texture = maps["jack"]
 		mat.albedo_color = Color(1.0, 1.0, 1.0)
-	elif maps["albedo"] != null:
-		mat.albedo_texture = maps["albedo"]
+	else:
+		mat.albedo_texture = null
 		mat.albedo_color = Color(0.96, 0.94, 0.88)
 
 
