@@ -40,6 +40,7 @@ var match_index := 1
 var end_number := 1
 var you_points := 0
 var them_points := 0
+var mat_side := 0
 var opponent := "local"
 var difficulty := 1
 var fast_play := false
@@ -159,7 +160,7 @@ func _begin_ready() -> void:
 	if _computer_turn():
 		if gesture != null:
 			gesture.busy()
-		ui.show_computer(_side_name(1), _bowls_left(1))
+		ui.show_computer(_side_name(1), _bowls_left(1), "DRAW")
 		_ai_token += 1
 		_play_computer(_ai_token)
 		return
@@ -295,6 +296,7 @@ func _new_match() -> void:
 	end_number = 1
 	you_points = 0
 	them_points = 0
+	mat_side = 0
 	match_complete = false
 	match_reported = false
 	_begin_end()
@@ -331,7 +333,7 @@ func _begin_end() -> void:
 	ui.set_power_ratio(0.0)
 	ui.show_ditch_mode(ditch_mode)
 	ui.show_match(_match_label())
-	ui.show_jack_prompt(end_number, _match_label(), _score_line())
+	ui.show_jack_prompt(end_number, _match_label(), _score_line(), _side_name(mat_side))
 	_begin_ready()
 
 
@@ -449,7 +451,7 @@ func _on_match_cycle_requested() -> void:
 	feel.tap()
 	match_index = (match_index + 1) % MATCHES.size()
 	ui.show_match(_match_label())
-	ui.show_jack_prompt(end_number, _match_label(), _score_line())
+	ui.show_jack_prompt(end_number, _match_label(), _score_line(), _side_name(mat_side))
 
 
 func _on_disc_shot_started() -> void:
@@ -480,10 +482,11 @@ func _finish_shot(token: int) -> void:
 	if delivering_jack:
 		_finish_jack(rest_pos)
 		return
+	var thrown_side := _side()
 	var thrown = BowlScript.new()
 	thrown.name = "Bowl%d" % (throw_index + 1)
-	thrown.setup_disc(throw_index % 2, hand_sign, bias_index)
-	thrown.side = throw_index % 2
+	thrown.setup_disc(thrown_side, hand_sign, bias_index)
+	thrown.side = thrown_side
 	thrown.roll_basis = disc.roll_basis
 	add_child(thrown)
 	var bowl_ditched: bool = disc.in_ditch
@@ -520,13 +523,14 @@ func _finish_shot(token: int) -> void:
 	score_manager.set_table(distances)
 	var disc_distance := _distance(rest_pos, jack_pos)
 	_check_draw(disc_distance, bowl_ditched)
-	var closest: float = score_manager.get_closest_distance()
+	var head := _count_end()
+	var closest: float = float(head["closest"])
 	var jack_moved: bool = jack_pos.distance_to(jack_home) > 0.2
 	ui.set_power_ratio(0.0)
 	rink.focus_head(jack_pos)
 	if throws_left > 0:
 		feel.settled(closest if closest >= 0.0 else 9.0)
-		ui.show_throw_result(disc_distance, closest, _side_name(_side()), jack_moved, bowl_ditched, respotted, spares, _score_line())
+		ui.show_throw_result(disc_distance, closest, _side_name(_side()), jack_moved, bowl_ditched, respotted, spares, _holding_line(head))
 		if gesture != null:
 			gesture.busy()
 		if fast_play:
@@ -542,13 +546,15 @@ func _finish_shot(token: int) -> void:
 		_begin_ready()
 		return
 	else:
-		var count := _count_end()
+		var count := head
 		var shots: int = count["shots"]
 		var holder: int = count["side"]
 		if holder == 0:
 			you_points += shots
 		elif holder == 1:
 			them_points += shots
+		if holder >= 0:
+			mat_side = holder
 		match_complete = _is_match_over()
 		if match_complete and not match_reported and you_points != them_points:
 			match_reported = true
@@ -557,7 +563,7 @@ func _finish_shot(token: int) -> void:
 		_place_rack()
 		feel.settled(0.2 if shots > 0 else 9.0)
 		var holder_name := "TIED" if shots <= 0 else _side_name(holder)
-		ui.show_end_summary(end_number, holder_name, shots, closest, _score_line(), match_complete)
+		ui.show_end_summary(end_number, holder_name, shots, closest, _score_line(), match_complete, _side_name(mat_side))
 		if gesture != null:
 			gesture.busy()
 
@@ -569,6 +575,12 @@ func _finish_jack(rest_pos: Vector3) -> void:
 	var detail := ""
 	if ditched:
 		reason = "JACK IN THE DITCH"
+		detail = "THROW AGAIN"
+	elif travelled < RinkScript.SHORT_MIN:
+		reason = "JACK TOO SHORT"
+		detail = "NEEDS %.0f m" % RinkScript.SHORT_MIN
+	elif travelled > 40.0:
+		reason = "JACK TOO LONG"
 		detail = "THROW AGAIN"
 	if reason != "":
 		feel.settled(9.0)
@@ -590,7 +602,7 @@ func _finish_jack(rest_pos: Vector3) -> void:
 	ui.show_bias(bias_index)
 	ui.show_hand(hand_sign < 0.0, _bowl_name(bias_index))
 	_place_rack()
-	ui.show_jack_set(travelled, _bowl_name(bias_index), _side_name(0))
+	ui.show_jack_set(travelled, _bowl_name(bias_index), _side_name(_side()))
 	_begin_ready()
 
 
@@ -673,7 +685,7 @@ func _bowl_name(index: int) -> String:
 
 
 func _side() -> int:
-	return throw_index % 2
+	return (mat_side + throw_index) % 2
 
 
 func _side_name(side: int) -> String:
@@ -692,41 +704,133 @@ func _score_line() -> String:
 	return "RED %d   BLUE %d" % [you_points, them_points]
 
 
+func _holding_line(head: Dictionary) -> String:
+	var shots := int(head["shots"])
+	var holder := int(head["side"])
+	if shots <= 0 or holder < 0:
+		return "%s  •  OPEN HEAD" % _score_line()
+	return "%s  •  %s HOLDS %d" % [_score_line(), _side_name(holder), shots]
+
+
+func _nearest_of(side: int):
+	var best = null
+	var best_d := 999.0
+	var jack_pos: Vector3 = jack.global_position
+	for body in settled:
+		if body.in_ditch or int(body.side) != side:
+			continue
+		var dist := _distance(body.global_position, jack_pos)
+		if dist < best_d:
+			best_d = dist
+			best = body
+	return best
+
+
 func _computer_turn() -> bool:
-	return opponent == "ai" and not delivering_jack and _side() == 1
+	if opponent != "ai":
+		return false
+	if delivering_jack:
+		return mat_side == 1
+	return _side() == 1
 
 
 func _play_computer(token: int) -> void:
-	await get_tree().create_timer(0.7 if fast_play else 0.9).timeout
+	await get_tree().create_timer(0.45 if fast_play else 0.85).timeout
 	if token != _ai_token or not is_inside_tree() or not _computer_turn() or disc.shot_in_progress:
 		return
-	bias_index = 1
-	var hand := -1.0
-	disc.configure_bowl(bias_index, hand)
+	if delivering_jack:
+		_ai_cast_jack()
+		return
+	var plan: Dictionary = _ai_plan()
+	bias_index = int(plan["bias"])
+	disc.configure_bowl(bias_index, float(plan["hand"]))
 	disc.set_palette(1)
 	hand_sign = disc.hand_sign
-	var miss := 0.55
-	if difficulty == 0:
-		miss = 1.15
-	elif difficulty >= 2:
-		miss = 0.18
-	var target: Vector3 = jack.global_position + Vector3(randf_range(-miss, miss), 0.0, 0.7)
-	var from := Vector3(randf_range(-0.25, 0.25), 0.0, line_z)
+	var from: Vector3 = plan["from"]
 	place_x = from.x
 	disc.start_position = from
+	disc.global_position = from
+	ui.show_computer(_side_name(1), _bowls_left(1), str(plan["intent"]))
+	if not fast_play:
+		await get_tree().create_timer(0.35).timeout
+		if token != _ai_token or not is_inside_tree() or disc.shot_in_progress:
+			return
+	disc.fire_taken(plan["aim"], float(plan["power"]))
+
+
+func _ai_cast_jack() -> void:
+	disc.configure_jack()
+	var from := Vector3(randf_range(-0.22, 0.22), 0.0, line_z)
+	place_x = from.x
+	disc.start_position = from
+	disc.global_position = from
+	var miss := 2.4 if difficulty == 0 else (1.1 if difficulty == 1 else 0.35)
+	var length := clampf(22.5 + randf_range(-miss, miss), RinkScript.SHORT_MIN + 1.5, 32.0)
+	var power: float = disc.weight_for_length(length, 0.0)
+	var aim := Vector3(randf_range(-0.05, 0.05), 0.0, -1.0).normalized()
+	disc.fire_taken(aim, power)
+
+
+func _ai_plan() -> Dictionary:
+	var miss := 1.05
+	if difficulty == 1:
+		miss = 0.38
+	elif difficulty >= 2:
+		miss = 0.12
+	var head := _count_end()
+	var holder := int(head["side"])
+	var shots := int(head["shots"])
+	var intent := "DRAW"
+	var target: Vector3 = jack.global_position
+	if difficulty >= 2 and holder == 0 and shots >= 2:
+		var shot_bowl = _nearest_of(0)
+		if shot_bowl != null:
+			target = shot_bowl.global_position
+			intent = "FIRE"
+	elif holder == 1:
+		target.z += 0.62
+		intent = "TRAIL"
+	else:
+		target.z += 0.32
+	target.x += randf_range(-miss, miss)
+	target.z += randf_range(-miss * 0.3, miss * 0.3)
+	var from := Vector3(clampf(target.x * 0.12 + randf_range(-0.28, 0.28), -PLACE_HALF, PLACE_HALF), 0.0, line_z)
 	var along := maxf(from.z - target.z, 6.0)
-	var power: float = disc.weight_for_length(along, disc.bias_ratio)
-	var best_aim := Vector3(0.4, 0.0, -1.0).normalized()
+	if intent == "FIRE":
+		along += 2.2
+	var biases: Array[int] = [1]
+	if difficulty >= 2:
+		biases.append(2)
+	var best := {
+		"aim": Vector3(0.35, 0.0, -1.0).normalized(),
+		"power": 0.55,
+		"hand": -1.0,
+		"bias": 1,
+		"from": from,
+		"intent": intent,
+	}
 	var best_err := 9999.0
-	for sample in 7:
-		var aim_x: float = target.x - from.x + 1.35 + (float(sample) - 3.0) * 0.4
-		var aim := Vector3(aim_x, 0.0, -along).normalized()
-		var rest: Vector3 = disc.predict_rest(from, aim, power, disc.bias_ratio)
-		var err := Vector2(rest.x, rest.z).distance_to(Vector2(target.x, target.z))
-		if err < best_err:
-			best_err = err
-			best_aim = aim
-	disc.fire_taken(best_aim, power)
+	var sample_count := 5 if difficulty >= 1 else 4
+	for bias in biases:
+		for hand in [-1.0, 1.0]:
+			var ratio: float = float(hand) * float(BowlScript.bowl_type(int(bias))["bias"])
+			var power: float = disc.weight_for_length(along, ratio)
+			for sample in sample_count:
+				var wide := (float(sample) - float(sample_count - 1) * 0.5) * 0.42
+				var aim := Vector3(target.x - from.x + wide, 0.0, -along).normalized()
+				var rest: Vector3 = disc.predict_rest(from, aim, power, ratio)
+				var err := Vector2(rest.x, rest.z).distance_to(Vector2(target.x, target.z))
+				if err < best_err:
+					best_err = err
+					best = {
+						"aim": aim,
+						"power": power,
+						"hand": hand,
+						"bias": bias,
+						"from": from,
+						"intent": intent,
+					}
+	return best
 
 
 func _wants_bowltest() -> bool:

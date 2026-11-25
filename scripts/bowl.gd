@@ -11,8 +11,10 @@ const DISC_RADIUS := 0.20
 const JACK_RADIUS := 0.16
 const DISC_MASS := 2.45
 const JACK_MASS := 0.52
-const DISC_RESTITUTION := 0.46
-const JACK_RESTITUTION := 0.4
+## Lawn bowls kiss and push. A high bounce reads as snooker, not grass.
+const DISC_RESTITUTION := 0.30
+const JACK_RESTITUTION := 0.42
+const CONTACT_FRICTION := 0.58
 ## Tripo sculpt sits on Y=0 and stands 0.978 tall.
 const WIDE_MESH_HEIGHT := 0.97834063
 const WIDE_BIAS := 2
@@ -41,6 +43,7 @@ var punch := 0.0
 var in_ditch := false
 var palette_index := 0
 var bias_type := 1
+var hand_sign := -1.0
 
 var _spin: Node3D
 var _shadow: MeshInstance3D
@@ -232,7 +235,7 @@ static func resolve(a_pos: Vector3, a_vel: Vector3, a_radius: float, a_mass: flo
 		var tangent := relative - normal * closing
 		var tangent_len := tangent.length()
 		if tangent_len > 0.001:
-			var friction_impulse := minf(impulse * 0.34, tangent_len / inv_sum)
+			var friction_impulse := minf(impulse * CONTACT_FRICTION, tangent_len / inv_sum)
 			var tangent_dir := tangent / tangent_len
 			a_vel.x -= tangent_dir.x * friction_impulse * inv_a
 			a_vel.z -= tangent_dir.y * friction_impulse * inv_a
@@ -254,6 +257,7 @@ func setup_disc(index: int, hand: float = -1.0, bias: int = 1) -> void:
 func paint(index: int, hand: float = -1.0, bias: int = -1) -> void:
 	palette_index = index
 	side = index % 2
+	hand_sign = -1.0 if signf(hand) < 0.0 else 1.0
 	if bias >= 0:
 		bias_type = bias
 	radius = DISC_RADIUS
@@ -274,7 +278,8 @@ static func roll_basis_by(current: Basis, travel: Vector3, body_radius: float) -
 	var axis := Vector3.UP.cross(flat / dist)
 	if axis.length() < 0.001:
 		return current
-	return Basis(axis.normalized(), dist / body_radius) * current
+	# Less than a pure roll so the last metres still read as a grass slide.
+	return Basis(axis.normalized(), dist / body_radius * 0.78) * current
 
 
 func setup_jack() -> void:

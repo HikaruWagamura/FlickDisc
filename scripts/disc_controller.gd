@@ -18,13 +18,15 @@ const DIAL_POWER_PIXELS := 148.0
 const DIAL_SIDE_PIXELS := 132.0
 const LINE_LOCK_PIXELS := 36.0
 const MAX_LINE := 0.16
-const FRICTION_PER_SECOND := 0.52
-const STOP_SPEED := 0.15
-const STOP_GRACE_SECONDS := 0.15
+const FRICTION_FAST := 0.58
+const FRICTION_SLOW := 0.36
+const STOP_SPEED := 0.14
+const STOP_GRACE_SECONDS := 0.16
 ## Radians of turn per metre at bias 1. The same bowl takes the same
 ## curve whatever the aim, so a straight line still finishes wide.
-const CURL_PER_METRE := 0.0025
-const CURL_DRAW := 0.45
+const CURL_PER_METRE := 0.014
+const CURL_DRAW := 1.12
+const KNOCK_CURL := 0.38
 const PICK_RADIUS_PX := 88.0
 const GUIDE_DOTS := 9
 const GUIDE_PORTION := 0.26
@@ -105,7 +107,7 @@ func _physics_process(delta: float) -> void:
 	_impact_speed = 0.0
 	_impact_jack = false
 	_impact_bank = false
-	var substeps := 4
+	var substeps := 6
 	var step := delta / float(substeps)
 	for _sub in substeps:
 		_advance(self, step, true)
@@ -118,7 +120,7 @@ func _physics_process(delta: float) -> void:
 	for body in obstacles:
 		if body.has_method("present"):
 			body.present(body.velocity.length())
-	if _impact_speed > 0.45:
+	if _impact_speed > 0.22:
 		impacted.emit(_impact_speed, _impact_jack, _impact_bank)
 
 
@@ -310,10 +312,11 @@ func set_green(bounds_min: Vector2, bounds_max: Vector2) -> void:
 func _advance(body, delta: float, use_shot_bias: bool) -> void:
 	if body.in_ditch:
 		return
-	var bias := shot_bias if use_shot_bias else 0.0
+	var bias := shot_bias if use_shot_bias else _knock_bias(body)
 	var length_power := shot_power if use_shot_bias else 0.0
+	var use_bias := use_shot_bias or absf(bias) > 0.001
 	var before_pos: Vector3 = body.global_position
-	var moved := _move_planar(body.global_position, body.velocity, body.radius, bias, use_shot_bias, delta, length_power)
+	var moved := _move_planar(body.global_position, body.velocity, body.radius, bias, use_bias, delta, length_power)
 	var fell: bool = moved[3]
 	if fell:
 		body.in_ditch = true
@@ -413,12 +416,20 @@ func _punch(body, amount: float) -> void:
 		body.add_punch(amount)
 
 
+func _knock_bias(body) -> float:
+	if body == null or body.is_jack:
+		return 0.0
+	if not ("bias_type" in body) or not ("hand_sign" in body):
+		return 0.0
+	var info: Dictionary = BowlScript.bowl_type(int(body.bias_type))
+	return float(body.hand_sign) * float(info["bias"]) * KNOCK_CURL
+
+
 func _move_planar(pos: Vector3, vel: Vector3, body_radius: float, bias: float, use_bias: bool, delta: float, length_power: float = 0.0) -> Array:
 	if use_bias:
 		vel = _curve_and_damp(vel, bias, delta, length_power)
 	else:
-		vel *= pow(FRICTION_PER_SECOND, delta)
-		vel.y = 0.0
+		vel = _grass_damp(vel, delta)
 	var before := vel
 	pos += vel * delta
 	pos.y = 0.0
@@ -505,7 +516,15 @@ func _curve_and_damp(vel: Vector3, bias: float, delta: float, _length_power: flo
 		planar = planar.rotated(bias * curve * speed * delta)
 		vel.x = planar.x
 		vel.z = planar.y
-	vel *= pow(FRICTION_PER_SECOND, delta)
+	return _grass_damp(vel, delta)
+
+
+func _grass_damp(vel: Vector3, delta: float) -> Vector3:
+	var speed := Vector2(vel.x, vel.z).length()
+	var slow := clampf(1.0 - speed / MAX_SPEED, 0.0, 1.0)
+	# Fast running is a long slide. The last metres grab the grass.
+	var friction := lerpf(FRICTION_FAST, FRICTION_SLOW, slow * slow)
+	vel *= pow(friction, delta)
 	vel.y = 0.0
 	return vel
 

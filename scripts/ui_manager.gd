@@ -103,10 +103,10 @@ func set_power_ratio(power_ratio: float) -> void:
 		power_cap.position = Vector2(4.0 + power_fill.size.x - 7.0, 4.0)
 
 
-func show_jack_prompt(end_number: int, match_label: String, score_line: String) -> void:
+func show_jack_prompt(end_number: int, match_label: String, score_line: String, caster: String = "RED") -> void:
 	level_label.text = "END %d" % end_number
 	throws_label.text = "4 EACH"
-	status_label.text = "TOUCH TO AIM  •  TAP THE JACK TO LOCK"
+	status_label.text = "%s TO CAST THE JACK  •  TAP TO LOCK" % caster
 	score_label.text = "%s  •  %s" % [match_label, score_line]
 	reset_button.visible = true
 	next_button.visible = false
@@ -182,10 +182,15 @@ func show_in_motion(side_name: String, bowl_name: String, forehand: bool, score_
 	score_label.text = "BOWL ROLLING"
 
 
-func show_computer(side_name: String, left: int) -> void:
+func show_computer(side_name: String, left: int, intent: String = "DRAW") -> void:
 	throws_label.text = "%s %d LEFT" % [side_name, left]
 	status_label.text = "COMPUTER  •  %s BOWL" % side_name
-	score_label.text = "DRAWING TO THE JACK"
+	var line := "DRAWING TO THE JACK"
+	if intent == "FIRE":
+		line = "FIRING AT THE SHOT"
+	elif intent == "TRAIL":
+		line = "TRAILING THE HEAD"
+	score_label.text = line
 	show_bowl_controls(false)
 
 
@@ -210,7 +215,7 @@ func show_throw_result(disc_distance: float, closest: float, next_side: String, 
 		score_label.text = "%s TO BOWL  •  CLOSEST %.2f m%s" % [next_side, closest, note]
 
 
-func show_end_summary(end_number: int, side_name: String, shots: int, closest: float, score_line: String, match_over: bool) -> void:
+func show_end_summary(end_number: int, side_name: String, shots: int, closest: float, score_line: String, match_over: bool, mat_name: String = "") -> void:
 	summary.visible = true
 	if match_over:
 		summary_title.text = "MATCH"
@@ -225,7 +230,10 @@ func show_end_summary(end_number: int, side_name: String, shots: int, closest: f
 	var nearest := "NO BOWL ON THE GREEN"
 	if closest >= 0.0:
 		nearest = "CLOSEST  %.2f m" % closest
-	summary_detail.text = "%s\n%s" % [nearest, score_line]
+	var mat_line := ""
+	if not match_over and mat_name != "":
+		mat_line = "\n%s TAKES THE MAT" % mat_name
+	summary_detail.text = "%s\n%s%s" % [nearest, score_line, mat_line]
 	throws_label.text = score_line
 	status_label.text = "MATCH COMPLETE" if match_over else "END COMPLETE"
 	score_label.text = score_line
