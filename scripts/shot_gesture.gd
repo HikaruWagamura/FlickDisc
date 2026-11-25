@@ -270,25 +270,23 @@ func _direct_can_start(screen: Vector2) -> bool:
 func _apply_direct(screen: Vector2) -> void:
 	finger = screen
 	_travel = maxf(_travel, _from.distance_to(screen))
-	var spot := anchor
-	if board_point.is_valid():
-		spot = board_point.call(screen)
-	# Back is toward the bowler. The bowl follows that drag, and the shot
-	# leaves the other way, through the mat and up the green.
-	var side := spot.x - anchor.x
-	var back := maxf(spot.z - anchor.z, 0.0)
-	var metres := Vector2(side, back).length()
-	if metres < 0.025:
+	# The green in front of the camera never reaches behind the mat, so the
+	# pull is the finger's own travel. A full draw is a short drag.
+	var pull_px := maxf(_pull_pixels(_from, screen), 0.0)
+	var side_px := _side_pixels(_from, screen)
+	if pull_px < 10.0 and absf(side_px) < 8.0:
 		direct_power = 0.0
 		direct_aim = Vector3(0.0, 0.0, -1.0)
 		direct_hold = anchor
 		return
+	var travel := clampf(pull_px / 260.0, 0.0, 1.0)
+	var back := travel * DIRECT_METRES
+	# Finger left sends the bowl out to the right, the same as a world drag.
+	var side := clampf(-side_px / 150.0, -1.0, 1.0) * 1.05
 	var aim_back := maxf(back, 0.28)
 	direct_aim = Vector3(-side, 0.0, -aim_back).normalized()
-	var travel := clampf(metres / DIRECT_METRES, 0.0, 1.0)
-	direct_power = pow(travel, 1.08)
-	var unit := Vector3(side, 0.0, back) / metres
-	direct_hold = anchor + unit * minf(metres, DIRECT_METRES)
+	direct_power = pow(travel, 1.05)
+	direct_hold = anchor + Vector3(clampf(side, -0.55, 0.55) * travel * 0.42, 0.0, back)
 
 
 func _is_mouse_press(event: InputEvent) -> bool:

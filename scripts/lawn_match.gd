@@ -36,7 +36,7 @@ var shot_token := 0
 var delivering_jack := true
 var hand_sign := -1.0
 var bias_index := 1
-var ditch_mode := false
+var ditch_mode := true
 var jack_length := 0.0
 var match_index := 1
 var end_number := 1
@@ -273,6 +273,14 @@ func _board_point(screen_position: Vector2) -> Vector3:
 	return origin + direction * distance
 
 
+func _aim_nose(origin: Vector3, aim: Vector3) -> Vector3:
+	var flat := Vector3(aim.x, 0.0, aim.z)
+	if flat.length() < 0.01:
+		flat = Vector3(0.0, 0.0, -1.0)
+	flat = flat.normalized()
+	return Vector3(origin.x, 0.028, origin.z) + flat * (disc.radius + 0.06)
+
+
 func _facing(origin: Vector3, aim: Vector3) -> float:
 	var cam: Camera3D = rink.view_camera()
 	if cam == null:
@@ -323,9 +331,18 @@ func _sync_fan() -> void:
 	var lift := disc_px + 86.0
 	fan.present(cursor_at, power, needle, show_cursor, _facing(live_pos, _aim_from(0.0)), lift)
 	var dots := PackedVector2Array()
+	var half := PackedFloat32Array()
+	var lefts := PackedVector2Array()
+	var rights := PackedVector2Array()
 	if show_arrow:
-		dots = fan.project_dots(cam, live_pos, disc.guide_points(), disc.radius * 0.3, cursor_at, disc_px + 16.0)
-	fan.set_dots(dots, show_arrow)
+		var idle_centre := cam.unproject_position(live_pos)
+		var idle_edge := cam.unproject_position(live_pos + Vector3(disc.radius, 0.0, 0.0))
+		var cue: Dictionary = fan.project_cue(cam, disc.grass_cue(0.35), 0.04, 0.09, idle_centre, idle_centre.distance_to(idle_edge))
+		dots = cue["pts"]
+		half = cue["half"]
+		lefts = cue["left"]
+		rights = cue["right"]
+	fan.set_cue(dots, half, show_arrow, lefts, rights)
 	fan.set_line(Vector2.ZERO, Vector2.ZERO, false)
 	fan.set_aim(Vector2.ZERO, Vector2.ZERO, false)
 	fan.set_disc(cursor_at, false)
@@ -348,14 +365,30 @@ func _sync_direct(cam: Camera3D, placed: Vector3) -> void:
 			disc.preview_take(Vector3(0.0, 0.0, -1.0), 0.0)
 	var live_pos: Vector3 = disc.global_position
 	var bowl_px := cam.unproject_position(live_pos + Vector3(0.0, 0.16, 0.0))
+	var centre := cam.unproject_position(live_pos)
+	var bowl_r := 24.0
+	for step in 8:
+		var ang := TAU * float(step) / 8.0
+		var rim := cam.unproject_position(live_pos + Vector3(cos(ang), 0.2, sin(ang)) * disc.radius)
+		bowl_r = maxf(bowl_r, centre.distance_to(rim))
 	fan.present(bowl_px, power, 0.0, false, -PI * 0.5, 120.0)
 	var dots := PackedVector2Array()
+	var half := PackedFloat32Array()
+	var lefts := PackedVector2Array()
+	var rights := PackedVector2Array()
 	if pulling:
-		dots = fan.project_dots(cam, live_pos, disc.guide_points(), disc.radius * 2.2, bowl_px, 72.0)
-	fan.set_dots(dots, pulling and dots.size() > 1)
+		var root_w := lerpf(0.034, 0.055, power)
+		var tip_w := lerpf(0.08, 0.16, power)
+		var cue: Dictionary = fan.project_cue(cam, disc.grass_cue(power), root_w, tip_w, centre, bowl_r * 1.22)
+		dots = cue["pts"]
+		half = cue["half"]
+		lefts = cue["left"]
+		rights = cue["right"]
+	fan.set_cue(dots, half, pulling and dots.size() > 1, lefts, rights)
 	fan.set_aim(Vector2.ZERO, Vector2.ZERO, false)
 	fan.set_line(Vector2.ZERO, Vector2.ZERO, false)
 	fan.set_disc(bowl_px, live and not pulling)
+	fan.set_bowl(centre, bowl_r * 1.18)
 	fan.set_finger(gesture.finger, pulling)
 
 
@@ -938,8 +971,8 @@ func _begin_solo() -> void:
 	var layout: Dictionary = ends[clampi(solo_index, 0, ends.size() - 1)]
 	rink.release_head()
 	rink.set_head_visible(false)
-	rink.set_ditch_mode(false)
-	ditch_mode = false
+	rink.set_ditch_mode(true)
+	ditch_mode = true
 	_clear_settled()
 	disc.set_pace(1.0, DiscScript.DECEL)
 	disc.ditch_mode = false
@@ -1290,9 +1323,9 @@ func _assert_hands() -> bool:
 	var spread := narrow.x - hook.x
 	var ditched: bool = disc.will_ditch(Vector3(0.0, 0.0, -2.0), Vector3(0.9, 0.0, -0.35).normalized(), 0.9, 0.0)
 	var stayed: bool = not disc.will_ditch(Vector3.ZERO, Vector3(0.0, 0.0, -1.0), narrow_power, 0.0)
-	ditch_mode = false
-	disc.ditch_mode = false
-	rink.set_ditch_mode(false)
+	ditch_mode = true
+	disc.ditch_mode = true
+	rink.set_ditch_mode(true)
 	disc.configure_jack()
 	disc.reset_to_start()
 	print("HANDTEST narrow=%.2f hook=%.2f spread=%.2f ditch=%s stay=%s" % [narrow.x, hook.x, spread, ditched, stayed])

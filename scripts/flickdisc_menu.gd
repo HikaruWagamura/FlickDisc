@@ -922,7 +922,7 @@ func _launch_solo() -> void:
 		"back": "home",
 		"opponent": "local",
 		"match_index": 0,
-		"ditch": false,
+		"ditch": true,
 		"goal": "solo",
 		"challenge": "",
 		"difficulty": 0,
@@ -996,7 +996,7 @@ func _launch(channel: String) -> void:
 		setup["match_index"] = mini(race, 3)
 		setup["opponent"] = "ai" if channel == "ai" else "local"
 		setup["difficulty"] = difficulty
-		setup["ditch"] = difficulty == 2
+		setup["ditch"] = true
 	else:
 		setup["target"] = [50, 100, 150][mini(race, 2)]
 		setup["level"] = [0, 1, 4][mini(difficulty, 2)]
@@ -1020,6 +1020,7 @@ func _practice(which: String) -> void:
 	elif which == "jack":
 		setup["rink"] = "lawn"
 		setup["match_index"] = 0
+		setup["ditch"] = true
 	_emit_play(setup)
 
 
@@ -1038,6 +1039,7 @@ func _challenge(ident: String) -> void:
 	if ident == "draw":
 		setup["rink"] = "lawn"
 		setup["goal"] = "draw"
+		setup["ditch"] = true
 	_emit_play(setup)
 
 

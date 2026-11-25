@@ -240,6 +240,7 @@ func preview_take(aim: Vector3, power: float) -> void:
 	var shown := clampf(power, 0.0, 1.0)
 	_power_target = shown
 	power_ratio = shown
+	shot_bias = 0.0 if delivering_jack else bias_ratio
 	is_aiming = shown >= 0.08
 	if not is_aiming:
 		_hide_guide()
@@ -656,6 +657,48 @@ func guide_points() -> PackedVector3Array:
 	if not is_aiming or power_ratio <= 0.02:
 		return PackedVector3Array()
 	return _predict_path()
+
+
+func grass_cue(power: float) -> PackedVector3Array:
+	# A short ribbon on the green, from the front of the bowl. The jack
+	# stays straight. A bowl takes the hand of its bias.
+	var flat := Vector3(aim_direction.x, 0.0, aim_direction.z)
+	if flat.length() < 0.001:
+		flat = Vector3(0.0, 0.0, -1.0)
+	flat = flat.normalized()
+	var start := Vector3(global_position.x, 0.028, global_position.z) + flat * (radius + 0.18)
+	var want := lerpf(1.8, 4.8, clampf(power, 0.0, 1.0))
+	var out := PackedVector3Array()
+	var use_bias := (not delivering_jack) and absf(bias_ratio) > 0.04
+	if not use_bias:
+		for step in 20:
+			var t := float(step) / 19.0
+			var point := start + flat * (want * t)
+			point.y = 0.028
+			out.append(point)
+		return out
+	var pos := global_position
+	var vel := _delivery_velocity(aim_direction, clampf(maxf(power, 0.18), 0.0, 1.0))
+	var travelled := 0.0
+	var bias := bias_ratio
+	out.append(start)
+	var step := 0.04
+	for _i in 180:
+		var prev := pos
+		var moved := _move_planar(pos, vel, radius, bias, true, step, power)
+		pos = moved[0]
+		vel = moved[1]
+		travelled += prev.distance_to(pos)
+		if travelled < radius + 0.06:
+			continue
+		var point := Vector3(pos.x, 0.028, pos.z)
+		if out[out.size() - 1].distance_to(point) >= 0.07:
+			out.append(point)
+		if travelled >= want or bool(moved[3]) or vel.length() < STOP_SPEED:
+			break
+	if out.size() < 2:
+		out.append(start + flat * want)
+	return out
 
 
 func _update_guide() -> void:

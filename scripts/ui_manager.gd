@@ -47,6 +47,7 @@ var summary_title: Label
 var summary_shots: Label
 var summary_detail: Label
 var power_fill: TextureRect
+var power_max: Label
 var current_bias := 0.0
 
 const POWER_WIDTH := 250.0
@@ -110,13 +111,30 @@ func set_power_ratio(power_ratio: float) -> void:
 	if power_fill == null:
 		return
 	var ratio := clampf(power_ratio, 0.0, 1.0)
-	var inner := 352.0
+	var inner := 500.0
 	if power_track != null:
-		inner = power_track.size.x - 16.0
-	power_fill.size.x = inner * ratio
+		inner = power_track.size.y - 20.0
+	var tall := maxf(inner * ratio, 4.0)
+	power_fill.size = Vector2(16.0, tall)
+	power_fill.position = Vector2(8.0, 10.0 + inner - tall)
+	_paint_power_fill(ratio)
 	if power_cap != null:
 		power_cap.visible = true
-		power_cap.position = Vector2(8.0 + inner * ratio - 9.0, -4.0)
+		var heat := Color(0.36, 1.0, 0.95).lerp(Color(1.0, 0.12, 0.18), smoothstep(0.35, 1.0, ratio))
+		var cap := StyleBoxFlat.new()
+		cap.bg_color = heat.lerp(Color(1.0, 0.96, 0.94), 0.35)
+		cap.border_color = heat
+		cap.set_border_width_all(3)
+		cap.set_corner_radius_all(14)
+		cap.shadow_color = Color(heat.r, heat.g, heat.b, 0.45)
+		cap.shadow_size = 8
+		power_cap.add_theme_stylebox_override("panel", cap)
+		power_cap.position = Vector2(-2.0, power_fill.position.y - 8.0)
+	if power_max != null:
+		power_max.visible = ratio >= 0.94
+		if power_max.visible:
+			var pulse := 0.72 + 0.28 * sin(Time.get_ticks_msec() * 0.012)
+			power_max.self_modulate = Color(1.0, 0.22, 0.28, pulse)
 
 
 func show_jack_prompt(end_number: int, match_label: String, score_line: String) -> void:
@@ -374,57 +392,91 @@ func _hand_name() -> String:
 
 func _build_power_meter() -> void:
 	power_track = Panel.new()
-	power_track.position = Vector2(70.0, 912.0)
-	power_track.size = Vector2(400.0, 28.0)
+	power_track.position = Vector2(500.0, 148.0)
+	power_track.size = Vector2(32.0, 520.0)
 	power_track.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var track := StyleBoxFlat.new()
-	track.bg_color = Color(0.03, 0.07, 0.1, 0.92)
-	track.border_color = Color(0.9, 0.76, 0.38)
+	track.bg_color = Color(0.05, 0.03, 0.12, 0.88)
+	track.border_color = Color(0.72, 0.42, 1.0, 0.95)
 	track.set_border_width_all(2)
-	track.set_corner_radius_all(11)
+	track.set_corner_radius_all(16)
+	track.shadow_color = Color(0.55, 0.18, 1.0, 0.32)
+	track.shadow_size = 8
 	power_track.add_theme_stylebox_override("panel", track)
 	power_track.clip_contents = false
 	add_child(power_track)
-	var gradient := Gradient.new()
-	gradient.set_color(0, Color(0.16, 0.55, 0.66))
-	gradient.add_point(0.62, Color(0.55, 0.9, 0.78))
-	gradient.set_color(gradient.get_point_count() - 1, Color(0.98, 0.78, 0.32))
-	var texture := GradientTexture2D.new()
-	texture.gradient = gradient
-	texture.width = 256
-	texture.height = 16
-	texture.fill_from = Vector2(0.0, 0.5)
-	texture.fill_to = Vector2(1.0, 0.5)
+	for tick in 5:
+		var mark := ColorRect.new()
+		mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		mark.color = Color(1.0, 1.0, 1.0, 0.18)
+		mark.size = Vector2(10.0, 2.0)
+		mark.position = Vector2(11.0, 18.0 + float(tick) * 96.0)
+		power_track.add_child(mark)
 	power_fill = TextureRect.new()
 	power_fill.position = Vector2(8.0, 10.0)
-	power_fill.size = Vector2(0.0, 8.0)
-	power_fill.texture = texture
+	power_fill.size = Vector2(16.0, 4.0)
 	power_fill.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	power_fill.stretch_mode = TextureRect.STRETCH_SCALE
 	power_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	power_track.add_child(power_fill)
+	_paint_power_fill(0.0)
 	power_cap = Panel.new()
-	power_cap.size = Vector2(18.0, 36.0)
-	power_cap.position = Vector2(8.0, -4.0)
+	power_cap.size = Vector2(28.0, 28.0)
+	power_cap.position = Vector2(-2.0, 490.0)
 	power_cap.visible = true
 	power_cap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var cap := StyleBoxFlat.new()
-	cap.bg_color = Color(0.98, 0.95, 0.9)
+	cap.bg_color = Color(0.85, 1.0, 1.0)
 	cap.border_color = Color(0.36, 1.0, 0.95)
 	cap.set_border_width_all(3)
-	cap.set_corner_radius_all(8)
+	cap.set_corner_radius_all(14)
 	power_cap.add_theme_stylebox_override("panel", cap)
 	power_track.add_child(power_cap)
 	power_label = Label.new()
 	power_label.text = "POWER"
-	power_label.position = Vector2(70.0, 892.0)
-	power_label.size = Vector2(400.0, 18.0)
+	power_label.position = Vector2(478.0, 672.0)
+	power_label.size = Vector2(76.0, 18.0)
 	power_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	power_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	power_label.add_theme_font_override("font", HUD_FONT)
 	power_label.add_theme_font_size_override("font_size", 11)
-	power_label.add_theme_color_override("font_color", Color(0.98, 0.92, 0.72, 0.95))
+	power_label.add_theme_color_override("font_color", Color(0.92, 0.82, 1.0, 0.95))
 	power_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(power_label)
+	power_max = Label.new()
+	power_max.text = "MAX"
+	power_max.position = Vector2(-22.0, -24.0)
+	power_max.size = Vector2(76.0, 22.0)
+	power_max.visible = false
+	power_max.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	power_max.add_theme_font_override("font", HUD_FONT)
+	power_max.add_theme_font_size_override("font_size", 14)
+	power_max.add_theme_color_override("font_color", Color(1.0, 0.22, 0.32))
+	power_max.add_theme_color_override("font_outline_color", Color(0.18, 0.02, 0.06, 0.85))
+	power_max.add_theme_constant_override("outline_size", 4)
+	power_max.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	power_track.add_child(power_max)
+
+
+func _paint_power_fill(ratio: float) -> void:
+	if power_fill == null:
+		return
+	var gradient := Gradient.new()
+	var cyan := Color(0.22, 0.95, 1.0)
+	var violet := Color(0.78, 0.28, 1.0)
+	var red := Color(1.0, 0.12, 0.18)
+	gradient.set_color(0, cyan)
+	if ratio < 0.45:
+		gradient.set_color(gradient.get_point_count() - 1, cyan.lerp(violet, clampf(ratio / 0.45, 0.0, 1.0)))
+	else:
+		gradient.add_point(0.42, violet)
+		gradient.set_color(gradient.get_point_count() - 1, violet.lerp(red, clampf((ratio - 0.45) / 0.55, 0.0, 1.0)))
+	var texture := GradientTexture2D.new()
+	texture.gradient = gradient
+	texture.width = 16
+	texture.height = 256
+	texture.fill_from = Vector2(0.5, 1.0)
+	texture.fill_to = Vector2(0.5, 0.0)
+	power_fill.texture = texture
 
 
 func _build_aim_dial() -> void:
@@ -440,7 +492,7 @@ func _build_aim_dial() -> void:
 
 func _build_bias_row() -> void:
 	bias_rail = Control.new()
-	bias_rail.position = Vector2(454.0, 168.0)
+	bias_rail.position = Vector2(400.0, 168.0)
 	bias_rail.size = Vector2(76.0, 400.0)
 	bias_rail.visible = false
 	bias_rail.mouse_filter = Control.MOUSE_FILTER_IGNORE
