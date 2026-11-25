@@ -28,16 +28,16 @@ func _ready() -> void:
 	_make_scrim(Rect2(0.0, 0.0, 540.0, 108.0), Color(0.03, 0.02, 0.04, 0.72))
 
 	var menu_button := _make_button("MENU", Vector2(16.0, 10.0), Vector2(104.0, 32.0))
-	menu_button.add_theme_stylebox_override("normal", _button_style(Color("#ff4d9a"), Color("#ffd0e8")))
-	menu_button.add_theme_color_override("font_color", Color("#1a0a12"))
+	menu_button.add_theme_stylebox_override("normal", _button_style(Color("#7A3BFF"), Color("#E8C56A")))
+	menu_button.add_theme_color_override("font_color", Color("#F7F4FF"))
 	menu_button.pressed.connect(func() -> void: leave_requested.emit())
 	level_label = _make_label(Vector2(300.0, 10.0), Vector2(216.0, 22.0), 16, Color("#f7fbff"), "LEVEL 01")
 	level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	throws_label = _make_label(Vector2(300.0, 34.0), Vector2(216.0, 18.0), 12, Color("#8fd7ea"), "8 DISCS")
+	throws_label = _make_label(Vector2(300.0, 34.0), Vector2(216.0, 18.0), 12, Color("#C4AEFF"), "8 DISCS")
 	throws_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 
-	status_label = _make_label(Vector2(22.0, 58.0), Vector2(496.0, 22.0), 13, Color("#d9f5e8"), "")
-	score_label = _make_label(Vector2(22.0, 80.0), Vector2(496.0, 20.0), 11, Color("#8fc9bf"), "")
+	status_label = _make_label(Vector2(22.0, 58.0), Vector2(496.0, 22.0), 13, Color("#F7F4FF"), "")
+	score_label = _make_label(Vector2(22.0, 80.0), Vector2(496.0, 20.0), 11, Color("#C4AEFF"), "")
 
 	reset_button = _make_button("RESET", Vector2(128.0, 10.0), Vector2(96.0, 32.0))
 	reset_button.pressed.connect(func() -> void: reset_requested.emit())
@@ -48,9 +48,9 @@ func _ready() -> void:
 
 	stop_button = _make_button("STOP", Vector2(144.0, 852.0), Vector2(250.0, 40.0))
 	stop_button.add_theme_font_size_override("font_size", 20)
-	stop_button.add_theme_stylebox_override("normal", _button_style(Color("#ff2f86"), Color("#ffd0e8")))
-	stop_button.add_theme_stylebox_override("hover", _button_style(Color("#ff5aa3"), Color("#ffe4f2")))
-	stop_button.add_theme_stylebox_override("pressed", _button_style(Color("#c41068"), Color("#ffd0e8")))
+	stop_button.add_theme_stylebox_override("normal", _button_style(Color("#4B1D8F"), Color("#E8C56A")))
+	stop_button.add_theme_stylebox_override("hover", _button_style(Color("#7A3BFF"), Color("#E8C56A")))
+	stop_button.add_theme_stylebox_override("pressed", _button_style(Color("#3A1570"), Color("#E8C56A")))
 	stop_button.add_theme_color_override("font_color", Color("#fff7fb"))
 	stop_button.add_theme_color_override("font_hover_color", Color("#fff7fb"))
 	stop_button.add_theme_color_override("font_pressed_color", Color("#fff7fb"))
@@ -92,7 +92,7 @@ func _show_stop(_rolling: bool) -> void:
 
 func show_ready(level_number: int, discs_left: int, difficulty: String = "", you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0) -> void:
 	hide_overview()
-	var layout := difficulty.to_upper() if difficulty != "" else "CROKINOLE"
+	var layout := difficulty.to_upper() if difficulty != "" else "FLICKDISC"
 	status_label.text = "LEVEL %02d  •  %s  •  TAP YOUR DISC" % [level_number, layout]
 	show_match_status(level_number, discs_left, you_board, far_board, match_you, match_them)
 	reset_button.text = "RESET"
@@ -170,7 +170,7 @@ func _play_end_count(token: int, end_number: int, you_items: Array, them_items: 
 		verdict = "YOU TAKE THE END    +%d" % award_you
 	elif award_them > 0:
 		verdict = "FAR SIDE TAKES THE END    +%d" % award_them
-	var match_line := "[color=#ffe27a]%s[/color]\n\n[color=#f7fbff]MATCH TO %d[/color]\n[color=#f7fbff]YOU %d[/color]          [color=#8fd7ea]FAR %d[/color]" % [verdict, match_target, match_you, match_them]
+	var match_line := "[color=#E8C56A]%s[/color]\n\n[color=#F7F4FF]MATCH TO %d[/color]\n[color=#F7F4FF]YOU %d[/color]          [color=#C4AEFF]FAR %d[/color]" % [verdict, match_target, match_you, match_them]
 	if match_you >= match_target and match_you >= match_them:
 		match_line += "\n[color=#ffe27a]YOU WIN THE MATCH[/color]"
 	elif match_them >= match_target and match_them > match_you:
@@ -184,9 +184,9 @@ func _play_end_count(token: int, end_number: int, you_items: Array, them_items: 
 	next_button.text = "NEXT END"
 
 func _count_side(token: int, built: String, title: String, items: Array) -> String:
-	var block := "[color=#9fd8cc]%s[/color]\n" % title
+	var block := "[color=#C4AEFF]%s[/color]\n" % title
 	if items.is_empty():
-		block += "[color=#d7e7df]NONE ON THE BOARD[/color]\n[color=#f7fbff]= 0[/color]"
+		block += "[color=#A69DBD]NONE ON THE BOARD[/color]\n[color=#F7F4FF]= 0[/color]"
 		overview_body.text = built + block
 		await get_tree().create_timer(0.4).timeout
 		await _fit_overview()
@@ -212,10 +212,10 @@ func _point_color(points: int) -> String:
 	if points >= 20:
 		return "#ffe27a"
 	if points >= 15:
-		return "#ff8ec4"
+		return "#C4AEFF"
 	if points >= 10:
-		return "#8fd7ea"
-	return "#d7e7df"
+		return "#9B7CFF"
+	return "#A69DBD"
 
 func _build_overview() -> void:
 	overview = Control.new()
@@ -228,19 +228,19 @@ func _build_overview() -> void:
 
 	overview_panel = ColorRect.new()
 	overview_panel.size = overview.size
-	overview_panel.color = Color(0.035, 0.07, 0.1, 0.94)
+	overview_panel.color = Color(0.05, 0.03, 0.1, 0.94)
 	overview_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overview.add_child(overview_panel)
 
 	var accent := ColorRect.new()
 	accent.position = Vector2(0.0, 0.0)
 	accent.size = Vector2(492.0, 4.0)
-	accent.color = Color("#ff2f9a")
+	accent.color = Color("#7A3BFF")
 	accent.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overview.add_child(accent)
 
 	overview_title = _owned_label(overview, Vector2(20.0, 16.0), Vector2(452.0, 36.0), 28, Color("#f7fbff"))
-	overview_rules = _owned_label(overview, Vector2(20.0, 56.0), Vector2(452.0, 78.0), 12, Color("#9fd8cc"))
+	overview_rules = _owned_label(overview, Vector2(20.0, 56.0), Vector2(452.0, 78.0), 12, Color("#C4AEFF"))
 	overview_rules.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
 	overview_body = RichTextLabel.new()
@@ -309,11 +309,11 @@ func _make_button(button_text: String, button_position: Vector2, button_size: Ve
 	button.size = button_size
 	button.add_theme_font_size_override("font_size", 12)
 	button.add_theme_color_override("font_color", Color("#e9fbff"))
-	button.add_theme_color_override("font_hover_color", Color("#07131e"))
-	button.add_theme_color_override("font_pressed_color", Color("#07131e"))
-	button.add_theme_stylebox_override("normal", _button_style(Color("#123849"), Color("#397d88")))
-	button.add_theme_stylebox_override("hover", _button_style(Color("#6bd9e6"), Color("#baf7f2")))
-	button.add_theme_stylebox_override("pressed", _button_style(Color("#f3bd56"), Color("#ffe9a4")))
+	button.add_theme_color_override("font_hover_color", Color("#080719"))
+	button.add_theme_color_override("font_pressed_color", Color("#080719"))
+	button.add_theme_stylebox_override("normal", _button_style(Color("#1A1028"), Color("#7A3BFF")))
+	button.add_theme_stylebox_override("hover", _button_style(Color("#7A3BFF"), Color("#E8C56A")))
+	button.add_theme_stylebox_override("pressed", _button_style(Color("#E8C56A"), Color("#F7F4FF")))
 	add_child(button)
 	return button
 

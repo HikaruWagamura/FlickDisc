@@ -45,8 +45,8 @@ func _draw() -> void:
 
 
 func _plate(box: Rect2, on: bool) -> void:
-	var fill := Color("#f3bd56") if on else Color(0.05, 0.07, 0.08, 0.82)
-	var border := Color("#ffe9a4") if on else Color(0.78, 0.64, 0.34, 0.55)
+	var fill := Color("#E8C56A") if on else Color(0.08, 0.05, 0.16, 0.9)
+	var border := Color("#F7F4FF") if on else Color("#7A3BFF")
 	draw_rect(box, fill, true)
 	draw_rect(box, border, false, 2.0)
 

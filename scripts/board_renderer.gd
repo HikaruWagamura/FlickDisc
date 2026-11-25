@@ -130,10 +130,20 @@ func _named_mesh(node: Node, key: String) -> MeshInstance3D:
 	return null
 
 
+func _image(path: String) -> Image:
+	var tex: Texture2D = load(path)
+	if tex == null:
+		return null
+	var image: Image = tex.get_image()
+	if image != null and image.is_compressed():
+		image.decompress()
+	return image
+
+
 func _stash_pack_discs(node: Node) -> void:
 	Metrics.club_dark.clear()
 	Metrics.club_light.clear()
-	var albedo: Image = Image.load_from_file("res://assets/board/textures/crokinole_figures_Mat_BaseColor.jpg")
+	var albedo: Image = _image("res://assets/board/textures/crokinole_figures_Mat_BaseColor.jpg")
 	_collect_discs(node, albedo)
 	_hide_packed_discs(node)
 
@@ -334,7 +344,7 @@ func _build_rail() -> void:
 	inlay.outer_radius = Metrics.DITCH_OUTER + 0.065
 	inlay.rings = 72
 	inlay.ring_segments = 10
-	Metrics.add_mesh(self, inlay, Metrics.plastic(Color("#ff2f9a"), 0.18, 1.15), Vector3(0.0, 0.028, 0.0))
+	Metrics.add_mesh(self, inlay, Metrics.plastic(Color("#7A3BFF"), 0.18, 1.15), Vector3(0.0, 0.028, 0.0))
 
 func _build_pegs() -> void:
 	for peg_position in Metrics.peg_positions():
@@ -522,7 +532,7 @@ func _build_club_rink() -> void:
 	var backdrop_material := StandardMaterial3D.new()
 	backdrop_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	backdrop_material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	var course := Image.load_from_file(COURSE_PATH)
+	var course := _image(COURSE_PATH)
 	if course != null and not course.is_empty():
 		var crop_y := int(course.get_height() * 0.30)
 		var crop_h := int(course.get_height() * 0.16)
@@ -573,7 +583,7 @@ func _add_lawn_mark(at: Vector3, width: float, strength: float) -> void:
 	mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 func _stamp_logo(image: Image, center: Vector2, diameter: float, strength: float, cutout: bool) -> void:
-	var logo: Image = Image.load_from_file(LOGO_PATH)
+	var logo: Image = _image(LOGO_PATH)
 	if logo == null or logo.is_empty():
 		return
 	var copy: Image = logo.duplicate()
@@ -628,9 +638,9 @@ func _make_board_images() -> Array:
 	return [albedo, emission]
 
 func _apply_logo(albedo: Image, emission: Image) -> void:
-	var logo := Image.load_from_file(LOGO_PATH)
+	var logo := _image(LOGO_PATH)
 	if logo == null or logo.is_empty():
-		push_warning("Flick Disc logo could not be loaded")
+		push_warning("FlickDisc logo could not be loaded")
 		return
 	logo.convert(Image.FORMAT_RGBA8)
 	var diameter := 940

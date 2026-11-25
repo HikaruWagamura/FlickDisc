@@ -4,8 +4,8 @@ extends CanvasLayer
 
 signal play_requested(setup: Dictionary)
 
-const PINK := Color("#873EFF")
-const PINK_DEEP := Color("#5425A5")
+const PINK := Color("#7A3BFF")
+const PINK_DEEP := Color("#4B1D8F")
 const INK := Color("#080719")
 const CARD := Color(0.14, 0.09, 0.24, 0.98)
 const PLUM := Color(0.09, 0.06, 0.16, 0.98)
@@ -146,7 +146,7 @@ func _prepare_fonts() -> void:
 	bold_font = FONT_INTER_BOLD
 
 
-const LOGO := preload("res://assets/syncbowls_logo.png")
+const LOGO := preload("res://assets/flickdisc_mark.png")
 
 
 func _logo_texture() -> Texture2D:
@@ -207,7 +207,7 @@ func _build_splash() -> void:
 	mark.position = Vector2(70, 230)
 	mark.size = Vector2(400, 400)
 	page.add_child(mark)
-	var tag := _label("FLICK HARD. PLAY DIRTY.", 26, PINK, script_font)
+	var tag := _label("THE CLUB", 26, PINK, script_font)
 	tag.position = Vector2(30, 660)
 	tag.size = Vector2(480, 48)
 	tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -215,7 +215,7 @@ func _build_splash() -> void:
 	splash_bar = ColorRect.new()
 	splash_bar.position = Vector2(0, 0)
 	splash_bar.size = Vector2(0, 3)
-	splash_bar.color = Color("#4da3ff")
+	splash_bar.color = Color("#E8C56A")
 	splash_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	page.add_child(splash_bar)
 
@@ -289,7 +289,7 @@ func _build_home() -> void:
 	play.add_child(play_mark)
 	play.pressed.connect(_open_setup.bind("classic"))
 
-	home_record = _label("0W  ·  0L", 15, Color("#a894a0"), bold_font)
+	home_record = _label("0 WINS  ·  0 LOSSES", 15, CREAM, bold_font)
 	_place(page, home_record, Vector2(20, 464), Vector2(500, 22))
 	home_record.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
@@ -306,7 +306,7 @@ func _home_card(page: Control, rect: Rect2, kicker: String, title: String, body:
 	var button := Button.new()
 	button.text = ""
 	_place(page, button, rect.position, rect.size)
-	_paint_button(button, CARD, Color(1, 0.55, 0.72, 0.85), CREAM, 16, 12)
+	_paint_button(button, CARD, Color("#7A3BFF"), CREAM, 16, 12)
 	var y := 12.0
 	if kicker != "":
 		var kick := _label(kicker, 13, PINK, bold_font)
@@ -363,7 +363,7 @@ func _build_setup() -> void:
 	hero.add_child(title_label)
 	box.add_child(hero)
 
-	sub_label = _label("Set the rink, then choose who you bowl.", 15, MUTED, body_font)
+	sub_label = _label("Choose the table, then who you play.", 15, MUTED, body_font)
 	sub_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	sub_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(sub_label)
@@ -371,8 +371,8 @@ func _build_setup() -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	row.custom_minimum_size = Vector2(0, 142)
-	crokin_card = _rink_card("CROKINMODE", "Classic round board")
-	lawn_card = _rink_card("LONG RINK", "Bowls and curling style.\nAbout 10 seconds to the jack.")
+	crokin_card = _rink_card("FLICKDISC", "The round board. 20 in the hole.")
+	lawn_card = _rink_card("FLICK BOWLS", "The long green. Draw to the jack.")
 	crokin_tag = crokin_card.get_node("Tag") as Label
 	lawn_tag = lawn_card.get_node("Tag") as Label
 	crokin_card.pressed.connect(func() -> void:
@@ -490,11 +490,11 @@ func _build_practice() -> void:
 	_back_on(page, "home")
 	box.add_child(_title("PRACTICE"))
 	box.add_child(_wrapped("Improve your game. These tables keep score, and nothing is on the line except the shot."))
-	box.add_child(_wide_card("OPEN BOARD", "Crokinmode with a clear road to the hole.", "PLAY"))
+	box.add_child(_wide_card("OPEN BOARD", "FlickDisc with a clear road to the hole.", "PLAY"))
 	box.get_child(box.get_child_count() - 1).pressed.connect(_practice.bind("open"))
 	box.add_child(_wide_card("PEG GUARD", "The far side is sitting on the pegs.", "PLAY"))
 	box.get_child(box.get_child_count() - 1).pressed.connect(_practice.bind("guard"))
-	box.add_child(_wide_card("DRAW TO THE JACK", "Long rink. Place the jack, then bowl.", "PLAY"))
+	box.add_child(_wide_card("DRAW TO THE JACK", "Flick Bowls. Place the jack, then bowl.", "PLAY"))
 	box.get_child(box.get_child_count() - 1).pressed.connect(_practice.bind("jack"))
 
 
@@ -545,7 +545,7 @@ func _build_rankings() -> void:
 	_back_on(page, "home")
 	box.add_child(_title("RANKINGS"))
 	box.add_child(_wrapped("Climb the leaderboard. This board is the record on this device."))
-	var row := _wide_card("1    FLICKER", "This device", "0W  0L")
+	var row := _wide_card("1    FLICKER", "This device", "0 WINS  0 LOSSES")
 	rank_name = row.get_node("Heading") as Label
 	rank_record = row.get_node("Trail") as Label
 	row.disabled = true
@@ -561,7 +561,7 @@ func _build_profile() -> void:
 	var avatar_row := CenterContainer.new()
 	var avatar := Panel.new()
 	avatar.custom_minimum_size = Vector2(96, 96)
-	var disc := _flat(PINK, Color("#ffd0ea"), 2, 48, 0)
+	var disc := _flat(PINK, Color("#E8C56A"), 2, 48, 0)
 	avatar.add_theme_stylebox_override("panel", disc)
 	profile_letter = _label("F", 36, Color("#1a0a12"), bold_font)
 	profile_letter.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -587,13 +587,13 @@ func _build_profile() -> void:
 	track.add_child(profile_xp)
 	bar_row.add_child(track)
 	box.add_child(bar_row)
-	profile_record = _label("0W  ·  0L", 22, CREAM, bold_font)
+	profile_record = _label("0 WINS  ·  0 LOSSES", 22, CREAM, bold_font)
 	profile_record.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(profile_record)
 	profile_rounds = _label("0 rounds", 14, MUTED, body_font)
 	profile_rounds.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(profile_rounds)
-	profile_disc = _label("Disc  ·  Club pink", 14, MUTED, body_font)
+	profile_disc = _label("Disc  ·  Royal", 14, MUTED, body_font)
 	profile_disc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(profile_disc)
 	box.add_child(_row_button("Change disc", _show.bind("customise")))
@@ -634,7 +634,7 @@ func _build_shop() -> void:
 	root.add_child(page)
 	box.add_child(_title("SHOP"))
 	box.add_child(_kicker("FLICK COINS    0"))
-	box.add_child(_shop_row("Club pink disc", "OWNED", true))
+	box.add_child(_shop_row("Royal disc", "OWNED", true))
 	box.add_child(_shop_row("Ice rim", "LOCKED", false))
 	box.add_child(_shop_row("Gold centre", "LOCKED", false))
 	box.add_child(_shop_row("Lawn whites", "LOCKED", false))
@@ -660,14 +660,14 @@ func _build_settings() -> void:
 	box.add_child(sound_button)
 	box.add_child(haptic_button)
 	box.add_child(_kicker("HOW A ROUND WORKS"))
-	box.add_child(_wrapped("Crokinole. An empty board. Touch the disc and drag the white dots to aim, then tap to lock. Pull the disc back and release on the green line. You and the far side take turns. Eight discs each. Both colours score. 20 is only the hole. 15, 10 and 5 need the disc clear of that line. A disc on the line scores the lower ring. The ditch is nothing. Only the difference is added. First to the race wins.\n\nLong rink. Touch the jack and drag the white dots to aim, then tap to lock. Pull back and release on the green line. Red bowls four, then blue bowls four, alternating. The side closest to the jack scores every bowl nearer than the other side. Play one end, four ends, first to 10, or first to 21. Forehand and backhand are the small button at the bottom right. The dots show only the start of the run. The bowl keeps that hand and will not run straight. Banks rebound unless the ditch is open."))
+	box.add_child(_wrapped("FlickDisc. The round board. Touch the disc and drag the dots to aim, then tap to lock. Pull back and release on the line. Eight discs each. 20 is only the hole. 15, 10 and 5 need the disc clear of that line. A disc on the line scores the lower ring. The ditch is nothing. Only the difference is added. First to the race wins.\n\nFlick Bowls. The long green. Touch the jack and drag the dots to aim, then tap to lock. Pull back and release on the line. Red bowls four, then blue bowls four. The side closest to the jack scores every bowl nearer than the other side. Play one end, four ends, first to 10, or first to 21. Chase cam follows the bowl. Banks rebound unless the ditch is open."))
 
 
 func _build_nav() -> void:
 	nav = Panel.new()
 	nav.position = Vector2(0, 868)
 	nav.size = Vector2(540, 92)
-	nav.add_theme_stylebox_override("panel", _flat(Color("#0c0a10"), Color(1, 0.3, 0.55, 0.45), 1, 0, 0))
+	nav.add_theme_stylebox_override("panel", _flat(Color("#0c0a10"), Color(0.48, 0.24, 0.85, 0.45), 1, 0, 0))
 	root.add_child(nav)
 	var row := HBoxContainer.new()
 	row.position = Vector2(0, 8)
@@ -795,11 +795,11 @@ func _sync_setup() -> void:
 		return
 	var classic := kind == "classic"
 	title_label.text = "CLASSIC 1V1" if classic else "CLASSIC 2V2"
-	sub_label.text = "Set the rink, then choose who you bowl." if classic else "Two teams on one phone. Pass it each shot."
+	sub_label.text = "Choose the table, then who you play." if classic else "Two sides on one phone. Pass it each shot."
 	big_play.text = "PLAY VERSUS AI" if classic else "PLAY LOCAL"
 	online_box.visible = classic
 	duo_note.visible = not classic
-	hint_label.text = "The original round board and scoring rules." if rink == "crokinole" else "Four bowls each. One end, four ends, first to 10, or first to 21."
+	hint_label.text = "FlickDisc. Eight discs each. 20 is only the hole." if rink == "crokinole" else "Flick Bowls. Four each. One end, four ends, first to 10, or first to 21."
 	difficulty_button.text = _difficulty_options()[difficulty]
 	race_button.text = _race_options()[race]
 	_paint_rinks()
@@ -815,7 +815,7 @@ func _paint_rinks() -> void:
 
 
 func _paint_choice_card(card: Button, tag: Label, selected: bool) -> void:
-	var border := PINK if selected else Color(1, 0.28, 0.55, 0.55)
+	var border := PINK if selected else Color(0.48, 0.28, 0.82, 0.55)
 	var width := 2 if selected else 1
 	_paint_button(card, CARD, border, CREAM, 16, 12, width)
 	tag.visible = selected
@@ -850,7 +850,7 @@ func _open_choices(options: PackedStringArray, current: int, pick: Callable) -> 
 	for i in options.size():
 		var option := _row_button(options[i], _pick_choice.bind(i))
 		if i == current:
-			_paint_button(option, PINK_DEEP, Color("#ff8ab6"), CREAM, 12, 12)
+			_paint_button(option, PINK_DEEP, Color("#E8C56A"), CREAM, 12, 12)
 		choice_box.add_child(option)
 	choice_layer.visible = true
 
@@ -868,7 +868,7 @@ func _show_online(channel: String) -> void:
 		online_body.text = "Ranked rooms need a club server. Play this setup on this device and a win still lands on your record."
 	else:
 		online_title.text = "ONLINE CASUAL"
-		online_body.text = "Casual matchmaking needs a club server. This device can play the same Crokinmode or long rink now."
+		online_body.text = "Casual matchmaking needs a club server. This device can play FlickDisc or Flick Bowls now."
 	online_layer.visible = true
 
 
@@ -1045,7 +1045,7 @@ func _paint_swatches() -> void:
 	for i in swatch_buttons.size():
 		var swatch := swatch_buttons[i] as Button
 		var selected: bool = int(profile.disc_index) == i
-		var border := Color("#ffe4f4") if selected else Color(1, 1, 1, 0.18)
+		var border := Color("#E8C56A") if selected else Color(1, 1, 1, 0.18)
 		_paint_button(swatch, profile.COLORS[i], border, CREAM, 40, 0, 3 if selected else 1)
 
 
@@ -1128,7 +1128,7 @@ func _code_row() -> PanelContainer:
 	row.add_child(code_label)
 	var copy := _button("COPY", 14)
 	copy.custom_minimum_size = Vector2(96, 44)
-	_paint_button(copy, PINK_DEEP, Color("#ff8ab6"), CREAM, 12, 8)
+	_paint_button(copy, PINK_DEEP, Color("#E8C56A"), CREAM, 12, 8)
 	copy.pressed.connect(_copy_code)
 	row.add_child(copy)
 	panel.add_child(row)
@@ -1166,7 +1166,7 @@ func _wide_card(title: String, body: String, trailing: String) -> Button:
 	button.text = ""
 	button.custom_minimum_size = Vector2(0, 86)
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_paint_button(button, CARD, Color(1, 0.55, 0.72, 0.85), CREAM, 16, 14)
+	_paint_button(button, CARD, Color("#7A3BFF"), CREAM, 16, 14)
 	var heading := _label(title, 16, CREAM, bold_font)
 	heading.name = "Heading"
 	heading.position = Vector2(14, 12)
@@ -1194,7 +1194,7 @@ func _shop_row(title: String, trailing: String, owned: bool) -> Button:
 	var button := _wide_card(title, "Round-board colour", trailing)
 	button.pressed.connect(func() -> void:
 		if owned:
-			_toast("Club pink is the disc you own.")
+			_toast("Royal is the disc you own.")
 		else:
 			_toast("Locked. Flick coins are not on this build.")
 	)
@@ -1352,7 +1352,7 @@ func _style_edit(edit: LineEdit) -> void:
 	edit.add_theme_color_override("caret_color", PINK)
 	var box := _flat(PLUM, PINK, 1, 14, 14)
 	edit.add_theme_stylebox_override("normal", box)
-	edit.add_theme_stylebox_override("focus", _flat(PLUM, Color("#ffd0ea"), 2, 14, 14))
+	edit.add_theme_stylebox_override("focus", _flat(PLUM, Color("#E8C56A"), 2, 14, 14))
 
 
 class Mark extends Control:
@@ -1364,7 +1364,7 @@ class Mark extends Control:
 		queue_redraw()
 
 	func _draw() -> void:
-		var color := Color("#ff3d8a") if lit else Color("#8d7d88")
+		var color := Color("#7A3BFF") if lit else Color("#8d7d88")
 		var box := size
 		if box.x < 2.0:
 			box = Vector2(26, 26)

@@ -144,7 +144,7 @@ func _draw_aim() -> void:
 		return
 	var dir := delta / length
 	var tip := _aim_from + dir * minf(length, 168.0)
-	draw_line(_aim_from, tip, Color(1.0, 0.55, 0.72, 0.35), 8.0, true)
+	draw_line(_aim_from, tip, Color(0.48, 0.23, 1.0, 0.4), 8.0, true)
 	draw_line(_aim_from, tip, Color(1.0, 0.9, 0.55, 0.98), 3.0, true)
 	var side := Vector2(-dir.y, dir.x)
 	var head := PackedVector2Array([
@@ -156,7 +156,7 @@ func _draw_aim() -> void:
 
 
 func _draw_disc_ring() -> void:
-	draw_arc(_disc, 22.0, 0.0, TAU, 36, Color(1.0, 0.35, 0.62, 0.55), 2.0, true)
+	draw_arc(_disc, 22.0, 0.0, TAU, 36, Color(0.48, 0.23, 1.0, 0.7), 2.0, true)
 	draw_arc(_disc, 28.0, 0.0, TAU, 36, Color(1.0, 0.86, 0.48, 0.75), 1.25, true)
 
 
@@ -174,7 +174,7 @@ func _draw_cursor() -> void:
 	_band(origin, radius + 1.0, radius * 0.56, spread, Color(0.07, 0.09, 0.08, 0.94))
 	draw_arc(origin, radius + 3.0, _facing - spread, _facing + spread, 36, Color(0.86, 0.72, 0.38, 0.7), 1.6, true)
 	if _power > 0.015:
-		_span(origin, radius, radius * 0.56, -spread, lerpf(-spread, spread, _power), Color(0.95, 0.38, 0.58, 0.92))
+		_span(origin, radius, radius * 0.56, -spread, lerpf(-spread, spread, _power), Color(0.48, 0.23, 1.0, 0.92))
 	var green_dir := Vector2(cos(_facing), sin(_facing))
 	var green_near := origin + green_dir * (radius * 0.5)
 	var green_far := origin + green_dir * (radius + 8.0)

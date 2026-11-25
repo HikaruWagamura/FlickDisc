@@ -76,7 +76,7 @@ func release() -> void:
 func advance(delta: float) -> void:
 	if not live or not pulling:
 		return
-	var stiffness := lerpf(26.0, 16.0, _target)
+	var stiffness := lerpf(34.0, 22.0, _target)
 	power = lerpf(power, _target, 1.0 - exp(-stiffness * delta))
 	# A slow, even sweep. The green line is the release.
 	var cycles := lerpf(0.10, 0.26, power)

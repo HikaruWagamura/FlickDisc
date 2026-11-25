@@ -3,14 +3,14 @@ extends RefCounted
 ## Local FlickDisc profile. Wins, challenges, and the disc colour stay on this device.
 
 const COLORS: Array[Color] = [
-	Color("#ff3d9a"),
+	Color("#7A3BFF"),
 	Color("#ff4b5c"),
 	Color("#7af0ff"),
 	Color("#ffe27a"),
 	Color("#c9a4ff"),
 	Color("#f4f4f6"),
 ]
-const COLOR_NAMES: PackedStringArray = ["Club pink", "Hot red", "Ice", "Gold", "Violet", "Chalk"]
+const COLOR_NAMES: PackedStringArray = ["Royal", "Hot red", "Ice", "Gold", "Violet", "Chalk"]
 const CHALLENGE_XP := {"hole": 25, "fifteen": 15, "draw": 20}
 
 var player_name := "Flicker"
@@ -41,7 +41,7 @@ func disc_name() -> String:
 
 
 func record_text() -> String:
-	return "%dW  ·  %dL" % [wins, losses]
+	return "%d WINS  ·  %d LOSSES" % [wins, losses]
 
 
 func is_cleared(challenge_id: String) -> bool:

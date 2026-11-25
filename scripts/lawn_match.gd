@@ -99,6 +99,7 @@ func _ready() -> void:
 	ui.match_cycle_requested.connect(_on_match_cycle_requested)
 	ui.hand_selected.connect(_on_hand_selected)
 	ui.bias_selected.connect(_on_bias_selected)
+	ui.camera_requested.connect(_on_camera_requested)
 	_wire_shot()
 	_lock_portrait_on_device()
 	if _wants_bowltest():
@@ -109,6 +110,8 @@ func _ready() -> void:
 	_new_match()
 	if fast_play:
 		call_deferred("_bowltest")
+	elif _wants_showcase():
+		call_deferred("_showcase")
 
 
 func _process(delta: float) -> void:
@@ -122,6 +125,10 @@ func _process(delta: float) -> void:
 			fastest = maxf(fastest, body.velocity.length())
 	if feel != null:
 		feel.set_roll(fastest / DiscScript.MAX_SPEED)
+	if rink != null and disc != null:
+		var mat := Vector3(place_x, 0.0, line_z)
+		var head_at: Vector3 = jack.global_position if jack != null and jack.visible else disc.global_position
+		rink.note_delivery(disc.global_position, disc.velocity, disc.shot_in_progress, mat, head_at)
 
 
 func _lock_portrait_on_device() -> void:
@@ -340,6 +347,7 @@ func _begin_end() -> void:
 	_place_rack()
 	ui.set_power_ratio(0.0)
 	ui.show_ditch_mode(ditch_mode)
+	ui.show_camera_mode(rink.chase)
 	ui.show_match(_match_label())
 	ui.show_jack_prompt(end_number, _match_label(), _score_line(), _side_name(mat_side))
 	_begin_ready()
@@ -442,8 +450,21 @@ func _on_bias_selected(index: int) -> void:
 	feel.tap()
 	bias_index = clampi(index, 0, 3)
 	disc.configure_bowl(bias_index, hand_sign)
+	disc.set_palette(_side())
 	ui.show_bias(bias_index, _side())
 	ui.show_hand(hand_sign < 0.0, _bowl_name(bias_index))
+
+
+func _on_camera_requested() -> void:
+	feel.tap()
+	rink.chase = not rink.chase
+	ui.show_camera_mode(rink.chase)
+	if not disc.shot_in_progress:
+		return
+	if delivering_jack:
+		ui.show_jack_running()
+	else:
+		ui.show_in_motion(_side_name(_side()), _bowl_name(bias_index), hand_sign < 0.0, _score_line())
 
 
 func _on_ditch_option_requested() -> void:
@@ -879,9 +900,79 @@ func _wants_bowltest() -> bool:
 	return OS.get_cmdline_user_args().has("--bowltest")
 
 
+func _wants_showcase() -> bool:
+	return OS.get_cmdline_user_args().has("--showcase")
+
+
+func _showcase() -> void:
+	# The same delivery the finger uses, played out so the chase, the mat camera, and the ditch can be watched.
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_on_ditch_option_requested()
+	await get_tree().create_timer(3.2).timeout
+	var jack_power: float = disc.weight_for_length(23.0, 0.0)
+	disc.fire_taken(Vector3(0.0, 0.0, -1.0), jack_power)
+	if not await _wait_jack():
+		_fail_test("showcase jack")
+		return
+	await get_tree().create_timer(0.7).timeout
+	_play_shown(3, -1.0, Vector3(0.12, 0.0, -1.0), maxf(jack_length - 0.5, 8.0), 0)
+	if not await _wait_shown(1):
+		_fail_test("showcase hook")
+		return
+	_on_camera_requested()
+	await get_tree().create_timer(0.45).timeout
+	_play_shown(2, 1.0, Vector3(-0.08, 0.0, -1.0), maxf(jack_length - 0.2, 8.0), 1)
+	if not await _wait_shown(2):
+		_fail_test("showcase mat")
+		return
+	_on_camera_requested()
+	await get_tree().create_timer(0.35).timeout
+	disc.configure_bowl(2, -1.0)
+	disc.set_palette(0)
+	bias_index = 2
+	hand_sign = disc.hand_sign
+	ui.show_bias(bias_index)
+	ui.show_hand(true, _bowl_name(bias_index))
+	# Wide, on the forehand, with a little line. It runs, draws, and leaves by the side ditch.
+	disc.fire_taken(Vector3(-0.34, 0.0, -1.0).normalized(), 0.78)
+	if not await _wait_shown(3):
+		_fail_test("showcase ditch")
+		return
+	await get_tree().create_timer(1.6).timeout
+	var ditched: bool = settled.size() == 3 and bool(settled[2].in_ditch)
+	print("SHOWCASE hook_x=%.2f ditch=%s" % [settled[0].global_position.x, ditched])
+	get_tree().quit(0 if ditched else 2)
+
+
+func _play_shown(bowl_index: int, hand: float, aim: Vector3, metres: float, side: int) -> void:
+	disc.configure_bowl(bowl_index, hand)
+	disc.set_palette(side)
+	bias_index = bowl_index
+	hand_sign = disc.hand_sign
+	ui.show_bias(bias_index)
+	ui.show_hand(hand < 0.0, _bowl_name(bias_index))
+	var power: float = disc.weight_for_length(metres, disc.bias_ratio)
+	disc.fire_taken(aim.normalized(), power)
+
+
+func _wait_shown(expected: int) -> bool:
+	var saw_head := false
+	for _i in 1800:
+		await get_tree().process_frame
+		if settled.size() >= expected and rink._head_hold:
+			saw_head = true
+		if saw_head and not rink._head_hold and not disc.shot_in_progress:
+			if gesture != null and str(gesture.phase) == "idle":
+				return true
+	return false
+
+
 func _bowltest() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
+	if not _assert_hands():
+		return
 	var jack_power: float = disc.weight_for_length(22.0, 0.0)
 	disc.fire_taken(Vector3(0.0, 0.0, -1.0), jack_power)
 	if not await _wait_jack():
@@ -949,6 +1040,34 @@ func _bowltest() -> void:
 	var ok := black == 4 and red == 4 and match_complete and rolled and knock > 0.05 and formats_ok
 	print("BOWLTEST jack=%.2f red=%d blue=%d you=%d them=%d over=%s rolled=%s knock=%.3f" % [jack_length, black, red, you_points, them_points, match_complete, rolled, knock])
 	get_tree().quit(0 if ok else 2)
+
+
+func _assert_hands() -> bool:
+	# The hand has to be obvious, and a bowl aimed off the rink has to fall in.
+	ditch_mode = true
+	disc.ditch_mode = true
+	rink.set_ditch_mode(true)
+	disc.configure_bowl(0, -1.0)
+	var narrow_bias: float = disc.bias_ratio
+	var narrow_power: float = disc.weight_for_length(24.0, narrow_bias)
+	var narrow: Vector3 = disc.predict_rest(Vector3.ZERO, Vector3(0.0, 0.0, -1.0), narrow_power, narrow_bias)
+	disc.configure_bowl(3, -1.0)
+	var hook_bias: float = disc.bias_ratio
+	var hook_power: float = disc.weight_for_length(24.0, hook_bias)
+	var hook: Vector3 = disc.predict_rest(Vector3.ZERO, Vector3(0.0, 0.0, -1.0), hook_power, hook_bias)
+	var spread := narrow.x - hook.x
+	var ditched: bool = disc.will_ditch(Vector3(0.0, 0.0, -2.0), Vector3(0.9, 0.0, -0.35).normalized(), 0.9, 0.0)
+	var stayed: bool = not disc.will_ditch(Vector3.ZERO, Vector3(0.0, 0.0, -1.0), narrow_power, 0.0)
+	ditch_mode = false
+	disc.ditch_mode = false
+	rink.set_ditch_mode(false)
+	disc.configure_jack()
+	disc.reset_to_start()
+	print("HANDTEST narrow=%.2f hook=%.2f spread=%.2f ditch=%s stay=%s" % [narrow.x, hook.x, spread, ditched, stayed])
+	if spread < 0.8 or not ditched or not stayed:
+		_fail_test("hands spread=%.2f ditch=%s stay=%s" % [spread, ditched, stayed])
+		return false
+	return true
 
 
 func _wait_jack() -> bool:

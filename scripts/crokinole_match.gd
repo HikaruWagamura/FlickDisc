@@ -35,7 +35,7 @@ var start_level := 0
 var goal := ""
 var goal_sent := false
 var match_reported := false
-var player_tint := Color("#ff3d9a")
+var player_tint := Color("#7A3BFF")
 var feel
 var _hit_wait := 0.0
 var gesture

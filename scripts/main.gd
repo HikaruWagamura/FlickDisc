@@ -1,6 +1,6 @@
 extends Node
 
-## FlickDisc. The club menu is home. Crokinmode and the long rink are the two tables.
+## FlickDisc. The club menu is home. FlickDisc is the round board. Flick Bowls is the long green.
 
 const CROKINOLE_SCENE := preload("res://scenes/Crokinole.tscn")
 const LAWN_SCENE := preload("res://scenes/Lawn.tscn")

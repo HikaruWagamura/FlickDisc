@@ -16,6 +16,7 @@ signal dial_pull(pull: Vector2)
 signal dial_released(pull: Vector2)
 signal mode_requested(mode_name: String)
 signal leave_requested
+signal camera_requested
 
 var status_label: Label
 var score_label: Label
@@ -29,6 +30,8 @@ var power_track: Panel
 var power_cap: Panel
 var power_label: Label
 var match_button: Button
+var camera_button: Button
+var camera_chase := true
 var hand_bar: Panel
 var hand_label: Label
 var fore_button: Button
@@ -65,7 +68,7 @@ func _ready() -> void:
 
 	level_label = _make_label(Vector2(340.0, 18.0), Vector2(180.0, 26.0), 16, Color(0.96, 0.99, 0.97))
 	level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	throws_label = _make_label(Vector2(340.0, 44.0), Vector2(180.0, 22.0), 13, Color(0.55, 0.86, 0.9))
+	throws_label = _make_label(Vector2(340.0, 44.0), Vector2(180.0, 22.0), 13, Color("#C4AEFF"))
 	throws_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 
 	ditch_button = _make_button("REBOUND", Vector2(372.0, 70.0), Vector2(148.0, 34.0))
@@ -73,14 +76,19 @@ func _ready() -> void:
 	_paint_sync(ditch_button, false)
 	ditch_button.pressed.connect(func() -> void: ditch_option_requested.emit())
 
-	match_button = _make_button("4 ENDS", Vector2(22.0, 74.0), Vector2(156.0, 34.0))
+	match_button = _make_button("4 ENDS", Vector2(16.0, 74.0), Vector2(118.0, 34.0))
 	match_button.add_theme_font_size_override("font_size", 12)
 	_paint_sync(match_button, false)
 	match_button.pressed.connect(func() -> void: match_cycle_requested.emit())
+
+	camera_button = _make_button("CHASE CAM", Vector2(144.0, 74.0), Vector2(132.0, 34.0))
+	camera_button.add_theme_font_size_override("font_size", 11)
+	camera_button.pressed.connect(func() -> void: camera_requested.emit())
+	show_camera_mode(true)
 	_build_summary()
 
 	status_label = _make_label(Vector2(18.0, 116.0), Vector2(504.0, 22.0), 14, Color(0.95, 0.99, 0.96))
-	score_label = _make_label(Vector2(18.0, 140.0), Vector2(504.0, 20.0), 13, Color(0.78, 0.92, 0.86))
+	score_label = _make_label(Vector2(18.0, 140.0), Vector2(504.0, 20.0), 13, Color("#C4AEFF"))
 
 	_build_aim_dial()
 	_build_bias_row()
@@ -129,6 +137,17 @@ func show_ditch_mode(enabled: bool) -> void:
 	ditch_button.text = "DITCH ON" if enabled else "REBOUND"
 
 
+func show_camera_mode(chase: bool) -> void:
+	camera_chase = chase
+	if camera_button == null:
+		return
+	camera_button.text = "CHASE CAM" if chase else "MAT CAM"
+	if chase:
+		_paint_selected(camera_button)
+	else:
+		_paint_sync(camera_button, false)
+
+
 func show_place_line(jack: bool) -> void:
 	if jack:
 		status_label.text = "TOUCH TO AIM  •  TAP THE JACK TO LOCK"
@@ -161,7 +180,7 @@ func show_jack_aim(_power_ratio: float) -> void:
 
 func show_jack_running() -> void:
 	status_label.text = "JACK RUNNING"
-	score_label.text = "LET IT STOP TO READ THE LENGTH"
+	score_label.text = "FOLLOWING THE JACK" if camera_chase else "FROM THE MAT"
 
 
 func show_jack_illegal(reason: String, travelled: float, detail: String) -> void:
@@ -185,7 +204,7 @@ func show_aiming(_power_ratio: float) -> void:
 func show_in_motion(side_name: String, bowl_name: String, forehand: bool, score_line: String) -> void:
 	throws_label.text = score_line
 	status_label.text = "%s  •  %s  •  %s" % [side_name, bowl_name, "FOREHAND" if forehand else "BACKHAND"]
-	score_label.text = "BOWL ROLLING"
+	score_label.text = "FOLLOWING THE BOWL" if camera_chase else "BEHIND THE MAT"
 
 
 func show_computer(side_name: String, left: int, intent: String = "DRAW") -> void:
@@ -385,9 +404,9 @@ func _build_hand_bar() -> void:
 func _style_arrow(button: Button, selected: bool) -> void:
 	if button == null:
 		return
-	var fill := Color("#f3bd56") if selected else Color("#123849")
-	var border := Color("#ffe9a4") if selected else Color("#397d88")
-	var font := Color("#1a1408") if selected else Color("#e9fbff")
+	var fill := Color("#E8C56A") if selected else Color("#1A1028")
+	var border := Color("#F7F4FF") if selected else Color("#7A3BFF")
+	var font := Color("#080719") if selected else Color("#F7F4FF")
 	button.add_theme_stylebox_override("normal", _button_style(fill, border))
 	button.add_theme_color_override("font_color", font)
 
@@ -399,19 +418,19 @@ func _build_summary() -> void:
 	summary.visible = false
 	summary.mouse_filter = Control.MOUSE_FILTER_STOP
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.04, 0.09, 0.12, 0.9)
-	style.border_color = Color(0.9, 0.76, 0.38)
+	style.bg_color = Color(0.05, 0.03, 0.1, 0.92)
+	style.border_color = Color(0.91, 0.77, 0.42)
 	style.set_border_width_all(2)
 	style.set_corner_radius_all(14)
 	style.content_margin_left = 16.0
 	style.content_margin_right = 16.0
 	summary.add_theme_stylebox_override("panel", style)
 	add_child(summary)
-	summary_title = _panel_label(Vector2(16.0, 10.0), Vector2(368.0, 24.0), 14, Color(0.78, 0.9, 0.84))
+	summary_title = _panel_label(Vector2(16.0, 10.0), Vector2(368.0, 24.0), 14, Color("#C4AEFF"))
 	summary_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	summary_shots = _panel_label(Vector2(16.0, 36.0), Vector2(368.0, 54.0), 40, Color(0.98, 0.9, 0.55))
+	summary_shots = _panel_label(Vector2(16.0, 36.0), Vector2(368.0, 54.0), 40, Color("#E8C56A"))
 	summary_shots.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	summary_detail = _panel_label(Vector2(16.0, 96.0), Vector2(368.0, 48.0), 14, Color(0.9, 0.96, 0.93))
+	summary_detail = _panel_label(Vector2(16.0, 96.0), Vector2(368.0, 48.0), 14, Color("#F7F4FF"))
 	summary_detail.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
 
@@ -446,11 +465,11 @@ func _make_button(button_text: String, button_position: Vector2, button_size: Ve
 	button.size = button_size
 	button.add_theme_font_size_override("font_size", 13)
 	button.add_theme_color_override("font_color", Color("#e9fbff"))
-	button.add_theme_color_override("font_hover_color", Color("#07131e"))
-	button.add_theme_color_override("font_pressed_color", Color("#07131e"))
-	button.add_theme_stylebox_override("normal", _button_style(Color("#123849"), Color("#397d88")))
-	button.add_theme_stylebox_override("hover", _button_style(Color("#6bd9e6"), Color("#baf7f2")))
-	button.add_theme_stylebox_override("pressed", _button_style(Color("#f3bd56"), Color("#ffe9a4")))
+	button.add_theme_color_override("font_hover_color", Color("#080719"))
+	button.add_theme_color_override("font_pressed_color", Color("#080719"))
+	button.add_theme_stylebox_override("normal", _button_style(Color("#1A1028"), Color("#7A3BFF")))
+	button.add_theme_stylebox_override("hover", _button_style(Color("#7A3BFF"), Color("#E8C56A")))
+	button.add_theme_stylebox_override("pressed", _button_style(Color("#E8C56A"), Color("#F7F4FF")))
 	add_child(button)
 	return button
 

@@ -9,6 +9,8 @@ extends Node3D
 
 const DISC_RADIUS := 0.20
 const JACK_RADIUS := 0.16
+## The mesh sits slightly inside the contact radius so a lean still clears the grass.
+const VISUAL_RADIUS := 0.19
 const DISC_MASS := 2.45
 const JACK_MASS := 0.52
 ## Lawn bowls kiss and push. A high bounce reads as snooker, not grass.
@@ -45,6 +47,9 @@ var in_ditch := false
 var palette_index := 0
 var bias_type := 1
 var hand_sign := -1.0
+## Visual only. The table still owns the path. Lean tips the bowl into its hand.
+var lean := 0.0
+var travel := Vector3(0.0, 0.0, -1.0)
 
 var _spin: Node3D
 var _shadow: MeshInstance3D
@@ -363,11 +368,21 @@ func present(speed: float) -> void:
 	if _spin == null:
 		return
 	punch = move_toward(punch, 0.0, 0.08)
-	var lift := clampf(speed / 21.5, 0.0, 1.0)
+	var lift := clampf(speed / 15.2, 0.0, 1.0)
 	_spin.position.y = radius - SIT_NEST + lift * 0.03 + punch * 0.06
-	_spin.transform.basis = roll_basis
+	_spin.transform.basis = _posed_basis(travel, lean, roll_basis)
 	if _shadow != null:
+		_shadow.visible = global_position.y > -0.06
 		_shadow.position = Vector3(0.0, 0.003, 0.0)
+
+
+static func _posed_basis(travel: Vector3, lean_angle: float, rolled: Basis) -> Basis:
+	var tilt := Basis.IDENTITY
+	if absf(lean_angle) > 0.001:
+		var flat := Vector3(travel.x, 0.0, travel.z)
+		if flat.length() > 0.05:
+			tilt = Basis(flat.normalized(), lean_angle)
+	return tilt * rolled
 
 
 func set_hand(hand: float) -> void:
@@ -494,7 +509,7 @@ static func _dress_club(parent: Node3D, index: int, hand: float, variant: int = 
 			mi.set_surface_override_material(2, mark)
 	else:
 		mi.material_override = body
-	return {"rim": ring, "body": body, "cap": mark, "mark": mark, "weight": holder}
+	return {"rim": ring, "body": body, "cap": mark, "mark": mark, "weight": holder, "stone": holder}
 
 
 static func _dress_wide(parent: Node3D, index: int, hand: float) -> Dictionary:
@@ -520,7 +535,7 @@ static func _dress_wide(parent: Node3D, index: int, hand: float) -> Dictionary:
 	mat.metallic = 0.04
 	mat.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
 	apply_team(mat, index, true)
-	return {"rim": mat, "body": mat, "cap": mat, "mark": mat, "weight": holder}
+	return {"rim": mat, "body": mat, "cap": mat, "mark": mat, "weight": holder, "stone": holder}
 
 
 static func club_mesh(variant: int = 0) -> Mesh:
