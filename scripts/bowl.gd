@@ -7,10 +7,12 @@ extends Node3D
 
 const DISC_RADIUS := 0.20
 const JACK_RADIUS := 0.16
+## The mesh sits slightly inside the contact radius so a lean still clears the grass.
+const VISUAL_RADIUS := 0.19
 const DISC_MASS := 2.45
 const JACK_MASS := 0.52
-const DISC_RESTITUTION := 0.46
-const JACK_RESTITUTION := 0.4
+const DISC_RESTITUTION := 0.55
+const JACK_RESTITUTION := 0.48
 
 var radius := DISC_RADIUS
 var mass := DISC_MASS
@@ -24,10 +26,14 @@ var stop_timer := 0.0
 var punch := 0.0
 var in_ditch := false
 var palette_index := 0
+## Visual only. The table still owns the path. Lean tips the bowl into its hand.
+var lean := 0.0
+var travel := Vector3(0.0, 0.0, -1.0)
 
 var _spin: Node3D
+var _stone: Node3D
 var _shadow: MeshInstance3D
-var _pip: MeshInstance3D
+var _pip: Node3D
 var _score_ring: MeshInstance3D
 var _rim_mat: StandardMaterial3D
 var _body_mat: StandardMaterial3D
@@ -36,10 +42,12 @@ var _mark_mat: StandardMaterial3D
 
 
 static func palette(index: int) -> Array:
-	var purple := Color(0.53, 0.24, 1.0)
+	var ivory := Color(0.94, 0.91, 0.84)
+	var gold := Color(0.96, 0.78, 0.26)
+	# Band, body, inner ring, bias rings. Ivory and gold stay readable on the grass.
 	var looks := [
-		[Color(0.03, 0.03, 0.04), Color(0.07, 0.06, 0.08), Color(0.12, 0.10, 0.14), purple],
-		[Color(0.45, 0.03, 0.06), Color(0.78, 0.07, 0.12), Color(0.55, 0.05, 0.08), purple],
+		[ivory, Color(0.10, 0.10, 0.12), Color(0.22, 0.20, 0.18), gold],
+		[ivory, Color(0.86, 0.07, 0.09), Color(0.55, 0.04, 0.06), gold],
 	]
 	return looks[index % looks.size()]
 
@@ -166,17 +174,33 @@ func present(speed: float) -> void:
 	if _spin == null:
 		return
 	punch = move_toward(punch, 0.0, 0.08)
-	var lift := clampf(speed / 21.5, 0.0, 1.0)
-	_spin.position.y = lift * 0.03 + punch * 0.06
-	_spin.transform.basis = roll_basis
+	var lift := clampf(speed / 15.2, 0.0, 1.0)
+	var center := JACK_RADIUS if is_jack else VISUAL_RADIUS
+	_spin.position = Vector3(0.0, center + lift * 0.018 + punch * 0.05, 0.0)
+	_spin.transform.basis = _posed_basis(travel, lean, roll_basis)
 	if _shadow != null:
-		_shadow.position = Vector3(0.08 + lift * 0.05, 0.012, 0.05)
+		_shadow.visible = global_position.y > -0.06
+		_shadow.position = Vector3(0.05, 0.012, 0.03)
+
+
+static func _posed_basis(travel: Vector3, lean_angle: float, rolled: Basis) -> Basis:
+	var tilt := Basis.IDENTITY
+	if absf(lean_angle) > 0.001:
+		var flat := Vector3(travel.x, 0.0, travel.z)
+		if flat.length() > 0.05:
+			tilt = Basis(flat.normalized(), lean_angle)
+	return tilt * rolled
 
 
 func set_hand(hand: float) -> void:
 	if _pip == null:
 		return
-	_pip.position = Vector3(signf(hand) * 0.155, 0.12, 0.02)
+	var side := signf(hand)
+	# Rings are built on +X. Turn the anchor so they sit on the heavy side.
+	# The shell is nudged the other way, so the bowl wobbles as that side rolls under.
+	_pip.rotation = Vector3(0.0, 0.0 if side > 0.0 else PI, 0.0)
+	if _stone != null:
+		_stone.position = Vector3(-side * 0.012, 0.0, 0.0)
 
 
 func set_scoring(on: bool) -> void:
@@ -195,6 +219,7 @@ func _build_disc(colors: Array, hand: float) -> void:
 	_cap_mat = dressed["cap"]
 	_mark_mat = dressed["mark"]
 	_pip = dressed["weight"]
+	_stone = dressed["stone"]
 	set_hand(hand)
 	_score_ring = MeshInstance3D.new()
 	_score_ring.mesh = _annulus(0.2, 0.26, 28)
@@ -217,22 +242,17 @@ func _build_jack() -> void:
 	var mesh := SphereMesh.new()
 	mesh.radius = JACK_RADIUS
 	mesh.height = JACK_RADIUS * 2.0
-	mesh.radial_segments = 24
-	mesh.rings = 12
+	mesh.radial_segments = 28
+	mesh.rings = 14
 	ball.mesh = mesh
-	ball.position = Vector3(0.0, JACK_RADIUS, 0.0)
-	var mat := _mat(Color(0.98, 0.82, 0.28), 0.22, 0.72)
+	var mat := _mat(Color(0.96, 0.91, 0.78), 0.28, 0.18)
 	mat.emission_enabled = true
-	mat.emission = Color(0.62, 0.42, 0.08)
-	mat.emission_energy_multiplier = 0.35
+	mat.emission = Color(0.55, 0.42, 0.18)
+	mat.emission_energy_multiplier = 0.22
 	ball.material_override = mat
 	_spin.add_child(ball)
-	var band := MeshInstance3D.new()
-	band.mesh = _annulus(0.09, 0.125, 24)
-	band.position = Vector3(0.0, JACK_RADIUS + 0.01, 0.0)
-	band.material_override = _flat(Color(0.98, 0.96, 0.9))
-	band.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_spin.add_child(band)
+	# Cream stays the jack colour. The band is what makes the roll readable.
+	_bowl_ring(_spin, JACK_RADIUS * 0.92, 0.012, Vector3.ZERO, Vector3.ZERO, _flat(Color(0.98, 0.96, 0.9)))
 
 
 func _make_shadow(size: float) -> MeshInstance3D:
@@ -254,34 +274,39 @@ func _make_shadow(size: float) -> MeshInstance3D:
 
 
 static func dress_stone(parent: Node3D, colors: Array, hand: float) -> Dictionary:
-	var rim := _stone_mat(colors[0], 0.34, 0.28)
-	var body := _stone_mat(colors[1], 0.3, 0.18)
-	var cap := _stone_mat(colors[2], 0.26, 0.22)
+	var rim := _stone_mat(colors[0], 0.32, 0.06)
+	var body := _stone_mat(colors[1], 0.36, 0.05)
+	var cap := _stone_mat(colors[2], 0.3, 0.1)
 	var mark := StandardMaterial3D.new()
 	mark.albedo_color = colors[3]
-	mark.roughness = 0.22
-	mark.metallic = 0.35
+	mark.roughness = 0.28
+	mark.metallic = 0.22
 	mark.emission_enabled = true
-	mark.emission = Color(0.62, 0.24, 1.0)
-	mark.emission_energy_multiplier = 1.65
-	# A curling stone: thick running band, rounded shoulders, a handle on top.
-	_stone_cylinder(parent, Vector3(0.0, 0.05, 0.0), 0.145, 0.205, 0.055, rim)
-	_stone_cylinder(parent, Vector3(0.0, 0.125, 0.0), 0.21, 0.21, 0.1, body)
-	_stone_cylinder(parent, Vector3(0.0, 0.195, 0.0), 0.21, 0.12, 0.045, cap)
-	_stone_cylinder(parent, Vector3(0.0, 0.228, 0.0), 0.055, 0.04, 0.028, rim)
-	var weight := MeshInstance3D.new()
-	var weight_mesh := SphereMesh.new()
-	weight_mesh.radius = 0.052
-	weight_mesh.height = 0.104
-	weight_mesh.radial_segments = 16
-	weight_mesh.rings = 8
-	weight.mesh = weight_mesh
-	weight.scale = Vector3(0.85, 0.7, 1.25)
-	weight.position = Vector3(signf(hand) * 0.155, 0.12, 0.02)
-	weight.material_override = mark
-	weight.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	parent.add_child(weight)
-	return {"rim": rim, "body": body, "cap": cap, "mark": mark, "weight": weight}
+	mark.emission = Color(0.72, 0.52, 0.12)
+	mark.emission_energy_multiplier = 0.35
+	# A lawn bowl: a sphere, an ivory running band, and rings on the heavy side.
+	# The mesh is centred so the roll spins in place instead of tumbling the shell.
+	var stone := Node3D.new()
+	stone.name = "Stone"
+	parent.add_child(stone)
+	var ball := MeshInstance3D.new()
+	var mesh := SphereMesh.new()
+	mesh.radius = VISUAL_RADIUS
+	mesh.height = VISUAL_RADIUS * 2.0
+	mesh.radial_segments = 36
+	mesh.rings = 18
+	ball.mesh = mesh
+	ball.material_override = body
+	stone.add_child(ball)
+	_bowl_ring(stone, VISUAL_RADIUS * 0.98, 0.011, Vector3.ZERO, Vector3.ZERO, rim)
+	var anchor := Node3D.new()
+	anchor.name = "Bias"
+	stone.add_child(anchor)
+	var face := Vector3(0.0, 0.0, PI * 0.5)
+	_bias_ring(anchor, 0.074, 0.009, face, mark)
+	_bias_ring(anchor, 0.046, 0.008, face, cap)
+	_bias_ring(anchor, 0.022, 0.007, face, mark)
+	return {"rim": rim, "body": body, "cap": cap, "mark": mark, "weight": anchor, "stone": stone}
 
 
 static func _stone_mat(color: Color, roughness: float, metallic: float) -> StandardMaterial3D:
@@ -291,6 +316,25 @@ static func _stone_mat(color: Color, roughness: float, metallic: float) -> Stand
 	mat.metallic = metallic
 	mat.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
 	return mat
+
+
+static func _bias_ring(parent: Node3D, radius: float, tube: float, rot: Vector3, mat: Material) -> void:
+	var on_shell := sqrt(maxf(VISUAL_RADIUS * VISUAL_RADIUS - radius * radius, 0.0))
+	_bowl_ring(parent, radius, tube, Vector3(on_shell, 0.0, 0.0), rot, mat)
+
+
+static func _bowl_ring(parent: Node3D, radius: float, tube: float, pos: Vector3, rot: Vector3, mat: Material) -> void:
+	var mi := MeshInstance3D.new()
+	var mesh := TorusMesh.new()
+	mesh.inner_radius = maxf(radius - tube, 0.004)
+	mesh.outer_radius = radius + tube
+	mesh.rings = 28
+	mesh.ring_segments = 8
+	mi.mesh = mesh
+	mi.position = pos
+	mi.rotation = rot
+	mi.material_override = mat
+	parent.add_child(mi)
 
 
 static func _stone_cylinder(parent: Node3D, pos: Vector3, bottom_r: float, top_r: float, height: float, mat: Material) -> void:

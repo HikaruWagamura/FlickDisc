@@ -18,14 +18,18 @@ const SURFACE_Y := 0.0
 
 var head: Node3D
 var _camera: Camera3D
-var _home_position := Vector3(0.0, 9.2, 10.8)
-var _home_look := Vector3(0.0, 0.28, -18.0)
-var _home_fov := 49.0
-var _zoom_position := Vector3(0.0, 9.2, 10.8)
-var _zoom_look := Vector3(0.0, 0.28, -18.0)
-var _zoom_fov := 34.0
-var _zoom_weight := 0.0
-var _zoom_goal := 0.0
+## Chase rides behind the running bowl. Behind stays on the mat and looks up the green.
+var chase := true
+var _shot_pos := Vector3(0.0, 0.0, -4.0)
+var _shot_vel := Vector3.ZERO
+var _shot_live := false
+var _mat := Vector3(0.0, 0.0, -4.05)
+var _head := Vector3(0.0, 0.0, -22.0)
+var _head_hold := false
+var _cam_pos := Vector3(0.0, 1.7, -1.7)
+var _cam_look := Vector3(0.0, 0.15, -12.0)
+var _cam_fov := 48.0
+var _cam_ready := false
 var _rebound_frame: Node3D
 var _ditch_frame: Node3D
 var _spare_dots: Array[MeshInstance3D] = []
@@ -182,30 +186,86 @@ func _build_camera() -> void:
 	camera.far = 240.0
 	# Close to the mat so the bowl reads as a puck you can take hold of.
 	# The head camera below is unchanged.
-	camera.position = Vector3(0.0, 1.05, -1.2)
-	camera.look_at_from_position(camera.position, Vector3(0.0, 0.02, -8.5), Vector3.UP)
+	camera.fov = 48.0
+	camera.position = _cam_pos
+	camera.look_at_from_position(camera.position, _cam_look, Vector3.UP)
 	camera.current = true
 	add_child(camera)
 	_camera = camera
-	_home_position = camera.position
-	_home_look = Vector3(0.0, 0.02, -8.5)
-	_home_fov = camera.fov
-	_zoom_position = _home_position
-	_zoom_look = _home_look
+
+
+func note_delivery(pos: Vector3, vel: Vector3, live: bool, mat: Vector3, head_at: Vector3) -> void:
+	_shot_pos = pos
+	_shot_vel = vel
+	_shot_live = live
+	_mat = mat
+	if not _head_hold:
+		_head = head_at
 
 
 func _process(delta: float) -> void:
 	if _camera == null:
 		return
-	var previous := _zoom_weight
-	_zoom_weight = move_toward(_zoom_weight, _zoom_goal, delta * 0.85)
-	if absf(_zoom_weight - previous) < 0.0001:
-		return
-	var blend := _zoom_weight * _zoom_weight * (3.0 - 2.0 * _zoom_weight)
-	_camera.position = _home_position.lerp(_zoom_position, blend)
-	_camera.fov = lerpf(_home_fov, _zoom_fov, blend)
-	var look_at := _home_look.lerp(_zoom_look, blend)
-	_camera.look_at(look_at, Vector3.UP)
+	var goal_pos := Vector3.ZERO
+	var goal_look := Vector3.ZERO
+	var goal_fov := 48.0
+	var response := 5.0
+	if _head_hold:
+		goal_look = _head + Vector3(0.0, 0.18, 0.0)
+		goal_pos = _head + Vector3(0.35, 3.5, 5.2)
+		goal_fov = 36.0
+		response = 2.7
+	elif _shot_live and chase:
+		# Trail toward the mat. A wide or ditched bowl lifts the lens so we
+		# look down into the trench instead of skimming the grass into the trees.
+		var flat := Vector3(_shot_vel.x, 0.0, _shot_vel.z)
+		var pace := clampf(flat.length() / 12.0, 0.0, 1.0)
+		var side := clampf(absf(_shot_pos.x) / 2.8, 0.0, 1.0)
+		var sunk := clampf(-_shot_pos.y / 0.16, 0.0, 1.0)
+		var widen := maxf(side, sunk)
+		var trail := lerpf(2.7, 7.2, widen)
+		var height := lerpf(1.95, 6.2, widen)
+		goal_pos = Vector3(clampf(_shot_pos.x * 0.12, -1.2, 1.2), height, _shot_pos.z + trail)
+		goal_look = Vector3(_shot_pos.x * 0.72, 0.2, _shot_pos.z)
+		goal_fov = lerpf(44.0, 50.0, widen * 0.5)
+		response = 11.0 if widen > 0.45 else lerpf(7.5, 5.0, pace)
+	elif _shot_live:
+		var along := clampf(-_shot_pos.z / 55.0, 0.0, 1.0)
+		goal_pos = Vector3(0.0, lerpf(1.7, 7.4, along * along), _mat.z + lerpf(2.15, 5.6, along))
+		goal_look = Vector3(_shot_pos.x * 0.9, 0.18, _shot_pos.z)
+		goal_fov = lerpf(50.0, 34.0, along)
+		response = 4.0
+	else:
+		goal_pos = Vector3(0.0, 1.7, _mat.z + 2.15)
+		goal_look = Vector3(_mat.x * 0.3, 0.14, _mat.z - 9.0)
+		goal_fov = 48.0
+		response = 5.5
+	goal_pos.y = maxf(goal_pos.y, 1.55)
+	goal_look.y = maxf(goal_look.y, 0.12)
+	goal_pos.x = clampf(goal_pos.x, -4.2, 4.2)
+	var gap := _cam_pos.distance_to(goal_pos)
+	if _shot_live and gap > 8.0:
+		response = 9.0
+	if not _cam_ready:
+		_cam_pos = goal_pos
+		_cam_look = goal_look
+		_cam_fov = goal_fov
+		_cam_ready = true
+	var blend := 1.0 - exp(-response * delta)
+	_cam_pos = _cam_pos.lerp(goal_pos, blend)
+	_cam_look = _cam_look.lerp(goal_look, blend)
+	_cam_fov = lerpf(_cam_fov, goal_fov, blend)
+	# A wide bowl used to drag the lens along the grass for a frame. Stay above it.
+	if _shot_live and absf(_shot_pos.x) > 2.0:
+		_cam_pos.y = maxf(_cam_pos.y, 4.4)
+		_cam_pos.x = clampf(_cam_pos.x, -1.4, 1.4)
+		_cam_look.y = maxf(_cam_look.y, 0.2)
+	_cam_pos.y = maxf(_cam_pos.y, 1.55)
+	_camera.position = _cam_pos
+	_camera.fov = _cam_fov
+	var toward := _cam_look - _cam_pos
+	if toward.length() > 0.5 and absf(toward.normalized().dot(Vector3.UP)) < 0.96:
+		_camera.look_at(_cam_look, Vector3.UP)
 
 
 func view_camera() -> Camera3D:
@@ -213,16 +273,13 @@ func view_camera() -> Camera3D:
 
 
 func focus_head(at: Vector3) -> void:
-	# Wide enough to show a bowl that has taken its hand a few metres
-	# off the jack, with the jack still in the middle.
-	_zoom_look = at + Vector3(0.0, 0.2, 0.0)
-	_zoom_position = at + Vector3(0.0, 14.0, 18.0)
-	_zoom_fov = 42.0
-	_zoom_goal = 1.0
+	# Rise off the chase so the head, the jack, and the bowl that just finished are in one frame.
+	_head = at
+	_head_hold = true
 
 
 func release_head() -> void:
-	_zoom_goal = 0.0
+	_head_hold = false
 
 
 func _build_grounds() -> void:
@@ -233,14 +290,15 @@ func _build_grounds() -> void:
 		40.0,
 		0.05
 	)
-	var ground := MeshInstance3D.new()
-	var plane := PlaneMesh.new()
-	plane.size = Vector2(100.0, 160.0)
-	ground.mesh = plane
-	ground.position = Vector3(0.0, -0.04, -48.0)
-	ground.material_override = outfield
-	ground.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(ground)
+	# The ditch has to stay open. One big plane used to cover the trench, so a
+	# bowl that fell in disappeared under the grass.
+	var outer := HALF_WIDTH + DITCH_W
+	var side_span := 50.0 - outer
+	var side_x := (50.0 + outer) * 0.5
+	_outfield_quad(outfield, Vector3(-side_x, -0.04, -46.0), Vector2(side_span, 130.0))
+	_outfield_quad(outfield, Vector3(side_x, -0.04, -46.0), Vector2(side_span, 130.0))
+	_outfield_quad(outfield, Vector3(0.0, -0.04, -99.5), Vector2(outer * 2.0, 62.0))
+	_outfield_quad(outfield, Vector3(0.0, -0.04, 9.0), Vector2(outer * 2.0, 20.0))
 
 	_hill(Vector3(-18.0, -4.5, -96.0), 16.0, Color(0.45, 0.58, 0.62))
 	_hill(Vector3(2.0, -6.0, -104.0), 18.0, Color(0.40, 0.55, 0.50))
@@ -295,12 +353,15 @@ func _build_ditch_option() -> void:
 	_ditch_frame.name = "DitchOption"
 	_ditch_frame.visible = false
 	add_child(_ditch_frame)
-	var ditch_mat := _lit(Color(0.18, 0.13, 0.08), 0.98)
+	var ditch_mat := _lit(Color(0.14, 0.10, 0.07), 0.98)
 	var side_len := LENGTH + DITCH_W
 	var side_z := -LENGTH * 0.5 - DITCH_W * 0.35
-	_box(_ditch_frame, Vector3(HALF_WIDTH + DITCH_W * 0.5, -0.16, side_z), Vector3(DITCH_W, 0.08, side_len), ditch_mat, Vector3.ZERO, false)
-	_box(_ditch_frame, Vector3(-HALF_WIDTH - DITCH_W * 0.5, -0.16, side_z), Vector3(DITCH_W, 0.08, side_len), ditch_mat, Vector3.ZERO, false)
-	_box(_ditch_frame, Vector3(0.0, -0.16, FAR_Z - DITCH_W * 0.5), Vector3(HALF_WIDTH * 2.0 + DITCH_W * 2.0, 0.08, DITCH_W), ditch_mat, Vector3.ZERO, false)
+	# The floor sits below the green so a bowl that crosses the line is visibly down.
+	var floor_y := -0.42
+	var floor_h := 0.36
+	_box(_ditch_frame, Vector3(HALF_WIDTH + DITCH_W * 0.5, floor_y, side_z), Vector3(DITCH_W, floor_h, side_len), ditch_mat, Vector3.ZERO, false)
+	_box(_ditch_frame, Vector3(-HALF_WIDTH - DITCH_W * 0.5, floor_y, side_z), Vector3(DITCH_W, floor_h, side_len), ditch_mat, Vector3.ZERO, false)
+	_box(_ditch_frame, Vector3(0.0, floor_y, FAR_Z - DITCH_W * 0.5), Vector3(HALF_WIDTH * 2.0 + DITCH_W * 2.0, floor_h, DITCH_W), ditch_mat, Vector3.ZERO, false)
 	var rail_h := 0.15
 	var rail_w := 0.22
 	var y := rail_h * 0.5
@@ -577,6 +638,17 @@ func _pot(parent: Node3D, pos: Vector3) -> void:
 	var pot := _lit(Color(0.62, 0.28, 0.22), 0.7)
 	_cylinder(parent, pos + Vector3(0.0, 0.22, 0.0), 0.22, 0.32, pot, Vector3.ZERO, 10, false)
 	_sphere(parent, pos + Vector3(0.0, 0.5, 0.0), 0.32, _leaf_mats[0], 8)
+
+
+func _outfield_quad(mat: Material, pos: Vector3, size: Vector2) -> void:
+	var ground := MeshInstance3D.new()
+	var plane := PlaneMesh.new()
+	plane.size = size
+	ground.mesh = plane
+	ground.position = pos
+	ground.material_override = mat
+	ground.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(ground)
 
 
 func _hill(pos: Vector3, radius: float, color: Color) -> void:
