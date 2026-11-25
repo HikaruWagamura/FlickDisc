@@ -94,6 +94,7 @@ func _ready() -> void:
 	_build_aim_dial()
 	_build_bias_row()
 	_build_hand_bar()
+	_build_power_meter()
 
 	reset_button = _make_button("RESET", Vector2(122.0, 14.0), Vector2(96.0, 40.0))
 	reset_button.add_theme_font_size_override("font_size", 14)
@@ -111,11 +112,11 @@ func set_power_ratio(power_ratio: float) -> void:
 	var ratio := clampf(power_ratio, 0.0, 1.0)
 	var inner := 352.0
 	if power_track != null:
-		inner = power_track.size.x - 8.0
+		inner = power_track.size.x - 16.0
 	power_fill.size.x = inner * ratio
 	if power_cap != null:
-		power_cap.visible = ratio > 0.04
-		power_cap.position = Vector2(4.0 + power_fill.size.x - 7.0, 4.0)
+		power_cap.visible = true
+		power_cap.position = Vector2(8.0 + inner * ratio - 9.0, -4.0)
 
 
 func show_jack_prompt(end_number: int, match_label: String, score_line: String) -> void:
@@ -382,7 +383,7 @@ func _build_power_meter() -> void:
 	track.set_border_width_all(2)
 	track.set_corner_radius_all(11)
 	power_track.add_theme_stylebox_override("panel", track)
-	power_track.clip_contents = true
+	power_track.clip_contents = false
 	add_child(power_track)
 	var gradient := Gradient.new()
 	gradient.set_color(0, Color(0.16, 0.55, 0.66))
@@ -395,21 +396,23 @@ func _build_power_meter() -> void:
 	texture.fill_from = Vector2(0.0, 0.5)
 	texture.fill_to = Vector2(1.0, 0.5)
 	power_fill = TextureRect.new()
-	power_fill.position = Vector2(4.0, 4.0)
-	power_fill.size = Vector2(0.0, 20.0)
+	power_fill.position = Vector2(8.0, 10.0)
+	power_fill.size = Vector2(0.0, 8.0)
 	power_fill.texture = texture
 	power_fill.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	power_fill.stretch_mode = TextureRect.STRETCH_SCALE
 	power_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	power_track.add_child(power_fill)
 	power_cap = Panel.new()
-	power_cap.size = Vector2(14.0, 20.0)
-	power_cap.position = Vector2(4.0, 4.0)
-	power_cap.visible = false
+	power_cap.size = Vector2(18.0, 36.0)
+	power_cap.position = Vector2(8.0, -4.0)
+	power_cap.visible = true
 	power_cap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var cap := StyleBoxFlat.new()
-	cap.bg_color = Color(0.98, 0.9, 0.62)
-	cap.set_corner_radius_all(7)
+	cap.bg_color = Color(0.98, 0.95, 0.9)
+	cap.border_color = Color(0.36, 1.0, 0.95)
+	cap.set_border_width_all(3)
+	cap.set_corner_radius_all(8)
 	power_cap.add_theme_stylebox_override("panel", cap)
 	power_track.add_child(power_cap)
 	power_label = Label.new()

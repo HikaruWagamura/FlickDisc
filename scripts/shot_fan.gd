@@ -17,6 +17,8 @@ var _aim_to := Vector2.ZERO
 var _show_aim := false
 var _dots := PackedVector2Array()
 var _show_dots := false
+var _finger := Vector2.ZERO
+var _show_finger := false
 var _lift := 150.0
 
 
@@ -86,6 +88,12 @@ func set_line(a: Vector2, b: Vector2, showing: bool) -> void:
 	queue_redraw()
 
 
+func set_finger(at: Vector2, showing: bool) -> void:
+	_finger = at
+	_show_finger = showing
+	queue_redraw()
+
+
 func set_disc(at: Vector2, showing: bool) -> void:
 	_disc = at
 	_show_disc = showing
@@ -114,6 +122,8 @@ func _draw() -> void:
 		_draw_aim()
 	if _show_disc:
 		_draw_disc_ring()
+	if _show_finger:
+		_draw_finger()
 	if _show:
 		_draw_cursor()
 
@@ -156,8 +166,16 @@ func _draw_aim() -> void:
 
 
 func _draw_disc_ring() -> void:
-	draw_arc(_disc, 22.0, 0.0, TAU, 36, Color(1.0, 0.35, 0.62, 0.55), 2.0, true)
-	draw_arc(_disc, 28.0, 0.0, TAU, 36, Color(1.0, 0.86, 0.48, 0.75), 1.25, true)
+	# A touch mark on the ball, so the finger knows where to take hold.
+	draw_arc(_disc, 34.0, 0.0, TAU, 40, Color(1.0, 0.22, 0.55, 0.35), 7.0, true)
+	draw_arc(_disc, 34.0, 0.0, TAU, 40, Color(1.0, 0.78, 0.9, 0.95), 2.2, true)
+	draw_circle(_disc, 5.0, Color(1.0, 0.95, 0.98, 0.9))
+
+
+func _draw_finger() -> void:
+	draw_circle(_finger, 16.0, Color(0.08, 0.02, 0.08, 0.35))
+	draw_arc(_finger, 13.0, 0.0, TAU, 32, Color(0.36, 1.0, 0.95, 0.95), 2.4, true)
+	draw_circle(_finger, 4.0, Color(1.0, 0.95, 0.98, 0.95))
 
 
 func _draw_cursor() -> void:

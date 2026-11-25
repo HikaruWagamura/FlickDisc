@@ -18,7 +18,7 @@ var direct_aim := Vector3(0.0, 0.0, -1.0)
 var direct_power := 0.0
 var direct_hold := Vector3.ZERO
 var finger := Vector2.ZERO
-const DIRECT_METRES := 1.55
+const DIRECT_METRES := 0.62
 
 const TakeScript := preload("res://scripts/shot_take.gd")
 

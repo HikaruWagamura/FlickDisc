@@ -626,21 +626,30 @@ func _apply_visual(speed: float) -> void:
 	if delivering_jack and _jack_visual != null:
 		_visual.position = Vector3.ZERO
 		_visual.basis = Basis.IDENTITY
-		_jack_visual.position = Vector3(0.0, BowlScript.JACK_RADIUS * 0.82 + hop, 0.0)
+		_jack_visual.position = Vector3(0.0, BowlScript.JACK_RADIUS + BowlScript.GROUND_CLEAR + hop, 0.0)
 		_jack_visual.transform.basis = roll_basis
 	else:
 		if velocity.length() > 0.2:
 			travel_facing = velocity
-		# Running surface sits in the grass, shadow directly underneath.
-		var sit := BowlScript.DISC_RADIUS - BowlScript.SIT_NEST
+		var sit := BowlScript.DISC_RADIUS - BowlScript.SIT_NEST + BowlScript.GROUND_CLEAR
 		_visual.position = Vector3(0.0, sit + hop, 0.0)
 		_visual.basis = Basis(Vector3(0.0, 0.0, 1.0), _lean_angle(speed))
 		if _spin != null:
 			_spin.position = Vector3.ZERO
 			_spin.transform.basis = roll_basis
-	if _shadow != null:
-		_shadow.visible = global_position.y > -0.06
-		_shadow.position = Vector3(0.0, 0.004, 0.0)
+	_seat_shadow(radius)
+
+
+func _seat_shadow(body_radius: float) -> void:
+	if _shadow == null:
+		return
+	var mesh := _shadow.mesh as CylinderMesh
+	if mesh != null:
+		mesh.top_radius = body_radius * 0.7
+		mesh.bottom_radius = body_radius * 0.92
+		mesh.height = 0.002
+	_shadow.position = Vector3(0.0, 0.001, body_radius * 0.04)
+	_shadow.visible = global_position.y > -0.06
 
 
 func guide_points() -> PackedVector3Array:
@@ -701,18 +710,18 @@ func _predict_path() -> PackedVector3Array:
 func _build_visual() -> void:
 	_shadow = MeshInstance3D.new()
 	var shadow_mesh := CylinderMesh.new()
-	shadow_mesh.top_radius = 0.18
-	shadow_mesh.bottom_radius = 0.18
-	shadow_mesh.height = 0.008
+	shadow_mesh.top_radius = 0.08
+	shadow_mesh.bottom_radius = 0.12
+	shadow_mesh.height = 0.003
 	shadow_mesh.radial_segments = 24
 	_shadow.mesh = shadow_mesh
 	var shadow_mat := StandardMaterial3D.new()
 	shadow_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	shadow_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	shadow_mat.albedo_color = Color(0.0, 0.05, 0.02, 0.34)
+	shadow_mat.albedo_color = Color(0.02, 0.05, 0.03, 0.32)
 	_shadow.material_override = shadow_mat
 	_shadow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_shadow.position = Vector3(0.0, 0.004, 0.0)
+	_shadow.position = Vector3(0.04, 0.002, 0.05)
 	add_child(_shadow)
 
 	_visual = Node3D.new()
@@ -737,7 +746,7 @@ func _build_visual() -> void:
 	jack_mat.emission = Color(0.55, 0.42, 0.18)
 	jack_mat.emission_energy_multiplier = 0.22
 	_add_sphere(_jack_visual, Vector3.ZERO, BowlScript.JACK_RADIUS, Vector3.ONE, jack_mat)
-	_jack_visual.position = Vector3(0.0, BowlScript.JACK_RADIUS * 0.82, 0.0)
+	_jack_visual.position = Vector3(0.0, BowlScript.JACK_RADIUS + BowlScript.GROUND_CLEAR, 0.0)
 
 
 func _place_pip() -> void:
@@ -783,6 +792,9 @@ func _add_sphere(parent: Node3D, pos: Vector3, radius_m: float, scale: Vector3, 
 	mi.position = pos
 	mi.scale = scale
 	mi.material_override = mat
+	# The contact shade is drawn on the grass. A cast shadow from this low sun
+	# lands in front of the ball and reads as a second, detached blot.
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	parent.add_child(mi)
 
 

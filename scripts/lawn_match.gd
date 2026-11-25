@@ -69,7 +69,7 @@ var aim_lock := 0.0
 var line_z := 0.0
 var _return_token := 0
 const PLACE_HALF := 1.65
-const PULL_BACK := 1.55
+const PULL_BACK := 0.62
 const AIM_CONE := 0.26
 const CURSOR_SPAN := 0.05
 
@@ -348,16 +348,15 @@ func _sync_direct(cam: Camera3D, placed: Vector3) -> void:
 			disc.preview_take(Vector3(0.0, 0.0, -1.0), 0.0)
 	var live_pos: Vector3 = disc.global_position
 	var bowl_px := cam.unproject_position(live_pos + Vector3(0.0, 0.16, 0.0))
-	var mat_px := cam.unproject_position(placed + Vector3(0.0, 0.12, 0.0))
 	fan.present(bowl_px, power, 0.0, false, -PI * 0.5, 120.0)
 	var dots := PackedVector2Array()
 	if pulling:
-		dots = fan.project_dots(cam, live_pos, disc.guide_points(), disc.radius * 0.2, bowl_px, 18.0)
+		dots = fan.project_dots(cam, live_pos, disc.guide_points(), disc.radius * 2.2, bowl_px, 72.0)
 	fan.set_dots(dots, pulling and dots.size() > 1)
-	# The cream line is the drag itself, from the mat to the finger.
-	fan.set_aim(mat_px, gesture.finger if pulling else mat_px, pulling)
+	fan.set_aim(Vector2.ZERO, Vector2.ZERO, false)
 	fan.set_line(Vector2.ZERO, Vector2.ZERO, false)
 	fan.set_disc(bowl_px, live and not pulling)
+	fan.set_finger(gesture.finger, pulling)
 
 
 func _new_match() -> void:

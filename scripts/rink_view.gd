@@ -191,9 +191,9 @@ func _build_lights() -> void:
 	sun.light_color = Color(1.0, 0.96, 0.88)
 	sun.light_energy = 1.16
 	sun.shadow_enabled = true
-	sun.shadow_bias = 0.04
-	sun.shadow_normal_bias = 1.4
-	sun.shadow_blur = 1.15
+	sun.shadow_bias = 0.012
+	sun.shadow_normal_bias = 0.05
+	sun.shadow_blur = 0.55
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
 	sun.directional_shadow_max_distance = 260.0 if LENGTH > 200.0 else 150.0
 	sun.directional_shadow_blend_splits = true
@@ -256,7 +256,7 @@ func _process(delta: float) -> void:
 	elif _aiming and not _shot_live:
 		# Draw back with the bowl and keep looking down the rink.
 		var pulled := maxf(_shot_pos.z - _mat.z, 0.0)
-		goal_pos = Vector3(clampf(_shot_pos.x * 0.35, -1.2, 1.2), 0.62, _mat.z + 2.1 + pulled * 0.85)
+		goal_pos = Vector3(clampf(_shot_pos.x * 0.35, -1.2, 1.2), 0.62, _mat.z + 2.1 + pulled * 0.35)
 		goal_look = Vector3(_shot_pos.x * 0.1, 0.15, _shot_pos.z - 16.0)
 		goal_fov = 42.0
 		response = 11.0

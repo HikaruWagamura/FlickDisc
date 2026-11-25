@@ -18,9 +18,10 @@ const CONTACT_FRICTION := 0.34
 ## Tripo sculpt sits on Y=0 and stands 0.978 tall.
 const WIDE_MESH_HEIGHT := 0.97834063
 const WIDE_BIAS := 2
-## Sink the running surface into the green. A round bowl on a flat plane
-## reads as hovering unless the contact is buried for the rink camera.
-const SIT_NEST := 0.03
+## The running surface kisses the grass. A few millimetres of contact,
+## so the bowl sits on the green and the shade falls beside it.
+const SIT_NEST := 0.0
+const GROUND_CLEAR := 0.002
 const WIDE_SCENE := preload("res://assets/bowls/lawn_bowl.glb")
 const CLUB_SCENE := preload("res://assets/bowls/modern_lawn_bowls.fbx")
 const ALBEDO_BLUE := preload("res://assets/bowls/bowl_albedo_blue.jpg")
@@ -356,10 +357,9 @@ func present(speed: float) -> void:
 		return
 	punch = move_toward(punch, 0.0, 0.08)
 	var lift := clampf(speed / 21.5, 0.0, 1.0)
-	_spin.position.y = radius - SIT_NEST + lift * 0.03 + punch * 0.06
+	_spin.position.y = radius - SIT_NEST + GROUND_CLEAR + lift * 0.03 + punch * 0.06
 	_spin.transform.basis = roll_basis
-	if _shadow != null:
-		_shadow.position = Vector3(0.0, 0.003, 0.0)
+	_seat_shadow(radius)
 
 
 func set_hand(hand: float) -> void:
@@ -421,25 +421,38 @@ func _build_jack() -> void:
 	var mat := _mat(Color(0.96, 0.94, 0.88), 0.28, 0.08)
 	apply_jack(mat)
 	ball.material_override = mat
+	ball.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_spin.add_child(ball)
 
 
 func _make_shadow(size: float) -> MeshInstance3D:
 	var shadow := MeshInstance3D.new()
 	var shadow_mesh := CylinderMesh.new()
-	shadow_mesh.top_radius = size
-	shadow_mesh.bottom_radius = size
-	shadow_mesh.height = 0.008
-	shadow_mesh.radial_segments = 20
+	shadow_mesh.top_radius = size * 0.42
+	shadow_mesh.bottom_radius = size * 0.62
+	shadow_mesh.height = 0.003
+	shadow_mesh.radial_segments = 24
 	shadow.mesh = shadow_mesh
 	var shadow_mat := StandardMaterial3D.new()
 	shadow_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	shadow_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	shadow_mat.albedo_color = Color(0.0, 0.04, 0.02, 0.46)
+	shadow_mat.albedo_color = Color(0.02, 0.05, 0.03, 0.32)
 	shadow.material_override = shadow_mat
 	shadow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	shadow.position = Vector3(0.0, 0.003, 0.0)
+	shadow.position = Vector3(size * 0.22, 0.002, size * 0.28)
 	return shadow
+
+
+func _seat_shadow(body_radius: float) -> void:
+	if _shadow == null:
+		return
+	var mesh := _shadow.mesh as CylinderMesh
+	if mesh != null:
+		mesh.top_radius = body_radius * 0.7
+		mesh.bottom_radius = body_radius * 0.92
+		mesh.height = 0.002
+	_shadow.position = Vector3(0.0, 0.001, body_radius * 0.04)
+	_shadow.visible = global_position.y > -0.06
 
 
 static func dress_stone(parent: Node3D, index: int, hand: float, wide: bool = false, variant: int = 0) -> Dictionary:
@@ -463,6 +476,7 @@ static func _dress_club(parent: Node3D, index: int, hand: float, variant: int = 
 		sphere.radial_segments = 28
 		sphere.rings = 14
 		mi.mesh = sphere
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	holder.add_child(mi)
 	holder.rotation = Vector3(0.0, hand_yaw(hand), 0.0)
 	var body := StandardMaterial3D.new()
