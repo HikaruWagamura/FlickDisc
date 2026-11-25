@@ -74,6 +74,10 @@ var _guide: Node3D
 var _dots: Array[MeshInstance3D] = []
 var _jack_visual: Node3D
 var _bias_pip: Node3D
+var _club_holder: Node3D
+var _wide_holder: Node3D
+var _wide_mat: StandardMaterial3D
+var _look_index := 1
 
 
 func _ready() -> void:
@@ -143,11 +147,13 @@ func configure_bowl(index: int, hand: float) -> void:
 	radius = DISC_RADIUS
 	mass = BowlScript.DISC_MASS
 	is_jack = false
+	_look_index = index
 	set_palette(0)
 	if _visual != null:
 		_visual.visible = true
 	if _jack_visual != null:
 		_jack_visual.visible = false
+	_show_look()
 	_place_pip()
 	_apply_visual(0.0)
 	bias_changed.emit(bias_ratio)
@@ -290,9 +296,10 @@ func reset_to_start() -> void:
 
 func set_palette(index: int) -> void:
 	palette_index = index % 2
-	if _body_mat == null:
-		return
-	BowlScript.apply_team(_body_mat, palette_index)
+	if _body_mat != null:
+		BowlScript.apply_team(_body_mat, palette_index, false)
+	if _wide_mat != null:
+		BowlScript.apply_team(_wide_mat, palette_index, true)
 
 
 func set_green(bounds_min: Vector2, bounds_max: Vector2) -> void:
@@ -508,13 +515,16 @@ func _apply_visual(speed: float) -> void:
 		return
 	punch = move_toward(punch, 0.0, 0.08)
 	var lift := clampf(speed / MAX_SPEED, 0.0, 1.0)
-	var sit := 0.0 if delivering_jack else radius - BowlScript.SIT_NEST
-	_visual.position.y = sit + lift * 0.035 + punch * 0.08
-	_visual.rotation = Vector3.ZERO
+	var sit := radius - BowlScript.SIT_NEST
 	if delivering_jack and _jack_visual != null:
+		_jack_visual.position.y = sit + lift * 0.035 + punch * 0.08
 		_jack_visual.transform.basis = roll_basis
-	elif _spin != null:
-		_spin.transform.basis = roll_basis
+		_visual.position.y = 0.0
+	else:
+		_visual.position.y = sit + lift * 0.035 + punch * 0.08
+		_visual.rotation = Vector3.ZERO
+		if _spin != null:
+			_spin.transform.basis = roll_basis
 	_shadow.position = Vector3(0.0, 0.003, 0.0)
 
 
@@ -594,28 +604,49 @@ func _build_visual() -> void:
 	_spin = Node3D.new()
 	_visual.add_child(_spin)
 
-	var dressed: Dictionary = BowlScript.dress_stone(_spin, palette_index, hand_sign)
-	_rim_mat = dressed["rim"]
-	_body_mat = dressed["body"]
-	_cap_mat = dressed["cap"]
-	_mark_mat = dressed["mark"]
-	_bias_pip = dressed["weight"]
+	var club: Dictionary = BowlScript.dress_stone(_spin, palette_index, hand_sign, false)
+	_rim_mat = club["rim"]
+	_body_mat = club["body"]
+	_cap_mat = club["cap"]
+	_mark_mat = club["mark"]
+	_club_holder = club["weight"]
+	var wide: Dictionary = BowlScript.dress_stone(_spin, palette_index, hand_sign, true)
+	_wide_mat = wide["body"]
+	_wide_holder = wide["weight"]
+	_show_look()
 	_place_pip()
 
 	_jack_visual = Node3D.new()
 	_jack_visual.visible = false
 	add_child(_jack_visual)
-	var jack_mat := _disc_mat(Color(0.98, 0.82, 0.28), 0.22, 0.72)
-	jack_mat.emission_enabled = true
-	jack_mat.emission = Color(0.62, 0.42, 0.08)
-	jack_mat.emission_energy_multiplier = 0.35
-	_add_sphere(_jack_visual, Vector3(0.0, BowlScript.JACK_RADIUS - BowlScript.SIT_NEST, 0.0), BowlScript.JACK_RADIUS, Vector3.ONE, jack_mat)
+	var jack_mesh: Mesh = BowlScript.jack_mesh()
+	var jack_mat := _disc_mat(Color(0.96, 0.94, 0.88), 0.28, 0.08)
+	BowlScript.apply_jack(jack_mat)
+	if jack_mesh != null:
+		var jack_mi := MeshInstance3D.new()
+		jack_mi.mesh = jack_mesh
+		BowlScript._fit_mesh(jack_mi, BowlScript.JACK_RADIUS * 2.0)
+		jack_mi.material_override = jack_mat
+		_jack_visual.add_child(jack_mi)
+	else:
+		_add_sphere(_jack_visual, Vector3.ZERO, BowlScript.JACK_RADIUS, Vector3.ONE, jack_mat)
+
+
+func _show_look() -> void:
+	var wide := BowlScript.is_wide(_look_index)
+	if _club_holder != null:
+		_club_holder.visible = not wide
+	if _wide_holder != null:
+		_wide_holder.visible = wide
+	_bias_pip = _wide_holder if wide else _club_holder
 
 
 func _place_pip() -> void:
-	if _bias_pip == null:
-		return
-	_bias_pip.rotation = Vector3(0.0, BowlScript.hand_yaw(hand_sign), 0.0)
+	var yaw := Vector3(0.0, BowlScript.hand_yaw(hand_sign), 0.0)
+	if _club_holder != null:
+		_club_holder.rotation = yaw
+	if _wide_holder != null:
+		_wide_holder.rotation = yaw
 
 
 func _build_guide() -> void:

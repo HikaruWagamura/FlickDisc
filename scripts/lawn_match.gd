@@ -339,7 +339,7 @@ func _build_rack() -> void:
 	for i in BOWLS_EACH:
 		var bowl = BowlScript.new()
 		bowl.name = "Rack%d" % (i + 1)
-		bowl.setup_disc(0, hand_sign)
+		bowl.setup_disc(0, hand_sign, bias_index)
 		add_child(bowl)
 		rack.append(bowl)
 
@@ -349,7 +349,7 @@ func _place_rack() -> void:
 	var left := BOWLS_EACH if delivering_jack else _bowls_left(side)
 	for i in rack.size():
 		var bowl = rack[i]
-		bowl.paint(side, hand_sign)
+		bowl.paint(side, hand_sign, bias_index)
 		bowl.set_scoring(false)
 		bowl.roll_basis = Basis.IDENTITY
 		bowl.visible = i < left
@@ -482,7 +482,7 @@ func _finish_shot(token: int) -> void:
 		return
 	var thrown = BowlScript.new()
 	thrown.name = "Bowl%d" % (throw_index + 1)
-	thrown.setup_disc(throw_index % 2, hand_sign)
+	thrown.setup_disc(throw_index % 2, hand_sign, bias_index)
 	thrown.side = throw_index % 2
 	thrown.roll_basis = disc.roll_basis
 	add_child(thrown)

@@ -4,8 +4,8 @@ extends Node3D
 ## A bowl or the jack on the green. Motion is owned by the table in DiscController.
 ## Settled bowls stay where they stop, and later bowls can knock them.
 ## Red is one side, blue is the other. Each side bowls four in an end.
-## The running bowl is the sculpted lawn bowl: bias face, grip rings, and
-## finger grooves, then team colour over the same mesh.
+## Club bowls are the CGTrader set (main). The earlier sculpt stays as the
+## WIDE bias look so that shape is not thrown away.
 
 const DISC_RADIUS := 0.20
 const JACK_RADIUS := 0.16
@@ -13,14 +13,20 @@ const DISC_MASS := 2.45
 const JACK_MASS := 0.52
 const DISC_RESTITUTION := 0.46
 const JACK_RESTITUTION := 0.4
-## Uploaded GLB sits on Y=0 and stands 0.978 tall, about 0.978 across.
-const MESH_HEIGHT := 0.97834063
+## Tripo sculpt sits on Y=0 and stands 0.978 tall.
+const WIDE_MESH_HEIGHT := 0.97834063
+const WIDE_BIAS := 2
 ## Sink the running surface into the green. A round bowl on a flat plane
 ## reads as hovering unless the contact is buried for the rink camera.
-## 5 cm was a hair too deep; this just kisses the turf.
 const SIT_NEST := 0.03
-const BOWL_SCENE := preload("res://assets/bowls/lawn_bowl.glb")
+const WIDE_SCENE := preload("res://assets/bowls/lawn_bowl.glb")
+const CLUB_SCENE := preload("res://assets/bowls/modern_lawn_bowls.fbx")
 const ALBEDO_BLUE := preload("res://assets/bowls/bowl_albedo_blue.jpg")
+
+static var _club_meshes: Array[Mesh] = []
+static var _jack_mesh: Mesh
+static var _next_club_variant := 0
+static var _maps_cache: Dictionary = {}
 
 var radius := DISC_RADIUS
 var mass := DISC_MASS
@@ -34,6 +40,7 @@ var stop_timer := 0.0
 var punch := 0.0
 var in_ditch := false
 var palette_index := 0
+var bias_type := 1
 
 var _spin: Node3D
 var _shadow: MeshInstance3D
@@ -53,17 +60,116 @@ static func palette(index: int) -> Array:
 	return looks[index % looks.size()]
 
 
-static func apply_team(mat: StandardMaterial3D, index: int) -> void:
+static func is_wide(bias: int) -> bool:
+	return bias % 4 == WIDE_BIAS
+
+
+static func apply_team(mat: StandardMaterial3D, index: int, wide: bool = false) -> void:
 	if mat == null:
 		return
-	if not mat.has_meta("albedo_red"):
-		mat.set_meta("albedo_red", mat.albedo_texture)
-	if index % 2 == 1:
-		mat.albedo_texture = ALBEDO_BLUE
-		mat.albedo_color = Color(0.82, 0.90, 1.0)
+	if wide:
+		if not mat.has_meta("albedo_red"):
+			mat.set_meta("albedo_red", mat.albedo_texture)
+		if index % 2 == 1:
+			mat.albedo_texture = ALBEDO_BLUE
+			mat.albedo_color = Color(0.82, 0.90, 1.0)
+		else:
+			mat.albedo_texture = mat.get_meta("albedo_red")
+			mat.albedo_color = Color(1.0, 0.94, 0.92)
+		return
+	var maps := _club_maps()
+	_apply_pbr(mat, maps)
+	var team_tex: Texture2D = maps["blue"] if index % 2 == 1 else maps["red"]
+	if team_tex != null:
+		mat.albedo_texture = team_tex
+		mat.albedo_color = Color(1.0, 1.0, 1.0)
+	elif maps["albedo"] != null:
+		mat.albedo_texture = maps["albedo"]
+		mat.albedo_color = palette(index)[1]
 	else:
-		mat.albedo_texture = mat.get_meta("albedo_red")
-		mat.albedo_color = Color(1.0, 0.94, 0.92)
+		mat.albedo_texture = null
+		mat.albedo_color = palette(index)[1]
+
+
+static func _club_maps() -> Dictionary:
+	if not _maps_cache.is_empty():
+		return _maps_cache
+	var maps := {
+		"albedo": null,
+		"normal": null,
+		"roughness": null,
+		"metallic": null,
+		"red": null,
+		"blue": null,
+		"jack": null,
+	}
+	for path in _texture_paths():
+		var kind := _classify_tex(path)
+		var tex: Texture2D = load(path)
+		if tex == null:
+			continue
+		if maps.has(kind) and maps[kind] == null:
+			maps[kind] = tex
+	_maps_cache = maps
+	return maps
+
+
+static func _texture_paths() -> PackedStringArray:
+	var paths := PackedStringArray()
+	var seen := {}
+	for folder in ["res://assets/bowls/textures", "res://assets/bowls"]:
+		var dir := DirAccess.open(folder)
+		if dir == null:
+			continue
+		dir.list_dir_begin()
+		var fname := dir.get_next()
+		while fname != "":
+			var lower := fname.to_lower()
+			if not dir.current_is_dir() and _is_image_name(lower) and not _is_wide_image(lower):
+				var path := "%s/%s" % [folder, fname]
+				if not seen.has(path) and ResourceLoader.exists(path):
+					seen[path] = true
+					paths.append(path)
+			fname = dir.get_next()
+	return paths
+
+
+static func _is_image_name(lower: String) -> bool:
+	return lower.ends_with(".jpg") or lower.ends_with(".jpeg") or lower.ends_with(".png") or lower.ends_with(".webp")
+
+
+static func _is_wide_image(lower: String) -> bool:
+	return "tripo" in lower or lower.begins_with("lawn_bowl_") or lower.begins_with("bowl_albedo_blue")
+
+
+static func _classify_tex(path: String) -> String:
+	var n := path.get_file().to_lower()
+	if "normal" in n or "_nor" in n or n.contains("_n."):
+		return "normal"
+	if "rough" in n:
+		return "roughness"
+	if "metal" in n:
+		return "metallic"
+	if "jack" in n:
+		return "jack"
+	if "blue" in n:
+		return "blue"
+	if "red" in n:
+		return "red"
+	if "basecolor" in n or "base_color" in n or "albedo" in n or "diffuse" in n or "color" in n:
+		return "albedo"
+	return "albedo"
+
+
+static func _apply_pbr(mat: StandardMaterial3D, maps: Dictionary) -> void:
+	if maps["normal"] != null:
+		mat.normal_enabled = true
+		mat.normal_texture = maps["normal"]
+	if maps["roughness"] != null:
+		mat.roughness_texture = maps["roughness"]
+	if maps["metallic"] != null:
+		mat.metallic_texture = maps["metallic"]
+		mat.metallic = 1.0
 
 
 static func hand_yaw(hand: float) -> float:
@@ -128,20 +234,23 @@ static func resolve(a_pos: Vector3, a_vel: Vector3, a_radius: float, a_mass: flo
 	return {"hit": impact > 0.0, "a_pos": a_pos, "a_vel": a_vel, "b_pos": b_pos, "b_vel": b_vel, "impact": impact}
 
 
-func setup_disc(index: int, hand: float = -1.0) -> void:
-	paint(index, hand)
+func setup_disc(index: int, hand: float = -1.0, bias: int = 1) -> void:
+	bias_type = bias
+	paint(index, hand, bias)
 
 
-func paint(index: int, hand: float = -1.0) -> void:
+func paint(index: int, hand: float = -1.0, bias: int = -1) -> void:
 	palette_index = index
 	side = index % 2
+	if bias >= 0:
+		bias_type = bias
 	radius = DISC_RADIUS
 	mass = DISC_MASS
 	is_jack = false
 	if _spin == null:
 		_build_disc(index, hand)
 		return
-	apply_team(_body_mat, index)
+	apply_team(_body_mat, index, is_wide(bias_type))
 	set_hand(hand)
 
 
@@ -192,10 +301,7 @@ func present(speed: float) -> void:
 		return
 	punch = move_toward(punch, 0.0, 0.08)
 	var lift := clampf(speed / 21.5, 0.0, 1.0)
-	# Jack mesh is already offset to the green. Bowls are centred on _spin
-	# so the spin node has to sit at radius.
-	var sit := 0.0 if is_jack else radius - SIT_NEST
-	_spin.position.y = sit + lift * 0.03 + punch * 0.06
+	_spin.position.y = radius - SIT_NEST + lift * 0.03 + punch * 0.06
 	_spin.transform.basis = roll_basis
 	if _shadow != null:
 		_shadow.position = Vector3(0.0, 0.003, 0.0)
@@ -217,7 +323,9 @@ func _build_disc(index: int, hand: float) -> void:
 	add_child(_shadow)
 	_spin = Node3D.new()
 	add_child(_spin)
-	var dressed: Dictionary = dress_stone(_spin, index, hand)
+	var variant := _next_club_variant
+	_next_club_variant += 1
+	var dressed: Dictionary = dress_stone(_spin, index, hand, is_wide(bias_type), variant)
 	_rim_mat = dressed["rim"]
 	_body_mat = dressed["body"]
 	_cap_mat = dressed["cap"]
@@ -241,26 +349,22 @@ func _build_jack() -> void:
 	add_child(_shadow)
 	_spin = Node3D.new()
 	add_child(_spin)
+	var mesh := jack_mesh()
 	var ball := MeshInstance3D.new()
-	var mesh := SphereMesh.new()
-	mesh.radius = JACK_RADIUS
-	mesh.height = JACK_RADIUS * 2.0
-	mesh.radial_segments = 24
-	mesh.rings = 12
-	ball.mesh = mesh
-	ball.position = Vector3(0.0, JACK_RADIUS - SIT_NEST, 0.0)
-	var mat := _mat(Color(0.98, 0.82, 0.28), 0.22, 0.72)
-	mat.emission_enabled = true
-	mat.emission = Color(0.62, 0.42, 0.08)
-	mat.emission_energy_multiplier = 0.35
+	if mesh != null:
+		ball.mesh = mesh
+		_fit_mesh(ball, JACK_RADIUS * 2.0)
+	else:
+		var sphere := SphereMesh.new()
+		sphere.radius = JACK_RADIUS
+		sphere.height = JACK_RADIUS * 2.0
+		sphere.radial_segments = 24
+		sphere.rings = 12
+		ball.mesh = sphere
+	var mat := _mat(Color(0.96, 0.94, 0.88), 0.28, 0.08)
+	apply_jack(mat)
 	ball.material_override = mat
 	_spin.add_child(ball)
-	var band := MeshInstance3D.new()
-	band.mesh = _annulus(0.09, 0.125, 24)
-	band.position = Vector3(0.0, JACK_RADIUS - SIT_NEST + 0.01, 0.0)
-	band.material_override = _flat(Color(0.98, 0.96, 0.9))
-	band.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_spin.add_child(band)
 
 
 func _make_shadow(size: float) -> MeshInstance3D:
@@ -281,15 +385,45 @@ func _make_shadow(size: float) -> MeshInstance3D:
 	return shadow
 
 
-static func dress_stone(parent: Node3D, index: int, hand: float) -> Dictionary:
+static func dress_stone(parent: Node3D, index: int, hand: float, wide: bool = false, variant: int = 0) -> Dictionary:
+	if wide:
+		return _dress_wide(parent, index, hand)
+	return _dress_club(parent, index, hand, variant)
+
+
+static func _dress_club(parent: Node3D, index: int, hand: float, variant: int = 0) -> Dictionary:
 	var holder := Node3D.new()
-	holder.name = "LawnBowl"
+	holder.name = "ClubBowl"
 	parent.add_child(holder)
-	var sculpt: Node = BOWL_SCENE.instantiate()
-	var mesh_scale := (DISC_RADIUS * 2.0) / MESH_HEIGHT
+	var mi := MeshInstance3D.new()
+	mi.mesh = club_mesh(variant)
+	if mi.mesh != null:
+		_fit_mesh(mi, DISC_RADIUS * 2.0)
+	else:
+		var sphere := SphereMesh.new()
+		sphere.radius = DISC_RADIUS
+		sphere.height = DISC_RADIUS * 2.0
+		sphere.radial_segments = 28
+		sphere.rings = 14
+		mi.mesh = sphere
+	holder.add_child(mi)
+	holder.rotation = Vector3(0.0, hand_yaw(hand), 0.0)
+	var mat := StandardMaterial3D.new()
+	mat.roughness = 0.38
+	mat.metallic = 0.06
+	mat.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
+	mi.material_override = mat
+	apply_team(mat, index, false)
+	return {"rim": mat, "body": mat, "cap": mat, "mark": mat, "weight": holder}
+
+
+static func _dress_wide(parent: Node3D, index: int, hand: float) -> Dictionary:
+	var holder := Node3D.new()
+	holder.name = "WideBowl"
+	parent.add_child(holder)
+	var sculpt: Node = WIDE_SCENE.instantiate()
+	var mesh_scale := (DISC_RADIUS * 2.0) / WIDE_MESH_HEIGHT
 	sculpt.scale = Vector3.ONE * mesh_scale
-	# Scale is around the GLB origin (the green). Shift so the centre
-	# sits on the spin origin and the bowl can roll without dipping.
 	sculpt.position = Vector3(0.0, -DISC_RADIUS, 0.0)
 	holder.add_child(sculpt)
 	holder.rotation = Vector3(0.0, hand_yaw(hand), 0.0)
@@ -305,8 +439,78 @@ static func dress_stone(parent: Node3D, index: int, hand: float) -> Dictionary:
 	mat.roughness = 0.52
 	mat.metallic = 0.04
 	mat.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
-	apply_team(mat, index)
+	apply_team(mat, index, true)
 	return {"rim": mat, "body": mat, "cap": mat, "mark": mat, "weight": holder}
+
+
+static func club_mesh(variant: int = 0) -> Mesh:
+	_ensure_club_meshes()
+	if _club_meshes.is_empty():
+		return null
+	return _club_meshes[variant % _club_meshes.size()]
+
+
+static func jack_mesh() -> Mesh:
+	_ensure_club_meshes()
+	return _jack_mesh
+
+
+static func _ensure_club_meshes() -> void:
+	if not _club_meshes.is_empty():
+		return
+	var root: Node = CLUB_SCENE.instantiate()
+	for name in PackedStringArray(["ball_1", "ball_2", "ball_3", "ball_4", "ball_1_2"]):
+		var mi := _named_mesh(root, PackedStringArray([name]))
+		if mi != null and mi.mesh != null:
+			_club_meshes.append(mi.mesh)
+	var jack_mi := _named_mesh(root, PackedStringArray(["Sphere"]))
+	if jack_mi != null:
+		_jack_mesh = jack_mi.mesh
+	root.free()
+
+
+static func _extract_mesh(scene: PackedScene, names: PackedStringArray) -> Mesh:
+	var root: Node = scene.instantiate()
+	var mi := _named_mesh(root, names)
+	var mesh: Mesh = mi.mesh if mi != null else null
+	root.free()
+	return mesh
+
+
+static func _named_mesh(node: Node, names: PackedStringArray) -> MeshInstance3D:
+	if node is MeshInstance3D:
+		for name in names:
+			if node.name == StringName(name) or str(node.name) == name:
+				return node
+	for child in node.get_children():
+		var found := _named_mesh(child, names)
+		if found != null:
+			return found
+	return null
+
+
+static func _fit_mesh(mi: MeshInstance3D, target_span: float) -> void:
+	if mi.mesh == null:
+		return
+	var aabb := mi.mesh.get_aabb()
+	var span := maxf(aabb.size.x, maxf(aabb.size.y, aabb.size.z))
+	if span < 0.0001:
+		return
+	mi.scale = Vector3.ONE * (target_span / span)
+	mi.position = -aabb.get_center() * mi.scale.x
+
+
+static func apply_jack(mat: StandardMaterial3D) -> void:
+	if mat == null:
+		return
+	var maps := _club_maps()
+	_apply_pbr(mat, maps)
+	if maps["jack"] != null:
+		mat.albedo_texture = maps["jack"]
+		mat.albedo_color = Color(1.0, 1.0, 1.0)
+	elif maps["albedo"] != null:
+		mat.albedo_texture = maps["albedo"]
+		mat.albedo_color = Color(0.96, 0.94, 0.88)
 
 
 static func _first_mesh(node: Node) -> MeshInstance3D:
