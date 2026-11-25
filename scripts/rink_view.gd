@@ -259,10 +259,9 @@ func _process(delta: float) -> void:
 			goal_fov = 36.0
 		response = 2.7
 	elif _aiming and not _shot_live:
-		# Draw back with the bowl and keep looking down the rink.
-		var pulled := maxf(_shot_pos.z - _mat.z, 0.0)
-		goal_pos = Vector3(clampf(_shot_pos.x * 0.35, -1.2, 1.2), 0.62, _mat.z + 2.1 + pulled * 0.1)
-		goal_look = Vector3(_shot_pos.x * 0.1, 0.15, _shot_pos.z - 16.0)
+		# Stay behind the bowl as it draws back so the block on the grass stays in frame.
+		goal_pos = Vector3(clampf(_shot_pos.x * 0.35, -1.2, 1.2), 0.96, _shot_pos.z + 2.55)
+		goal_look = Vector3(_shot_pos.x * 0.12, 0.08, _shot_pos.z - 12.5)
 		goal_fov = 42.0
 		response = 11.0
 	elif _shot_live and chase:

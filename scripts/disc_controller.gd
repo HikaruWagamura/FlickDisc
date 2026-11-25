@@ -660,21 +660,22 @@ func guide_points() -> PackedVector3Array:
 
 
 func grass_cue(power: float) -> PackedVector3Array:
-	# A short ribbon on the green, from the front of the bowl. The jack
+	# A short block on the green, from under the bowl. The jack
 	# stays straight. A bowl takes the hand of its bias.
 	var flat := Vector3(aim_direction.x, 0.0, aim_direction.z)
 	if flat.length() < 0.001:
 		flat = Vector3(0.0, 0.0, -1.0)
 	flat = flat.normalized()
-	var start := Vector3(global_position.x, 0.035, global_position.z) + flat * (radius + 0.04)
-	var want := lerpf(2.6, 4.0, clampf(power, 0.0, 1.0))
+	# Start at the bowl so the tail tucks under it. The chevron sits on the grass ahead.
+	var start := Vector3(global_position.x, 0.0, global_position.z) + flat * (radius * 0.55)
+	var want := lerpf(2.10, 2.70, clampf(power, 0.0, 1.0))
 	var out := PackedVector3Array()
 	var use_bias := (not delivering_jack) and absf(bias_ratio) > 0.04
 	if not use_bias:
 		for step in 28:
 			var t := float(step) / 27.0
 			var point := start + flat * (want * t)
-			point.y = 0.035
+			point.y = 0.0
 			out.append(point)
 		return out
 	var pos := global_position
@@ -689,9 +690,7 @@ func grass_cue(power: float) -> PackedVector3Array:
 		pos = moved[0]
 		vel = moved[1]
 		travelled += prev.distance_to(pos)
-		if travelled < radius + 0.06:
-			continue
-		var point := Vector3(pos.x, 0.035, pos.z)
+		var point := Vector3(pos.x, 0.0, pos.z)
 		if out[out.size() - 1].distance_to(point) >= 0.07:
 			out.append(point)
 		if travelled >= want or bool(moved[3]) or vel.length() < STOP_SPEED:
