@@ -11,25 +11,32 @@ signal impacted(speed: float, hit_jack: bool, hit_bank: bool)
 
 const DISC_RADIUS := 0.20
 const MAX_DRAG_PIXELS := 210.0
-const MAX_SPEED := 66.0
-const MIN_SPEED := 5.0
+## Bowls should roll, not fly. The jack keeps a longer stride so a
+## full pull can still find the far head.
+const BOWL_MAX_SPEED := 32.0
+const JACK_MAX_SPEED := 34.0
+const MAX_SPEED := JACK_MAX_SPEED
+const MIN_SPEED := 4.2
 const AIM_RESPONSE := 11.0
 const DIAL_POWER_PIXELS := 148.0
 const DIAL_SIDE_PIXELS := 132.0
 const LINE_LOCK_PIXELS := 36.0
 const MAX_LINE := 0.16
-const FRICTION_FAST := 0.58
-const FRICTION_SLOW := 0.36
+const BOWL_FRICTION_FAST := 0.46
+const BOWL_FRICTION_SLOW := 0.24
+const JACK_FRICTION_FAST := 0.50
+const JACK_FRICTION_SLOW := 0.30
 const STOP_SPEED := 0.14
 const STOP_GRACE_SECONDS := 0.16
 ## Radians of turn per metre at bias 1. The same bowl takes the same
 ## curve whatever the aim, so a straight line still finishes wide.
-const CURL_PER_METRE := 0.014
-const CURL_DRAW := 1.12
+const CURL_PER_METRE := 0.018
+const CURL_DRAW := 1.18
 const KNOCK_CURL := 0.38
 const PICK_RADIUS_PX := 88.0
 const GUIDE_DOTS := 9
-const GUIDE_PORTION := 0.26
+const GUIDE_MIN := 7.2
+const GUIDE_MAX := 12.5
 
 var start_position := Vector3.ZERO
 var green_min := Vector2(-2.9, -38.0)
@@ -284,13 +291,17 @@ func launch() -> void:
 
 
 func _delivery_velocity(aim: Vector3, power: float) -> Vector3:
-	var speed := lerpf(MIN_SPEED, MAX_SPEED, power)
+	var speed := lerpf(MIN_SPEED, _top_speed(is_jack or delivering_jack), power)
 	var planar := Vector2(aim.x, aim.z)
 	if planar.length() < 0.001:
 		planar = Vector2(0.0, -1.0)
 	# Leave on the line the player chose. The bias bends it afterwards.
 	planar = planar.normalized() * speed
 	return Vector3(planar.x, 0.0, planar.y)
+
+
+func _top_speed(jack_run: bool) -> float:
+	return JACK_MAX_SPEED if jack_run else BOWL_MAX_SPEED
 
 
 func reset_to_start() -> void:
@@ -330,7 +341,8 @@ func _advance(body, delta: float, use_shot_bias: bool) -> void:
 	var length_power := shot_power if use_shot_bias else 0.0
 	var use_bias := use_shot_bias or absf(bias) > 0.001
 	var before_pos: Vector3 = body.global_position
-	var moved := _move_planar(body.global_position, body.velocity, body.radius, bias, use_bias, delta, length_power)
+	var jack_run: bool = bool(body.is_jack)
+	var moved := _move_planar(body.global_position, body.velocity, body.radius, bias, use_bias, delta, length_power, jack_run)
 	var fell: bool = moved[3]
 	if fell:
 		body.in_ditch = true
@@ -439,11 +451,11 @@ func _knock_bias(body) -> float:
 	return float(body.hand_sign) * float(info["bias"]) * KNOCK_CURL
 
 
-func _move_planar(pos: Vector3, vel: Vector3, body_radius: float, bias: float, use_bias: bool, delta: float, length_power: float = 0.0) -> Array:
+func _move_planar(pos: Vector3, vel: Vector3, body_radius: float, bias: float, use_bias: bool, delta: float, length_power: float = 0.0, jack_run: bool = false) -> Array:
 	if use_bias:
-		vel = _curve_and_damp(vel, bias, delta, length_power)
+		vel = _curve_and_damp(vel, bias, delta, length_power, jack_run)
 	else:
-		vel = _grass_damp(vel, delta)
+		vel = _grass_damp(vel, delta, jack_run)
 	var before := vel
 	pos += vel * delta
 	pos.y = 0.0
@@ -493,7 +505,7 @@ func predict_rest(from: Vector3, aim: Vector3, power: float, bias: float) -> Vec
 	var vel := _delivery_velocity(aim, power)
 	var step := 0.05
 	for _i in 480:
-		var moved := _move_planar(pos, vel, radius, bias, true, step, power)
+		var moved := _move_planar(pos, vel, radius, bias, true, step, power, is_jack or delivering_jack)
 		pos = moved[0]
 		vel = moved[1]
 		if bool(moved[3]) or vel.length() < STOP_SPEED:
@@ -518,11 +530,11 @@ func _ditch_park(pos: Vector3) -> Vector3:
 	return parked
 
 
-func _curve_and_damp(vel: Vector3, bias: float, delta: float, _length_power: float) -> Vector3:
+func _curve_and_damp(vel: Vector3, bias: float, delta: float, _length_power: float, jack_run: bool = false) -> Vector3:
 	var planar := Vector2(vel.x, vel.z)
 	var speed := planar.length()
 	if speed > 0.001 and absf(bias) > 0.001:
-		var slow := clampf(1.0 - speed / MAX_SPEED, 0.0, 1.0)
+		var slow := clampf(1.0 - speed / _top_speed(jack_run), 0.0, 1.0)
 		var curve := CURL_PER_METRE * (1.0 + CURL_DRAW * slow * slow)
 		# Turn with the distance run, not with an aim that pulls back
 		# to the jack. A centre line and a wide line take the same hand.
@@ -530,14 +542,16 @@ func _curve_and_damp(vel: Vector3, bias: float, delta: float, _length_power: flo
 		planar = planar.rotated(bias * curve * speed * delta)
 		vel.x = planar.x
 		vel.z = planar.y
-	return _grass_damp(vel, delta)
+	return _grass_damp(vel, delta, jack_run)
 
 
-func _grass_damp(vel: Vector3, delta: float) -> Vector3:
+func _grass_damp(vel: Vector3, delta: float, jack_run: bool = false) -> Vector3:
 	var speed := Vector2(vel.x, vel.z).length()
-	var slow := clampf(1.0 - speed / MAX_SPEED, 0.0, 1.0)
+	var slow := clampf(1.0 - speed / _top_speed(jack_run), 0.0, 1.0)
 	# Fast running is a long slide. The last metres grab the grass.
-	var friction := lerpf(FRICTION_FAST, FRICTION_SLOW, slow * slow)
+	var fast := JACK_FRICTION_FAST if jack_run else BOWL_FRICTION_FAST
+	var grab := JACK_FRICTION_SLOW if jack_run else BOWL_FRICTION_SLOW
+	var friction := lerpf(fast, grab, slow * slow)
 	vel *= pow(friction, delta)
 	vel.y = 0.0
 	return vel
@@ -567,7 +581,7 @@ func _apply_visual(speed: float) -> void:
 
 
 func guide_points() -> PackedVector3Array:
-	if not is_aiming or power_ratio <= 0.02:
+	if shot_in_progress:
 		return PackedVector3Array()
 	return _predict_path()
 
@@ -584,13 +598,11 @@ func _hide_guide() -> void:
 
 
 func _predict_path() -> PackedVector3Array:
-	# Only the opening quarter of the run. The rest of the hand is for
-	# the player to judge.
-	var aiming_line := power_ratio < 0.08
-	var pace := 0.42 if aiming_line else power_ratio
-	# The guide is the line the finger chose. Bias bends the bowl after release.
-	var bias := 0.0
-	var use_bias := false
+	# Opening metres only, with the real hand on it, so the player sees
+	# which way the bowl will bend without being given the rest.
+	var pace := clampf(power_ratio, 0.34, 0.72)
+	var bias := 0.0 if delivering_jack else bias_ratio
+	var use_bias := absf(bias) > 0.001
 	var samples: Array[Vector3] = []
 	var dists: Array[float] = []
 	var pos := global_position
@@ -599,18 +611,19 @@ func _predict_path() -> PackedVector3Array:
 	samples.append(pos)
 	dists.append(0.0)
 	var step := 0.05
+	var jack_run := is_jack or delivering_jack
 	for i in 220:
 		var prev := pos
-		var moved := _move_planar(pos, vel, radius, bias, use_bias, step, pace)
+		var moved := _move_planar(pos, vel, radius, bias, use_bias, step, pace, jack_run)
 		pos = moved[0]
 		vel = moved[1]
 		travelled += prev.distance_to(pos)
 		if i % 2 == 1:
 			samples.append(pos)
 			dists.append(travelled)
-		if moved[3] or vel.length() < STOP_SPEED:
+		if bool(moved[3]) or vel.length() < STOP_SPEED:
 			break
-	var limit := maxf(travelled * GUIDE_PORTION, 1.2)
+	var limit := clampf(travelled * 0.32, GUIDE_MIN, GUIDE_MAX)
 	var points := PackedVector3Array()
 	for i in samples.size():
 		if dists[i] <= limit:

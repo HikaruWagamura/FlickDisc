@@ -7,8 +7,8 @@ extends Node
 signal changed(power: float, needle: float)
 signal fired(power: float, needle: float)
 
-const PULL_PIXELS := 260.0
-const CURVE := 1.45
+const PULL_PIXELS := 240.0
+const CURVE := 1.18
 const FIRE_POWER := 0.08
 
 var live := false

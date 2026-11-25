@@ -29,6 +29,7 @@ static var _club_meshes: Array[Mesh] = []
 static var _jack_mesh: Mesh
 static var _next_club_variant := 0
 static var _maps_cache: Dictionary = {}
+static var _chip_cache: Dictionary = {}
 
 var radius := DISC_RADIUS
 var mass := DISC_MASS
@@ -202,6 +203,51 @@ static func bowl_type(index: int) -> Dictionary:
 		{"name": "HOOK", "bias": 1.45},
 	]
 	return types[index % types.size()]
+
+
+static func chip_texture(team: int, bias: int) -> Texture2D:
+	var key := "%d_%d" % [team % 2, bias % 4]
+	if _chip_cache.has(key):
+		return _chip_cache[key]
+	var maps := _club_maps()
+	var src: Texture2D = maps["blue"] if team % 2 == 1 else maps["red"]
+	var src_img: Image = src.get_image() if src != null else null
+	if src_img != null and src_img.is_compressed():
+		src_img.decompress()
+	var size := 128
+	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
+	var open := 0.16 + float(bias % 4) * 0.13
+	for y in size:
+		for x in size:
+			var nx := (float(x) + 0.5) / float(size) * 2.0 - 1.0
+			var ny := (float(y) + 0.5) / float(size) * 2.0 - 1.0
+			var r2 := nx * nx + ny * ny
+			if r2 > 1.0:
+				continue
+			var nz := sqrt(maxf(0.0, 1.0 - r2))
+			var u := 0.5 + atan2(nx, nz) / TAU
+			var v := 0.5 - ny * 0.48
+			var col := Color(0.72, 0.12, 0.14) if team % 2 == 0 else Color(0.12, 0.30, 0.74)
+			if src_img != null:
+				var sx := clampi(int(clampf(u, 0.0, 0.999) * float(src_img.get_width())), 0, src_img.get_width() - 1)
+				var sy := clampi(int(clampf(v, 0.0, 0.999) * float(src_img.get_height())), 0, src_img.get_height() - 1)
+				col = src_img.get_pixel(sx, sy)
+			var ring := absf(ny)
+			if ring > 0.20 and ring < 0.28:
+				col = col.lerp(Color(0.94, 0.91, 0.84), 0.78)
+			if ring > 0.32 and ring < 0.39:
+				col = col.lerp(Color(0.94, 0.91, 0.84), 0.52)
+			var pip := Vector2(open, -0.05)
+			if Vector2(nx, ny).distance_to(pip) < 0.20:
+				col = col.lerp(Color(0.97, 0.95, 0.90), 0.72)
+			var light := clampf(0.40 + nz * 0.72 + nx * 0.14 - ny * 0.08, 0.22, 1.18)
+			var alpha := 1.0
+			if r2 > 0.90:
+				alpha = clampf((1.0 - r2) / 0.10, 0.0, 1.0)
+			img.set_pixel(x, y, Color(col.r * light, col.g * light, col.b * light, alpha))
+	var tex := ImageTexture.create_from_image(img)
+	_chip_cache[key] = tex
+	return tex
 
 
 static func restitution_for(jack_involved: bool) -> float:

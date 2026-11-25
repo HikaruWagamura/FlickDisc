@@ -56,6 +56,8 @@ var place_x := 0.0
 var aim_lock := 0.0
 var line_z := 0.0
 var _return_token := 0
+var hand_locked := false
+var hand_lock_side := 0
 const PLACE_HALF := 1.65
 const PULL_BACK := 1.55
 const AIM_CONE := 0.26
@@ -155,6 +157,7 @@ func _begin_ready() -> void:
 	line_z = disc.start_position.z
 	place_x = 0.0
 	aim_lock = 0.0
+	hand_locked = false
 	disc.start_position = Vector3(0.0, 0.0, line_z)
 	disc.global_position = disc.start_position
 	if _computer_turn():
@@ -174,6 +177,7 @@ func _on_place_at(spot: Vector3) -> void:
 	place_x = clampf(spot.x, -PLACE_HALF, PLACE_HALF)
 	disc.start_position = Vector3(place_x, 0.0, line_z)
 	disc.global_position = disc.start_position
+	_apply_inward_hand()
 	rink.release_head()
 	ui.show_sliding(delivering_jack)
 
@@ -266,10 +270,14 @@ func _sync_fan() -> void:
 	var power: float = gesture.read_power() if pulling else 0.0
 	var needle: float = gesture.read_needle() if pulling else 0.0
 	if live:
+		if not delivering_jack and (phase == "place" or phase == "idle"):
+			_apply_inward_hand()
 		disc.global_position = placed + Vector3(0.0, 0.0, power * PULL_BACK)
-		disc.pose_aim(_aim_from(0.0))
-		if show_arrow:
-			disc.preview_take(_aim_from(0.0), 0.55)
+		var aim := _aim_from(needle if pulling else 0.0)
+		disc.pose_aim(aim)
+		if show_arrow or pulling:
+			var guide_power: float = power if pulling else 0.42
+			disc.preview_take(aim, maxf(guide_power, 0.34))
 		if pulling:
 			feel.aim(power)
 			if delivering_jack:
@@ -283,9 +291,10 @@ func _sync_fan() -> void:
 	var lift := disc_px + 86.0
 	fan.present(cursor_at, power, needle, show_cursor, _facing(live_pos, _aim_from(0.0)), lift)
 	var dots := PackedVector2Array()
-	if show_arrow:
+	var show_guide: bool = (show_arrow or pulling) and live
+	if show_guide:
 		dots = fan.project_dots(cam, live_pos, disc.guide_points(), disc.radius * 0.3, cursor_at, disc_px + 16.0)
-	fan.set_dots(dots, show_arrow)
+	fan.set_dots(dots, show_guide)
 	fan.set_line(Vector2.ZERO, Vector2.ZERO, false)
 	fan.set_aim(Vector2.ZERO, Vector2.ZERO, false)
 	fan.set_disc(cursor_at, false)
@@ -408,6 +417,8 @@ func _on_bias_cycle_requested() -> void:
 	if delivering_jack or disc.shot_in_progress:
 		return
 	feel.tap()
+	hand_locked = true
+	hand_lock_side = _place_side()
 	disc.toggle_hand()
 	hand_sign = disc.hand_sign
 	_place_rack()
@@ -417,6 +428,8 @@ func _on_hand_selected(forehand: bool) -> void:
 	if delivering_jack or disc.shot_in_progress:
 		return
 	feel.tap()
+	hand_locked = true
+	hand_lock_side = _place_side()
 	disc.set_hand(-1.0 if forehand else 1.0)
 	hand_sign = disc.hand_sign
 	_place_rack()
@@ -429,7 +442,7 @@ func _on_bias_selected(index: int) -> void:
 	feel.tap()
 	bias_index = clampi(index, 0, 3)
 	disc.configure_bowl(bias_index, hand_sign)
-	ui.show_bias(bias_index)
+	ui.show_bias(bias_index, _side())
 	ui.show_hand(hand_sign < 0.0, _bowl_name(bias_index))
 
 
@@ -509,7 +522,7 @@ func _finish_shot(token: int) -> void:
 		disc.configure_bowl(bias_index, next_hand)
 		disc.set_palette(_side())
 		hand_sign = disc.hand_sign
-		ui.show_bias(bias_index)
+		ui.show_bias(bias_index, _side())
 		ui.show_hand(hand_sign < 0.0, _bowl_name(bias_index))
 	_place_rack()
 	disc.obstacles = _table()
@@ -598,7 +611,7 @@ func _finish_jack(rest_pos: Vector3) -> void:
 	disc.set_palette(throw_index % 2)
 	disc.reset_to_start()
 	disc.obstacles = _table()
-	ui.show_bias(bias_index)
+	ui.show_bias(bias_index, _side())
 	ui.show_hand(hand_sign < 0.0, _bowl_name(bias_index))
 	_place_rack()
 	ui.show_jack_set(travelled, _bowl_name(bias_index), _side_name(_side()))
@@ -681,6 +694,36 @@ func _check_draw(distance: float, ditched: bool) -> void:
 
 func _bowl_name(index: int) -> String:
 	return str(BowlScript.bowl_type(index)["name"])
+
+
+func _target_x() -> float:
+	if delivering_jack or jack == null or not jack.visible:
+		return 0.0
+	return jack.global_position.x
+
+
+func _place_side() -> int:
+	return -1 if place_x < _target_x() else 1
+
+
+func _apply_inward_hand() -> void:
+	if delivering_jack or disc == null or disc.shot_in_progress:
+		return
+	var side := _place_side()
+	if hand_locked and side == hand_lock_side:
+		return
+	hand_locked = false
+	var gap := place_x - _target_x()
+	var inward := hand_sign
+	if gap < -0.08:
+		inward = 1.0
+	elif gap > 0.08:
+		inward = -1.0
+	if absf(inward - hand_sign) < 0.1:
+		return
+	disc.set_hand(inward)
+	hand_sign = inward
+	ui.show_hand(hand_sign < 0.0, _bowl_name(bias_index))
 
 
 func _side() -> int:
