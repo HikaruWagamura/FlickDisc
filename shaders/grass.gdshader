@@ -44,10 +44,7 @@ void fragment() {
 	color = mix(color, color * vec3(0.86, 1.0, 0.82), depth * depth_fade);
 	if (use_grass_tex) {
 		vec2 tile = vec2(world_position.x, world_position.z) / max(grass_tex_scale, 0.05);
-		vec3 blades = texture(grass_tex, tile).rgb * 1.28;
-		float mow = abs(fract(world_position.x / stripe_width) - 0.5) * 2.0;
-		blades *= mix(0.86, 1.08, smoothstep(0.12, 0.88, mow));
-		color = blades;
+		color = texture(grass_tex, tile).rgb * 0.62;
 	}
 	ALBEDO = color;
 	ROUGHNESS = 0.78;

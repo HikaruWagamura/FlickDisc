@@ -54,10 +54,12 @@ var _flower_mats: Array[StandardMaterial3D] = []
 var _stem_mat: StandardMaterial3D
 var _white_line: StandardMaterial3D
 var _gold: StandardMaterial3D
+var _lawn_tex: Texture2D
 
 
 func _ready() -> void:
 	_grass_shader = load("res://shaders/grass.gdshader")
+	_lawn_tex = load("res://assets/grass/lawn_cut.jpg")
 	_wood_shader = load("res://shaders/wood.gdshader")
 	_path_shader = load("res://shaders/path.gdshader")
 	_prepare_materials()
@@ -344,7 +346,9 @@ func _build_grounds() -> void:
 		Color(0.20, 0.58, 0.16),
 		1.35,
 		40.0,
-		0.05
+		0.05,
+		true,
+		1.6
 	)
 	# The ditch has to stay open. One big plane used to cover the trench, so a
 	# bowl that fell in disappeared under the grass.
@@ -379,7 +383,9 @@ func _build_playing_surface() -> void:
 		Color(0.16, 0.60, 0.16),
 		0.46,
 		HALF_WIDTH,
-		0.1
+		0.1,
+		true,
+		0.85
 	)
 	surface.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(surface)
@@ -751,7 +757,7 @@ func _label(text: String, height_m: float) -> Label3D:
 	return label
 
 
-func _grass_material(stripe_a: Color, stripe_b: Color, stripe_width: float, half_width: float, depth_fade: float) -> ShaderMaterial:
+func _grass_material(stripe_a: Color, stripe_b: Color, stripe_width: float, half_width: float, depth_fade: float, cut: bool = false, cut_scale: float = 1.15) -> ShaderMaterial:
 	var mat := ShaderMaterial.new()
 	mat.shader = _grass_shader
 	mat.set_shader_parameter("stripe_a", stripe_a)
@@ -759,6 +765,10 @@ func _grass_material(stripe_a: Color, stripe_b: Color, stripe_width: float, half
 	mat.set_shader_parameter("stripe_width", stripe_width)
 	mat.set_shader_parameter("half_width", half_width)
 	mat.set_shader_parameter("depth_fade", depth_fade)
+	if cut and _lawn_tex != null:
+		mat.set_shader_parameter("grass_tex", _lawn_tex)
+		mat.set_shader_parameter("grass_tex_scale", cut_scale)
+		mat.set_shader_parameter("use_grass_tex", true)
 	return mat
 
 
