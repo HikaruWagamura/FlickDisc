@@ -326,11 +326,7 @@ func set_palette(index: int) -> void:
 	palette_index = index % 4
 	if _rim_mat == null:
 		return
-	var colors: Array = BowlScript.palette(palette_index)
-	_rim_mat.albedo_color = colors[0]
-	_body_mat.albedo_color = colors[1]
-	_cap_mat.albedo_color = colors[2]
-	_mark_mat.albedo_color = colors[3]
+	BowlScript.apply_team(_body_mat, palette_index, false)
 
 
 func set_green(bounds_min: Vector2, bounds_max: Vector2) -> void:
@@ -613,7 +609,7 @@ func _lean_angle(speed: float) -> float:
 	var wobble := sin(spin_angle * 2.0) * 0.02 * clampf(speed / 8.0, 0.0, 1.0)
 	# Fast, it stands on the wide running surface. As it slows it tips
 	# onto the thin bias side. That tip is what draws the bowl.
-	var lean := -signf(shot_bias) * into * lerpf(0.02, 0.72, slow * slow) + wobble
+	var lean := -signf(shot_bias) * into * lerpf(0.0, 0.14, slow * slow) + wobble
 	rest_lean = lean
 	return lean
 
@@ -627,20 +623,21 @@ func _apply_visual(speed: float) -> void:
 	if delivering_jack and _jack_visual != null:
 		_visual.position = Vector3.ZERO
 		_visual.basis = Basis.IDENTITY
-		_jack_visual.position = Vector3(0.0, BowlScript.JACK_RADIUS + hop, 0.0)
+		_jack_visual.position = Vector3(0.0, BowlScript.JACK_RADIUS * 0.82 + hop, 0.0)
 		_jack_visual.transform.basis = roll_basis
 	else:
-		var facing := velocity if velocity.length() > 0.2 else travel_facing
 		if velocity.length() > 0.2:
 			travel_facing = velocity
-		_visual.position = Vector3(0.0, BowlScript.VISUAL_RADIUS + hop, 0.0)
-		_visual.basis = BowlScript._posed_basis(facing, _lean_angle(speed), Basis.IDENTITY)
+		# Running surface sits in the grass, shadow directly underneath.
+		var sit := BowlScript.DISC_RADIUS - BowlScript.SIT_NEST
+		_visual.position = Vector3(0.0, sit + hop, 0.0)
+		_visual.basis = Basis(Vector3(0.0, 0.0, 1.0), _lean_angle(speed))
 		if _spin != null:
 			_spin.position = Vector3.ZERO
 			_spin.transform.basis = roll_basis
 	if _shadow != null:
 		_shadow.visible = global_position.y > -0.06
-		_shadow.position = Vector3(0.05, 0.012, 0.03)
+		_shadow.position = Vector3(0.0, 0.004, 0.0)
 
 
 func guide_points() -> PackedVector3Array:
@@ -701,8 +698,8 @@ func _predict_path() -> PackedVector3Array:
 func _build_visual() -> void:
 	_shadow = MeshInstance3D.new()
 	var shadow_mesh := CylinderMesh.new()
-	shadow_mesh.top_radius = 0.16
-	shadow_mesh.bottom_radius = 0.16
+	shadow_mesh.top_radius = 0.18
+	shadow_mesh.bottom_radius = 0.18
 	shadow_mesh.height = 0.008
 	shadow_mesh.radial_segments = 24
 	_shadow.mesh = shadow_mesh
@@ -712,7 +709,7 @@ func _build_visual() -> void:
 	shadow_mat.albedo_color = Color(0.0, 0.05, 0.02, 0.34)
 	_shadow.material_override = shadow_mat
 	_shadow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_shadow.position = Vector3(0.1, 0.012, 0.06)
+	_shadow.position = Vector3(0.0, 0.004, 0.0)
 	add_child(_shadow)
 
 	_visual = Node3D.new()
@@ -720,13 +717,13 @@ func _build_visual() -> void:
 	_spin = Node3D.new()
 	_visual.add_child(_spin)
 
-	var dressed: Dictionary = BowlScript.dress_stone(_spin, BowlScript.palette(0), -1.0)
+	var dressed: Dictionary = BowlScript.dress_stone(_spin, 0, -1.0)
 	_rim_mat = dressed["rim"]
 	_body_mat = dressed["body"]
 	_cap_mat = dressed["cap"]
 	_mark_mat = dressed["mark"]
 	_bias_pip = dressed["weight"]
-	_stone = dressed["stone"]
+	_stone = dressed["weight"]
 	_place_pip()
 
 	_jack_visual = Node3D.new()
@@ -737,17 +734,14 @@ func _build_visual() -> void:
 	jack_mat.emission = Color(0.55, 0.42, 0.18)
 	jack_mat.emission_energy_multiplier = 0.22
 	_add_sphere(_jack_visual, Vector3.ZERO, BowlScript.JACK_RADIUS, Vector3.ONE, jack_mat)
-	BowlScript._bowl_ring(_jack_visual, BowlScript.JACK_RADIUS * 0.92, 0.012, Vector3.ZERO, Vector3.ZERO, _disc_mat(Color(0.98, 0.96, 0.9), 0.4, 0.0))
+	_jack_visual.position = Vector3(0.0, BowlScript.JACK_RADIUS * 0.82, 0.0)
 
 
 func _place_pip() -> void:
 	if _bias_pip == null:
 		return
-	var side := signf(hand_sign)
-	_bias_pip.rotation = Vector3.ZERO
-	if _stone != null:
-		# Thin side points to the hand. Forehand draws left.
-		_stone.rotation = Vector3(0.0, PI if side < 0.0 else 0.0, 0.0)
+	# Grip grooves face the hand. The mesh already carries the bias.
+	_bias_pip.rotation = Vector3(0.0, BowlScript.hand_yaw(hand_sign), 0.0)
 
 
 func _build_guide() -> void:

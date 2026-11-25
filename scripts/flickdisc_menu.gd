@@ -40,6 +40,7 @@ var home_letter: Label
 var home_record: Label
 var home_tally: Label
 var home_play: Button
+var starting: Control
 var home_xp: ColorRect
 var chip_wins: Label
 var chip_losses: Label
@@ -117,11 +118,14 @@ func setup(player_profile) -> void:
 	_build_choice_layer()
 	_build_online_layer()
 	_build_toast()
+	_build_starting()
 	_show("splash")
 
 
 func set_open(is_open: bool) -> void:
 	root.visible = is_open
+	if is_open and starting != null:
+		starting.visible = false
 
 
 func open_screen(screen_name: String) -> void:
@@ -189,12 +193,9 @@ func _show(next: String) -> void:
 
 
 func _process(_delta: float) -> void:
-	if home_play == null or not home_play.visible or screen != "home":
-		return
-	var wave := 0.5 + 0.5 * sin(float(Time.get_ticks_msec()) * 0.006)
-	var grow := lerpf(1.0, 1.035, wave)
-	home_play.scale = Vector2(grow, grow)
-	home_play.modulate = Color(1.0, lerpf(0.82, 1.0, wave), lerpf(0.9, 1.0, wave))
+	# The play button used to scale under the finger, so the first press
+	# slid off and felt like it had not landed.
+	pass
 
 
 func _arm_splash() -> void:
@@ -300,44 +301,43 @@ func _build_home() -> void:
 
 	var plate := Panel.new()
 	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_place(page, plate, Vector2(70, 96), Vector2(400, 168))
+	_place(page, plate, Vector2(90, 78), Vector2(360, 112))
 	plate.add_theme_stylebox_override("panel", _flat(Color(0.05, 0.12, 0.08, 0.2), Color(0, 0, 0, 0), 0, 18, 0))
 	var mark := _mark_rect()
-	_place(page, mark, Vector2(70, 96), Vector2(400, 168))
+	_place(page, mark, Vector2(90, 78), Vector2(360, 112))
 
 	var play := _button("★    BOWL A MATCH", 20)
-	_place(page, play, Vector2(20, 276), Vector2(500, 56))
+	_place(page, play, Vector2(20, 202), Vector2(500, 54))
 	_paint_button(play, PINK_DEEP, PINK, CREAM, 16, 0)
 	home_play = play
-	play.pivot_offset = Vector2(250, 28)
 	play.pressed.connect(func() -> void:
 		_tap()
 		_open_setup("classic")
 	)
 
 	var drive := _button("▲  LONG GREEN", 18)
-	_place(page, drive, Vector2(20, 342), Vector2(245, 52))
+	_place(page, drive, Vector2(20, 266), Vector2(245, 50))
 	_paint_button(drive, CARD, PINK, CREAM, 14, 0)
 	drive.pressed.connect(_launch_drive)
 	var solo := _button("◎  SOLO ENDS", 18)
-	_place(page, solo, Vector2(275, 342), Vector2(245, 52))
+	_place(page, solo, Vector2(275, 266), Vector2(245, 50))
 	_paint_button(solo, CARD, PINK, CREAM, 14, 0)
 	solo.pressed.connect(_launch_solo)
 
 	home_record = _label("0W  ·  0L", 15, CREAM, bold_font)
-	_place(page, home_record, Vector2(20, 404), Vector2(500, 20))
+	_place(page, home_record, Vector2(20, 326), Vector2(500, 20))
 	home_record.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	home_tally = _label("ENDS 0  ·  NO DRIVE YET", 13, PINK, bold_font)
-	_place(page, home_tally, Vector2(20, 426), Vector2(500, 18))
+	_place(page, home_tally, Vector2(20, 348), Vector2(500, 18))
 	home_tally.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
-	_home_card(page, Rect2(16, 454, 164, 96), "★", "MATCH", "Two players", "classic")
-	_home_card(page, Rect2(188, 454, 164, 96), "◆", "PASS & PLAY", "One phone", "duo")
-	_home_card(page, Rect2(360, 454, 164, 96), "●", "VERSUS AI", "Take them on", "classic")
-	_home_card(page, Rect2(16, 560, 249, 92), "◎", "SOLO ENDS", "One bowl. Be the shot.", "solo")
-	_home_card(page, Rect2(275, 560, 249, 92), "▲", "LONG GREEN", "How far can it go?", "drive")
-	_home_card(page, Rect2(16, 662, 249, 92), "✦", "PRACTICE", "Just the shot", "practice")
-	_home_card(page, Rect2(275, 662, 249, 92), "♛", "THE BOARD", "Wins and records", "rankings")
+	_home_card(page, Rect2(16, 378, 164, 88), "★", "MATCH", "Two players", "classic")
+	_home_card(page, Rect2(188, 378, 164, 88), "◆", "PASS & PLAY", "One phone", "duo")
+	_home_card(page, Rect2(360, 378, 164, 88), "●", "VERSUS AI", "Take them on", "classic")
+	_home_card(page, Rect2(16, 476, 249, 84), "◎", "SOLO ENDS", "One bowl. Be the shot.", "solo")
+	_home_card(page, Rect2(275, 476, 249, 84), "▲", "LONG GREEN", "How far can it go?", "drive")
+	_home_card(page, Rect2(16, 570, 249, 84), "✦", "PRACTICE", "Just the shot", "practice")
+	_home_card(page, Rect2(275, 570, 249, 84), "♛", "THE BOARD", "Wins and records", "rankings")
 
 
 func _home_card(page: Control, rect: Rect2, kicker: String, title: String, body: String, target: String) -> void:
@@ -345,21 +345,21 @@ func _home_card(page: Control, rect: Rect2, kicker: String, title: String, body:
 	button.text = ""
 	_place(page, button, rect.position, rect.size)
 	_paint_button(button, CARD, Color("#FF4FA3"), CREAM, 16, 14)
-	var y := 12.0
+	var y := 6.0
 	if kicker != "":
-		var kick := _label(kicker, 22, PINK, bold_font)
-		kick.position = Vector2(12, 6)
-		kick.size = Vector2(rect.size.x - 24, 26)
+		var kick := _label(kicker, 18, PINK, bold_font)
+		kick.position = Vector2(12, 4)
+		kick.size = Vector2(rect.size.x - 24, 22)
 		button.add_child(kick)
-		y = 32.0
-	var heading := _label(title, 15, CREAM, bold_font)
+		y = 26.0
+	var heading := _label(title, 14, CREAM, bold_font)
 	heading.position = Vector2(12, y)
-	heading.size = Vector2(rect.size.x - 24, 36)
+	heading.size = Vector2(rect.size.x - 24, 22)
 	heading.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	button.add_child(heading)
-	var detail := _label(body, 12, MUTED, body_font)
-	detail.position = Vector2(12, y + 38)
-	detail.size = Vector2(rect.size.x - 24, 40)
+	var detail := _label(body, 11, MUTED, body_font)
+	detail.position = Vector2(12, y + 22)
+	detail.size = Vector2(rect.size.x - 24, 28)
 	detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	button.add_child(detail)
 	button.pressed.connect(func() -> void:
@@ -377,100 +377,77 @@ func _home_card(page: Control, rect: Rect2, kicker: String, title: String, body:
 
 
 func _build_setup() -> void:
-	var built: Dictionary = _column_page(72, 28)
-	var page := built["page"] as Control
-	var box := built["box"] as VBoxContainer
+	# One screen. Every control sits above the bottom edge. No scroll.
+	var page := Control.new()
+	page.set_anchors_preset(Control.PRESET_FULL_RECT)
+	page.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	pages["setup"] = page
 	root.add_child(page)
 	_back_on(page, "home")
 
-	var hero := Control.new()
-	hero.custom_minimum_size = Vector2(0, 248)
-	hero.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var ghost := _mark_rect()
-	ghost.anchor_left = 0.5
-	ghost.anchor_right = 0.5
-	ghost.offset_left = -160.0
-	ghost.offset_right = 160.0
-	ghost.offset_top = 0.0
-	ghost.offset_bottom = 188.0
-	hero.add_child(ghost)
-	title_label = _label("CLASSIC 1V1", 36, CREAM, title_font)
-	title_label.anchor_left = 0.0
-	title_label.anchor_right = 1.0
-	title_label.anchor_top = 1.0
-	title_label.anchor_bottom = 1.0
-	title_label.offset_top = -40.0
-	title_label.offset_bottom = 0.0
+	title_label = _label("CLASSIC 1V1", 28, CREAM, title_font)
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	hero.add_child(title_label)
-	box.add_child(hero)
-
-	sub_label = _label("Set the rink, then choose who you bowl.", 15, MUTED, body_font)
+	_place(page, title_label, Vector2(16, 60), Vector2(508, 34))
+	sub_label = _label("Set the rink, then choose who you bowl.", 13, MUTED, body_font)
 	sub_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	sub_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	box.add_child(sub_label)
+	_place(page, sub_label, Vector2(16, 94), Vector2(508, 20))
 
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
-	row.custom_minimum_size = Vector2(0, 142)
-	crokin_card = _rink_card("CROKINMODE", "Classic round board")
-	lawn_card = _rink_card("LONG RINK", "Bowls and curling style.\nAbout 10 seconds to the jack.")
-	crokin_tag = crokin_card.get_node("Tag") as Label
+	lawn_card = _rink_card("LONG RINK", "Bowls. About 10 seconds to the jack.")
+	crokin_card = _rink_card("CROKINMODE", "Classic round board.")
 	lawn_tag = lawn_card.get_node("Tag") as Label
-	crokin_card.pressed.connect(func() -> void:
-		rink = "crokinole"
-		_sync_setup()
-	)
+	crokin_tag = crokin_card.get_node("Tag") as Label
 	lawn_card.pressed.connect(func() -> void:
 		rink = "lawn"
 		_sync_setup()
 	)
-	row.add_child(lawn_card)
-	row.add_child(crokin_card)
-	box.add_child(row)
-	box.add_child(_gap(8))
+	crokin_card.pressed.connect(func() -> void:
+		rink = "crokinole"
+		_sync_setup()
+	)
+	_place(page, lawn_card, Vector2(16, 120), Vector2(248, 92))
+	_place(page, crokin_card, Vector2(276, 120), Vector2(248, 92))
 
-	hint_label = _label("The original round board and scoring rules.", 14, MUTED, body_font)
-	hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	box.add_child(hint_label)
-	box.add_child(_kicker("AI DIFFICULTY"))
+	hint_label = _label("", 12, MUTED, body_font)
+	hint_label.visible = false
+	_place(page, hint_label, Vector2(16, 218), Vector2(508, 20))
+
 	difficulty_button = _choice_button()
 	difficulty_button.pressed.connect(func() -> void:
 		_open_choices(_difficulty_options(), difficulty, _set_difficulty)
 	)
-	box.add_child(difficulty_button)
-	box.add_child(_kicker("MATCH"))
+	_place(page, difficulty_button, Vector2(16, 244), Vector2(508, 44))
 	race_button = _choice_button()
 	race_button.pressed.connect(func() -> void:
 		_open_choices(_race_options(), race, _set_race)
 	)
-	box.add_child(race_button)
-	box.add_child(_gap(6))
-	box.add_child(_row_button("PLAY ON YOUR OWN", func() -> void: _practice("jack")))
-	big_play = _primary("PLAY THE COMPUTER", func() -> void: _launch("ai"))
-	box.add_child(big_play)
+	_place(page, race_button, Vector2(16, 294), Vector2(508, 44))
 
-	duo_note = _label("Both teams play on this device. Pass the phone each shot.", 14, MUTED, body_font)
+	var own := _row_button("PLAY ON YOUR OWN", func() -> void: _practice("jack"))
+	_place(page, own, Vector2(16, 346), Vector2(508, 44))
+	big_play = _primary("PLAY THE COMPUTER", func() -> void: _launch("ai"))
+	_place(page, big_play, Vector2(16, 396), Vector2(508, 50))
+
+	duo_note = _label("Both teams play on this device. Pass the phone each shot.", 13, MUTED, body_font)
 	duo_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	duo_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(duo_note)
+	_place(page, duo_note, Vector2(16, 454), Vector2(508, 36))
 
-	online_box = VBoxContainer.new()
-	online_box.add_theme_constant_override("separation", 10)
-	online_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	online_box.add_child(_row_button("PLAY A FRIEND", func() -> void: _launch("local")))
-	online_box.add_child(_row_button("Online casual", func() -> void: _show_online("casual")))
-	online_box.add_child(_row_button("Online ranked", func() -> void: _show_online("ranked")))
-	online_box.add_child(_row_button("Create private room", _create_room))
-	online_box.add_child(_kicker("ROOM CODE"))
-	online_box.add_child(_code_row())
+	online_box = Control.new()
+	online_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_place(page, online_box, Vector2(16, 452), Vector2(508, 480))
+	var friend := _row_button("PLAY A FRIEND", func() -> void: _launch("local"))
+	_place(online_box, friend, Vector2(0, 0), Vector2(508, 44))
+	var casual := _row_button("Online casual", func() -> void: _show_online("casual"))
+	var ranked := _row_button("Online ranked", func() -> void: _show_online("ranked"))
+	_place(online_box, casual, Vector2(0, 50), Vector2(248, 44))
+	_place(online_box, ranked, Vector2(260, 50), Vector2(248, 44))
+	var room := _row_button("Create private room", _create_room)
+	_place(online_box, room, Vector2(0, 102), Vector2(508, 44))
+	var code := _code_row()
+	_place(online_box, code, Vector2(0, 154), Vector2(508, 52))
 	join_edit = LineEdit.new()
 	join_edit.placeholder_text = "ROOM CODE"
 	join_edit.max_length = 5
-	join_edit.custom_minimum_size = Vector2(0, 52)
 	_style_edit(join_edit)
 	join_edit.text_changed.connect(func(value: String) -> void:
 		var upper := value.to_upper()
@@ -478,9 +455,9 @@ func _build_setup() -> void:
 			join_edit.text = upper
 			join_edit.caret_column = upper.length()
 	)
-	online_box.add_child(join_edit)
-	online_box.add_child(_primary("JOIN ROOM", _join_room))
-	box.add_child(online_box)
+	_place(online_box, join_edit, Vector2(0, 214), Vector2(248, 46))
+	var join := _primary("JOIN ROOM", _join_room)
+	_place(online_box, join, Vector2(260, 214), Vector2(248, 46))
 
 
 func _build_simple_pages() -> void:
@@ -511,7 +488,7 @@ func _build_chaos() -> void:
 	box.add_child(_wide_card("OPEN HOLE", "The 20 is the shot everyone is hunting.", "NEXT"))
 	box.add_child(_gap(8))
 	box.add_child(_primary("PLAY THE ROUND BOARD", func() -> void:
-		play_requested.emit({
+		_emit_play({
 			"rink": "crokinole",
 			"target": 50,
 			"level": 2,
@@ -863,7 +840,7 @@ func _sync_setup() -> void:
 	big_play.text = "PLAY VERSUS AI" if classic else "PLAY LOCAL"
 	online_box.visible = classic
 	duo_note.visible = not classic
-	hint_label.text = "The original round board and scoring rules." if rink == "crokinole" else "Four bowls each. One end, four ends, first to 10, or first to 21."
+	hint_label.text = "The round board. First to the target." if rink == "crokinole" else "Four bowls each. Closest to the jack takes the end."
 	difficulty_button.text = _difficulty_options()[difficulty]
 	race_button.text = _race_options()[race]
 	_paint_rinks()
@@ -938,7 +915,7 @@ func _show_online(channel: String) -> void:
 
 func _launch_solo() -> void:
 	_tap()
-	play_requested.emit({
+	_emit_play({
 		"rink": "lawn",
 		"solo": true,
 		"distance": false,
@@ -956,7 +933,7 @@ func _launch_solo() -> void:
 
 func _launch_drive() -> void:
 	_tap()
-	play_requested.emit({
+	_emit_play({
 		"rink": "lawn",
 		"solo": false,
 		"distance": true,
@@ -975,6 +952,32 @@ func _launch_drive() -> void:
 func _tap() -> void:
 	if feel != null:
 		feel.tap()
+
+
+func _emit_play(setup: Dictionary) -> void:
+	# Paint the acknowledgement before the rink is built, so the press
+	# does not look like it missed while the green loads.
+	if starting != null:
+		starting.visible = true
+	await get_tree().process_frame
+	play_requested.emit(setup)
+
+
+func _build_starting() -> void:
+	starting = Control.new()
+	starting.set_anchors_preset(Control.PRESET_FULL_RECT)
+	starting.visible = false
+	starting.mouse_filter = Control.MOUSE_FILTER_STOP
+	root.add_child(starting)
+	var dim := ColorRect.new()
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color("#160824")
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	starting.add_child(dim)
+	var label := _label("OPENING THE GREEN", 22, CREAM, title_font)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_place(starting, label, Vector2(20, 430), Vector2(500, 48))
 
 
 func _launch(channel: String) -> void:
@@ -997,7 +1000,7 @@ func _launch(channel: String) -> void:
 	else:
 		setup["target"] = [50, 100, 150][mini(race, 2)]
 		setup["level"] = [0, 1, 4][mini(difficulty, 2)]
-	play_requested.emit(setup)
+	_emit_play(setup)
 
 
 func _practice(which: String) -> void:
@@ -1017,7 +1020,7 @@ func _practice(which: String) -> void:
 	elif which == "jack":
 		setup["rink"] = "lawn"
 		setup["match_index"] = 0
-	play_requested.emit(setup)
+	_emit_play(setup)
 
 
 func _challenge(ident: String) -> void:
@@ -1035,7 +1038,7 @@ func _challenge(ident: String) -> void:
 	if ident == "draw":
 		setup["rink"] = "lawn"
 		setup["goal"] = "draw"
-	play_requested.emit(setup)
+	_emit_play(setup)
 
 
 func _create_room() -> void:
@@ -1382,6 +1385,9 @@ func _button(text: String, font_size: int) -> Button:
 	button.add_theme_font_override("font", bold_font)
 	button.add_theme_font_size_override("font_size", font_size)
 	button.focus_mode = Control.FOCUS_NONE
+	# Fire on the press. Waiting for release made a small finger move
+	# cancel the tap, so it felt like the button clicked off.
+	button.action_mode = BaseButton.ACTION_MODE_BUTTON_PRESS
 	return button
 
 

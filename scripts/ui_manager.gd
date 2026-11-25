@@ -75,10 +75,10 @@ func _ready() -> void:
 	_paint_sync(match_button, false)
 	match_button.pressed.connect(func() -> void: match_cycle_requested.emit())
 
-	camera_button = _make_button("CHASE CAM", Vector2(144.0, 74.0), Vector2(132.0, 34.0))
+	camera_button = _make_button("FOLLOW", Vector2(144.0, 74.0), Vector2(132.0, 34.0))
 	camera_button.add_theme_font_size_override("font_size", 11)
 	camera_button.pressed.connect(func() -> void: camera_requested.emit())
-	show_camera_mode(true)
+	show_camera_mode(false)
 	_build_summary()
 
 	status_label = _make_label(Vector2(18.0, 116.0), Vector2(504.0, 22.0), 14, Color(0.95, 0.99, 0.96))
@@ -135,7 +135,7 @@ func show_camera_mode(chase: bool) -> void:
 	camera_chase = chase
 	if camera_button == null:
 		return
-	camera_button.text = "CHASE CAM" if chase else "MAT CAM"
+	camera_button.text = "FOLLOWING" if chase else "FOLLOW"
 	if chase:
 		_paint_selected(camera_button)
 	else:
@@ -182,7 +182,7 @@ func show_jack_aim(_power_ratio: float) -> void:
 
 func show_jack_running() -> void:
 	status_label.text = "JACK RUNNING"
-	score_label.text = "FOLLOWING THE JACK" if camera_chase else "FROM THE MAT"
+	score_label.text = "FOLLOWING THE JACK" if camera_chase else "DOWN THE LINE"
 
 
 func show_jack_illegal(reason: String, travelled: float, detail: String) -> void:
@@ -270,7 +270,7 @@ func show_solo_result(won: bool, end_name: String, miss: float, in_ditch: bool) 
 func show_in_motion(side_name: String, bowl_name: String, forehand: bool, score_line: String) -> void:
 	throws_label.text = score_line
 	status_label.text = "%s  •  %s  •  %s" % [side_name, bowl_name, "FOREHAND" if forehand else "BACKHAND"]
-	score_label.text = "FOLLOWING THE BOWL" if camera_chase else "BEHIND THE MAT"
+	score_label.text = "FOLLOWING THE BOWL" if camera_chase else "DOWN THE LINE"
 
 
 func show_computer(side_name: String, left: int) -> void:

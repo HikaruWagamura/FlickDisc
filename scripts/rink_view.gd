@@ -26,7 +26,8 @@ func prepare_span(next_length: float, next_half: float) -> void:
 var head: Node3D
 var _camera: Camera3D
 ## Chase rides behind the running bowl. Behind stays on the mat and looks up the green.
-var chase := true
+var chase := false
+var _aiming := false
 var _shot_pos := Vector3(0.0, 0.0, -4.0)
 var _shot_vel := Vector3.ZERO
 var _shot_live := false
@@ -34,9 +35,9 @@ var _mat := Vector3(0.0, 0.0, -4.05)
 var _head := Vector3(0.0, 0.0, -22.0)
 var _head_hold := false
 var _head_gap := 0.0
-var _cam_pos := Vector3(0.0, 1.7, -1.7)
-var _cam_look := Vector3(0.0, 0.15, -12.0)
-var _cam_fov := 48.0
+var _cam_pos := Vector3(0.0, 0.62, -1.95)
+var _cam_look := Vector3(0.0, 0.15, -20.0)
+var _cam_fov := 42.0
 var _cam_ready := false
 var _rebound_frame: Node3D
 var _ditch_frame: Node3D
@@ -222,11 +223,12 @@ func _build_camera() -> void:
 	_camera = camera
 
 
-func note_delivery(pos: Vector3, vel: Vector3, live: bool, mat: Vector3, head_at: Vector3) -> void:
+func note_delivery(pos: Vector3, vel: Vector3, live: bool, mat: Vector3, head_at: Vector3, aiming: bool = false) -> void:
 	_shot_pos = pos
 	_shot_vel = vel
 	_shot_live = live
 	_mat = mat
+	_aiming = aiming
 	if not _head_hold:
 		_head = head_at
 
@@ -249,6 +251,13 @@ func _process(delta: float) -> void:
 			goal_pos = _head + Vector3(0.35, 3.5, 5.2)
 			goal_fov = 36.0
 		response = 2.7
+	elif _aiming and not _shot_live:
+		# Draw back with the bowl and keep looking down the rink.
+		var pulled := maxf(_shot_pos.z - _mat.z, 0.0)
+		goal_pos = Vector3(clampf(_shot_pos.x * 0.35, -1.2, 1.2), 0.62, _mat.z + 2.1 + pulled * 0.85)
+		goal_look = Vector3(_shot_pos.x * 0.1, 0.15, _shot_pos.z - 16.0)
+		goal_fov = 42.0
+		response = 11.0
 	elif _shot_live and chase:
 		# Trail toward the mat. A wide or ditched bowl lifts the lens so we
 		# look down into the trench instead of skimming the grass into the trees.
@@ -267,21 +276,18 @@ func _process(delta: float) -> void:
 		goal_fov = lerpf(40.0, 56.0, pace) if long_green else lerpf(44.0, 50.0, widen * 0.5)
 		response = 8.0 if long_green else (11.0 if widen > 0.45 else lerpf(7.5, 5.0, pace))
 	elif _shot_live:
-		var along := clampf(-_shot_pos.z / maxf(LENGTH * 0.75, 55.0), 0.0, 1.0)
-		var crane := 22.0 if LENGTH > 200.0 else 7.4
-		goal_pos = Vector3(0.0, lerpf(1.7, crane, along * along), _mat.z + lerpf(2.15, 8.0, along))
-		goal_look = Vector3(_shot_pos.x * 0.9, 0.18, _shot_pos.z)
-		goal_fov = lerpf(50.0, 34.0, along)
-		response = 4.0
+		# Stay behind the mat and watch the bowl run away down the line.
+		goal_pos = Vector3(0.0, 0.62, _mat.z + 2.1)
+		goal_look = Vector3(_shot_pos.x * 0.35, 0.15, _shot_pos.z)
+		goal_fov = 42.0
+		response = 5.0
 	else:
-		var idle_look := 32.0 if LENGTH > 200.0 else 14.0
-		var idle_height := 5.0 if LENGTH > 200.0 else 3.15
-		var idle_back := 6.2 if LENGTH > 200.0 else 4.9
-		goal_pos = Vector3(0.0, idle_height, _mat.z + idle_back)
-		goal_look = Vector3(_mat.x * 0.25, 0.1, _mat.z - idle_look)
-		goal_fov = 48.0
-		response = 5.5
-	goal_pos.y = maxf(goal_pos.y, 1.55)
+		var idle_look := 36.0 if LENGTH > 200.0 else 18.0
+		goal_pos = Vector3(0.0, 0.62, _mat.z + 2.1)
+		goal_look = Vector3(_mat.x * 0.12, 0.15, _mat.z - idle_look)
+		goal_fov = 42.0
+		response = 8.0
+	goal_pos.y = maxf(goal_pos.y, 0.42)
 	goal_look.y = maxf(goal_look.y, 0.12)
 	var x_limit := HALF_WIDTH * 0.7 if LENGTH > 200.0 else 4.2
 	goal_pos.x = clampf(goal_pos.x, -x_limit, x_limit)
@@ -298,11 +304,11 @@ func _process(delta: float) -> void:
 	_cam_look = _cam_look.lerp(goal_look, blend)
 	_cam_fov = lerpf(_cam_fov, goal_fov, blend)
 	# A wide bowl used to drag the lens along the grass for a frame. Stay above it.
-	if LENGTH < 120.0 and _shot_live and absf(_shot_pos.x) > 2.0:
+	if chase and LENGTH < 120.0 and _shot_live and absf(_shot_pos.x) > 2.0:
 		_cam_pos.y = maxf(_cam_pos.y, 4.4)
 		_cam_pos.x = clampf(_cam_pos.x, -1.4, 1.4)
 		_cam_look.y = maxf(_cam_look.y, 0.2)
-	_cam_pos.y = maxf(_cam_pos.y, 1.55)
+	_cam_pos.y = maxf(_cam_pos.y, 0.42)
 	_camera.position = _cam_pos
 	_camera.fov = _cam_fov
 	var toward := _cam_look - _cam_pos
@@ -351,7 +357,7 @@ func _build_grounds() -> void:
 	_outfield_quad(outfield, Vector3(-side_x, -0.04, mid_z), Vector2(side_span, depth))
 	_outfield_quad(outfield, Vector3(side_x, -0.04, mid_z), Vector2(side_span, depth))
 	_outfield_quad(outfield, Vector3(0.0, -0.04, FAR_Z - 36.0), Vector2(outer * 2.0, 48.0))
-	_outfield_quad(outfield, Vector3(0.0, -0.04, 12.0), Vector2(outer * 2.0, 24.0))
+	_outfield_quad(outfield, Vector3(0.0, -0.04, 16.0), Vector2(outer * 2.0, 20.0))
 
 	_hill(Vector3(-18.0, -4.5, -96.0), 16.0, Color(0.45, 0.58, 0.62))
 	_hill(Vector3(2.0, -6.0, -104.0), 18.0, Color(0.40, 0.55, 0.50))
@@ -362,9 +368,12 @@ func _build_playing_surface() -> void:
 	var surface := MeshInstance3D.new()
 	surface.name = "PlayingGreen"
 	var plane := PlaneMesh.new()
-	plane.size = Vector2(HALF_WIDTH * 2.0, LENGTH)
+	# Extra green behind the mat. The delivery camera looks down at the bowl,
+	# and the near edge used to read as a dark strip under it.
+	var near_extra := 8.0
+	plane.size = Vector2(HALF_WIDTH * 2.0, LENGTH + near_extra)
 	surface.mesh = plane
-	surface.position = Vector3(0.0, SURFACE_Y, -LENGTH * 0.5)
+	surface.position = Vector3(0.0, SURFACE_Y, -LENGTH * 0.5 + near_extra * 0.5)
 	surface.material_override = _grass_material(
 		Color(0.40, 0.82, 0.20),
 		Color(0.16, 0.60, 0.16),

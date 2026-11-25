@@ -149,7 +149,7 @@ func _process(delta: float) -> void:
 	if rink != null and disc != null:
 		var mat := Vector3(place_x, 0.0, line_z)
 		var head_at: Vector3 = jack.global_position if jack != null and jack.visible else disc.global_position
-		rink.note_delivery(disc.global_position, disc.velocity, disc.shot_in_progress, mat, head_at)
+		rink.note_delivery(disc.global_position, disc.velocity, disc.shot_in_progress, mat, head_at, disc.is_aiming)
 
 
 func _lock_portrait_on_device() -> void:
