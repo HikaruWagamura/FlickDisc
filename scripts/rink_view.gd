@@ -110,10 +110,10 @@ func _prepare_materials() -> void:
 	_trunk_mat = _lit(Color(0.40, 0.26, 0.14), 0.86)
 	_stem_mat = _lit(Color(0.22, 0.48, 0.20), 0.8)
 	var greens := [
-		Color(0.17, 0.42, 0.20),
-		Color(0.12, 0.34, 0.16),
-		Color(0.22, 0.48, 0.22),
-		Color(0.10, 0.30, 0.14),
+		Color(0.20, 0.72, 0.28),
+		Color(0.12, 0.55, 0.22),
+		Color(0.32, 0.82, 0.30),
+		Color(0.16, 0.62, 0.24),
 	]
 	for green in greens:
 		_leaf_mats.append(_lit(green, 0.9))
@@ -186,7 +186,7 @@ func _build_lights() -> void:
 	var sun := DirectionalLight3D.new()
 	sun.name = "Sun"
 	sun.light_color = Color(1.0, 0.96, 0.88)
-	sun.light_energy = 1.08
+	sun.light_energy = 1.16
 	sun.shadow_enabled = true
 	sun.shadow_bias = 0.04
 	sun.shadow_normal_bias = 1.4
@@ -334,8 +334,8 @@ func release_head() -> void:
 
 func _build_grounds() -> void:
 	var outfield := _grass_material(
-		Color(0.22, 0.40, 0.16),
-		Color(0.16, 0.32, 0.12),
+		Color(0.34, 0.78, 0.22),
+		Color(0.20, 0.58, 0.16),
 		1.35,
 		40.0,
 		0.05
@@ -366,8 +366,8 @@ func _build_playing_surface() -> void:
 	surface.mesh = plane
 	surface.position = Vector3(0.0, SURFACE_Y, -LENGTH * 0.5)
 	surface.material_override = _grass_material(
-		Color(0.26, 0.44, 0.15),
-		Color(0.16, 0.32, 0.11),
+		Color(0.40, 0.82, 0.20),
+		Color(0.16, 0.60, 0.16),
 		0.46,
 		HALF_WIDTH,
 		0.1

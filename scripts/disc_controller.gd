@@ -62,6 +62,8 @@ var velocity := Vector3.ZERO
 var stop_timer := 0.0
 var spin_angle := 0.0
 var roll_basis := Basis.IDENTITY
+var rest_lean := 0.0
+var travel_facing := Vector3(0.0, 0.0, -1.0)
 var punch := 0.0
 var palette_index := 0
 var obstacles: Array = []
@@ -312,6 +314,8 @@ func reset_to_start() -> void:
 	shot_bias = 0.0
 	spin_angle = 0.0
 	roll_basis = Basis.IDENTITY
+	rest_lean = 0.0
+	travel_facing = Vector3(0.0, 0.0, -1.0)
 	punch = 0.0
 	visible = true
 	_hide_guide()
@@ -599,13 +603,19 @@ func _damp(vel: Vector3, bias: float, delta: float) -> Vector3:
 
 
 func _lean_angle(speed: float) -> float:
-	if not shot_in_progress or absf(shot_bias) < 0.01 or speed < 0.2:
+	if absf(shot_bias) < 0.01:
+		rest_lean = 0.0
 		return 0.0
+	if not shot_in_progress:
+		return rest_lean
 	var slow := clampf(1.0 - speed / MAX_SPEED, 0.0, 1.0)
 	var into := clampf(absf(shot_bias) / 1.45, 0.0, 1.0)
-	var wobble := sin(spin_angle * 2.0) * 0.03 * clampf(speed / 8.0, 0.0, 1.0)
-	# Negative bias draws left, so the bowl tips onto that side.
-	return -signf(shot_bias) * into * lerpf(0.05, 0.2, slow * slow) + wobble
+	var wobble := sin(spin_angle * 2.0) * 0.02 * clampf(speed / 8.0, 0.0, 1.0)
+	# Fast, it stands on the wide running surface. As it slows it tips
+	# onto the thin bias side. That tip is what draws the bowl.
+	var lean := -signf(shot_bias) * into * lerpf(0.02, 0.72, slow * slow) + wobble
+	rest_lean = lean
+	return lean
 
 
 func _apply_visual(speed: float) -> void:
@@ -620,7 +630,9 @@ func _apply_visual(speed: float) -> void:
 		_jack_visual.position = Vector3(0.0, BowlScript.JACK_RADIUS + hop, 0.0)
 		_jack_visual.transform.basis = roll_basis
 	else:
-		var facing := velocity if velocity.length() > 0.2 else Vector3(0.0, 0.0, -1.0)
+		var facing := velocity if velocity.length() > 0.2 else travel_facing
+		if velocity.length() > 0.2:
+			travel_facing = velocity
 		_visual.position = Vector3(0.0, BowlScript.VISUAL_RADIUS + hop, 0.0)
 		_visual.basis = BowlScript._posed_basis(facing, _lean_angle(speed), Basis.IDENTITY)
 		if _spin != null:
@@ -732,9 +744,10 @@ func _place_pip() -> void:
 	if _bias_pip == null:
 		return
 	var side := signf(hand_sign)
-	_bias_pip.rotation = Vector3(0.0, 0.0 if side > 0.0 else PI, 0.0)
+	_bias_pip.rotation = Vector3.ZERO
 	if _stone != null:
-		_stone.position = Vector3(-side * 0.012, 0.0, 0.0)
+		# Thin side points to the hand. Forehand draws left.
+		_stone.rotation = Vector3(0.0, PI if side < 0.0 else 0.0, 0.0)
 
 
 func _build_guide() -> void:

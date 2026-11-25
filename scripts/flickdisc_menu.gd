@@ -4,13 +4,13 @@ extends CanvasLayer
 
 signal play_requested(setup: Dictionary)
 
-const PINK := Color("#E4C56A")
-const PINK_DEEP := Color("#1B6B3C")
-const INK := Color("#07140C")
-const CARD := Color(0.07, 0.16, 0.11, 0.96)
-const PLUM := Color(0.05, 0.12, 0.08, 0.96)
-const MUTED := Color("#C5D4C6")
-const CREAM := Color("#F7F4EA")
+const PINK := Color("#5CFFF2")
+const PINK_DEEP := Color("#FF2E8A")
+const INK := Color("#160824")
+const CARD := Color(0.16, 0.05, 0.28, 0.94)
+const PLUM := Color(0.22, 0.06, 0.38, 0.96)
+const MUTED := Color("#F0D8FF")
+const CREAM := Color("#FFF6FF")
 
 var profile
 var feel
@@ -39,6 +39,7 @@ var home_level: Label
 var home_letter: Label
 var home_record: Label
 var home_tally: Label
+var home_play: Button
 var home_xp: ColorRect
 var chip_wins: Label
 var chip_losses: Label
@@ -153,6 +154,12 @@ func _prepare_fonts() -> void:
 	script_font = FONT_PACIFICO
 	body_font = FONT_INTER
 	bold_font = FONT_INTER_BOLD
+	var emoji := SystemFont.new()
+	emoji.font_names = PackedStringArray(["DejaVu Sans", "Noto Sans Symbols2"])
+	var stack: Array[Font] = [emoji]
+	var faces: Array[FontFile] = [FONT_ANTON, FONT_INTER, FONT_INTER_BOLD, FONT_PACIFICO]
+	for face in faces:
+		face.fallbacks = stack
 
 
 const LOGO := preload("res://assets/flick_bowls_logo.jpg")
@@ -179,6 +186,15 @@ func _show(next: String) -> void:
 	if next == "setup":
 		_sync_setup()
 	_sync_identity()
+
+
+func _process(_delta: float) -> void:
+	if home_play == null or not home_play.visible or screen != "home":
+		return
+	var wave := 0.5 + 0.5 * sin(float(Time.get_ticks_msec()) * 0.006)
+	var grow := lerpf(1.0, 1.035, wave)
+	home_play.scale = Vector2(grow, grow)
+	home_play.modulate = Color(1.0, lerpf(0.82, 1.0, wave), lerpf(0.9, 1.0, wave))
 
 
 func _arm_splash() -> void:
@@ -289,19 +305,21 @@ func _build_home() -> void:
 	var mark := _mark_rect()
 	_place(page, mark, Vector2(70, 96), Vector2(400, 168))
 
-	var play := _button("BOWL A MATCH", 20)
+	var play := _button("★    BOWL A MATCH", 20)
 	_place(page, play, Vector2(20, 276), Vector2(500, 56))
 	_paint_button(play, PINK_DEEP, PINK, CREAM, 16, 0)
+	home_play = play
+	play.pivot_offset = Vector2(250, 28)
 	play.pressed.connect(func() -> void:
 		_tap()
 		_open_setup("classic")
 	)
 
-	var drive := _button("THE LONG GREEN", 18)
+	var drive := _button("▲  LONG GREEN", 18)
 	_place(page, drive, Vector2(20, 342), Vector2(245, 52))
 	_paint_button(drive, CARD, PINK, CREAM, 14, 0)
 	drive.pressed.connect(_launch_drive)
-	var solo := _button("SOLO ENDS", 18)
+	var solo := _button("◎  SOLO ENDS", 18)
 	_place(page, solo, Vector2(275, 342), Vector2(245, 52))
 	_paint_button(solo, CARD, PINK, CREAM, 14, 0)
 	solo.pressed.connect(_launch_solo)
@@ -313,27 +331,27 @@ func _build_home() -> void:
 	_place(page, home_tally, Vector2(20, 426), Vector2(500, 18))
 	home_tally.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
-	_home_card(page, Rect2(16, 454, 164, 96), "1", "MATCH", "You and another player.", "classic")
-	_home_card(page, Rect2(188, 454, 164, 96), "2", "PASS PHONE", "Two teams, one device.", "duo")
-	_home_card(page, Rect2(360, 454, 164, 96), "", "VERSUS AI", "A computer on the rink.", "classic")
-	_home_card(page, Rect2(16, 560, 249, 92), "", "SOLO ENDS", "One bowl. Be the shot.", "solo")
-	_home_card(page, Rect2(275, 560, 249, 92), "", "LONG GREEN", "How far, and how close.", "drive")
-	_home_card(page, Rect2(16, 662, 249, 92), "", "PRACTICE", "Nothing on the line.", "practice")
-	_home_card(page, Rect2(275, 662, 249, 92), "", "THE BOARD", "Wins, drives, ends.", "rankings")
+	_home_card(page, Rect2(16, 454, 164, 96), "★", "MATCH", "Two players", "classic")
+	_home_card(page, Rect2(188, 454, 164, 96), "◆", "PASS & PLAY", "One phone", "duo")
+	_home_card(page, Rect2(360, 454, 164, 96), "●", "VERSUS AI", "Take them on", "classic")
+	_home_card(page, Rect2(16, 560, 249, 92), "◎", "SOLO ENDS", "One bowl. Be the shot.", "solo")
+	_home_card(page, Rect2(275, 560, 249, 92), "▲", "LONG GREEN", "How far can it go?", "drive")
+	_home_card(page, Rect2(16, 662, 249, 92), "✦", "PRACTICE", "Just the shot", "practice")
+	_home_card(page, Rect2(275, 662, 249, 92), "♛", "THE BOARD", "Wins and records", "rankings")
 
 
 func _home_card(page: Control, rect: Rect2, kicker: String, title: String, body: String, target: String) -> void:
 	var button := Button.new()
 	button.text = ""
 	_place(page, button, rect.position, rect.size)
-	_paint_button(button, CARD, Color(1, 0.55, 0.72, 0.85), CREAM, 16, 12)
+	_paint_button(button, CARD, Color("#FF4FA3"), CREAM, 16, 14)
 	var y := 12.0
 	if kicker != "":
-		var kick := _label(kicker, 13, PINK, bold_font)
-		kick.position = Vector2(12, 8)
-		kick.size = Vector2(rect.size.x - 24, 18)
+		var kick := _label(kicker, 22, PINK, bold_font)
+		kick.position = Vector2(12, 6)
+		kick.size = Vector2(rect.size.x - 24, 26)
 		button.add_child(kick)
-		y = 30.0
+		y = 32.0
 	var heading := _label(title, 15, CREAM, bold_font)
 	heading.position = Vector2(12, y)
 	heading.size = Vector2(rect.size.x - 24, 36)

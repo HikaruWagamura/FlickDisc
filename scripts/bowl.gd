@@ -46,8 +46,8 @@ static func palette(index: int) -> Array:
 	var gold := Color(0.96, 0.78, 0.26)
 	# Band, body, inner ring, bias rings. Ivory and gold stay readable on the grass.
 	var looks := [
-		[ivory, Color(0.10, 0.10, 0.12), Color(0.22, 0.20, 0.18), gold],
-		[ivory, Color(0.86, 0.07, 0.09), Color(0.55, 0.04, 0.06), gold],
+		[ivory, Color(0.07, 0.07, 0.09), Color(0.18, 0.16, 0.14), gold],
+		[ivory, Color(0.96, 0.05, 0.18), Color(0.62, 0.02, 0.1), gold],
 	]
 	return looks[index % looks.size()]
 
@@ -196,11 +196,10 @@ func set_hand(hand: float) -> void:
 	if _pip == null:
 		return
 	var side := signf(hand)
-	# Rings are built on +X. Turn the anchor so they sit on the heavy side.
-	# The shell is nudged the other way, so the bowl wobbles as that side rolls under.
-	_pip.rotation = Vector3(0.0, 0.0 if side > 0.0 else PI, 0.0)
+	# The thin end is built on +X. Turn it toward the hand the bowl will draw.
+	_pip.rotation = Vector3.ZERO
 	if _stone != null:
-		_stone.position = Vector3(-side * 0.012, 0.0, 0.0)
+		_stone.rotation = Vector3(0.0, PI if side < 0.0 else 0.0, 0.0)
 
 
 func set_scoring(on: bool) -> void:
@@ -274,39 +273,78 @@ func _make_shadow(size: float) -> MeshInstance3D:
 
 
 static func dress_stone(parent: Node3D, colors: Array, hand: float) -> Dictionary:
-	var rim := _stone_mat(colors[0], 0.32, 0.06)
-	var body := _stone_mat(colors[1], 0.36, 0.05)
-	var cap := _stone_mat(colors[2], 0.3, 0.1)
+	var rim := _stone_mat(colors[0], 0.18, 0.08)
+	rim.emission_enabled = true
+	rim.emission = Color(1.0, 0.97, 0.86)
+	rim.emission_energy_multiplier = 0.55
+	var body := _stone_mat(colors[1], 0.2, 0.08)
+	body.clearcoat_enabled = true
+	body.clearcoat = 0.7
+	body.emission_enabled = true
+	body.emission = colors[1]
+	body.emission_energy_multiplier = 0.16
+	var cap := _stone_mat(colors[2], 0.24, 0.12)
 	var mark := StandardMaterial3D.new()
 	mark.albedo_color = colors[3]
-	mark.roughness = 0.28
-	mark.metallic = 0.22
+	mark.roughness = 0.22
+	mark.metallic = 0.35
 	mark.emission_enabled = true
-	mark.emission = Color(0.72, 0.52, 0.12)
-	mark.emission_energy_multiplier = 0.35
-	# A lawn bowl: a sphere, an ivory running band, and rings on the heavy side.
-	# The mesh is centred so the roll spins in place instead of tumbling the shell.
+	mark.emission = Color(1.0, 0.78, 0.2)
+	mark.emission_energy_multiplier = 0.85
+	# Not a ball. Wide running belly, a short thin end on +X.
+	# The belly is a wheel around X, so the seam stays on the running
+	# surface instead of tumbling over the top. The rings live on the
+	# thin end and stay on that cheek.
 	var stone := Node3D.new()
 	stone.name = "Stone"
 	parent.add_child(stone)
-	var ball := MeshInstance3D.new()
-	var mesh := SphereMesh.new()
-	mesh.radius = VISUAL_RADIUS
-	mesh.height = VISUAL_RADIUS * 2.0
-	mesh.radial_segments = 36
-	mesh.rings = 18
-	ball.mesh = mesh
-	ball.material_override = body
-	stone.add_child(ball)
-	_bowl_ring(stone, VISUAL_RADIUS * 0.98, 0.011, Vector3.ZERO, Vector3.ZERO, rim)
+	var shell := MeshInstance3D.new()
+	shell.mesh = _bowl_shell()
+	shell.material_override = body
+	stone.add_child(shell)
+	var wheel := Vector3(0.0, 0.0, PI * 0.5)
+	_bowl_ring(stone, VISUAL_RADIUS * 0.9, 0.008, Vector3.ZERO, wheel, rim)
 	var anchor := Node3D.new()
 	anchor.name = "Bias"
+	anchor.position = Vector3(0.055, 0.0, 0.0)
 	stone.add_child(anchor)
-	var face := Vector3(0.0, 0.0, PI * 0.5)
-	_bias_ring(anchor, 0.074, 0.009, face, mark)
-	_bias_ring(anchor, 0.046, 0.008, face, cap)
-	_bias_ring(anchor, 0.022, 0.007, face, mark)
+	_bowl_ring(anchor, 0.052, 0.006, Vector3.ZERO, wheel, mark)
+	_bowl_ring(anchor, 0.032, 0.005, Vector3.ZERO, wheel, cap)
+	_bowl_ring(anchor, 0.015, 0.0045, Vector3.ZERO, wheel, mark)
 	return {"rim": rim, "body": body, "cap": cap, "mark": mark, "weight": anchor, "stone": stone}
+
+
+static func _bowl_shell() -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var slices := 36
+	var steps := 22
+	var profile: Array[Vector2] = []
+	for i in steps + 1:
+		var s := lerpf(-1.0, 1.0, float(i) / float(steps))
+		var along := s * (0.162 if s < 0.0 else 0.108)
+		var belly := sqrt(maxf(1.0 - s * s, 0.0))
+		var pinch := 1.0
+		if s > 0.0:
+			var t := clampf((s - 0.12) / 0.88, 0.0, 1.0)
+			t = t * t * (3.0 - 2.0 * t)
+			pinch = lerpf(1.0, 0.62, t)
+		var rad := maxf(VISUAL_RADIUS * belly * pinch, 0.01)
+		profile.append(Vector2(along, rad))
+	for i in steps:
+		for j in slices:
+			var a0 := TAU * float(j) / float(slices)
+			var a1 := TAU * float(j + 1) / float(slices)
+			var p0: Vector2 = profile[i]
+			var p1: Vector2 = profile[i + 1]
+			var v00 := Vector3(p0.x, cos(a0) * p0.y, sin(a0) * p0.y)
+			var v01 := Vector3(p0.x, cos(a1) * p0.y, sin(a1) * p0.y)
+			var v10 := Vector3(p1.x, cos(a0) * p1.y, sin(a0) * p1.y)
+			var v11 := Vector3(p1.x, cos(a1) * p1.y, sin(a1) * p1.y)
+			for vertex in [v00, v10, v11, v00, v11, v01]:
+				st.set_normal(vertex.normalized())
+				st.add_vertex(vertex)
+	return st.commit()
 
 
 static func _stone_mat(color: Color, roughness: float, metallic: float) -> StandardMaterial3D:

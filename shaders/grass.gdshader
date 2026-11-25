@@ -34,13 +34,13 @@ void fragment() {
 	vec3 color = mix(stripe_b, stripe_a, stripe);
 	float patch = value_noise(world_position.xz * 0.33);
 	float grain = value_noise(world_position.xz * 5.5);
-	color *= 0.94 + patch * 0.08 + grain * 0.03;
+	color *= 0.97 + patch * 0.06 + grain * 0.02;
 	float edge = smoothstep(half_width - 0.7, half_width - 0.02, abs(world_position.x));
-	color = mix(color, color * vec3(0.80, 0.88, 0.74), edge * 0.65);
+	color = mix(color, color * vec3(0.72, 0.95, 0.55), edge * 0.35);
 	float depth = clamp((-world_position.z) / 40.0, 0.0, 1.0);
-	color = mix(color, color * vec3(0.84, 0.92, 0.80), depth * depth_fade);
+	color = mix(color, color * vec3(0.86, 1.0, 0.82), depth * depth_fade);
 	ALBEDO = color;
-	ROUGHNESS = 0.92;
-	SPECULAR = 0.06;
+	ROUGHNESS = 0.78;
+	SPECULAR = 0.12;
 	METALLIC = 0.0;
 }

@@ -584,6 +584,8 @@ func _finish_shot(token: int) -> void:
 	thrown.setup_disc(throw_index % 2, hand_sign)
 	thrown.side = throw_index % 2
 	thrown.roll_basis = disc.roll_basis
+	thrown.lean = disc.rest_lean
+	thrown.travel = disc.travel_facing
 	add_child(thrown)
 	var bowl_ditched: bool = disc.in_ditch
 	if bowl_ditched:
@@ -891,6 +893,8 @@ func _finish_drive(rest_pos: Vector3) -> void:
 	thrown.setup_disc(0, hand_sign)
 	thrown.side = 0
 	thrown.roll_basis = disc.roll_basis
+	thrown.lean = disc.rest_lean
+	thrown.travel = disc.travel_facing
 	add_child(thrown)
 	if ditched:
 		thrown.drop_in_ditch(rest_pos)
@@ -985,6 +989,8 @@ func _finish_solo(rest_pos: Vector3) -> void:
 	thrown.setup_disc(0, hand_sign)
 	thrown.side = 0
 	thrown.roll_basis = disc.roll_basis
+	thrown.lean = disc.rest_lean
+	thrown.travel = disc.travel_facing
 	add_child(thrown)
 	if ditched:
 		thrown.drop_in_ditch(rest_pos)
