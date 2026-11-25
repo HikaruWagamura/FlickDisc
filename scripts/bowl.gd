@@ -17,7 +17,8 @@ const JACK_RESTITUTION := 0.4
 const MESH_HEIGHT := 0.97834063
 ## Sink the running surface into the green. A round bowl on a flat plane
 ## reads as hovering unless the contact is buried for the rink camera.
-const SIT_NEST := 0.05
+## 5 cm was a hair too deep; this just kisses the turf.
+const SIT_NEST := 0.03
 const BOWL_SCENE := preload("res://assets/bowls/lawn_bowl.glb")
 const ALBEDO_BLUE := preload("res://assets/bowls/bowl_albedo_blue.jpg")
 
