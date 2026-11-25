@@ -11,11 +11,12 @@ const COURSE_PATH := "res://assets/course_background.png"
 
 func _ready() -> void:
 	_build_room()
-	if not _mount_club():
+	var club := _mount_club()
+	if not club:
 		_build_body()
 		_build_surface()
 		_build_rail()
-	_build_pegs()
+		_build_pegs()
 	_build_lane()
 
 
@@ -34,19 +35,30 @@ func _mount_club() -> bool:
 	add_child(holder)
 	holder.add_child(raw)
 	# Fit the painted playfield to the NCA surface so the ditch and the
-	# 20-hole stay where the discs already play.
+	# 20-hole stay where the discs already play. Pins and buttons keep
+	# the pack's own size on that same scale.
 	var face := _world_aabb(playfield)
 	var radius := maxf(face.size.x, face.size.z) * 0.5
 	if radius < 0.001:
 		radius = 0.2748
-	holder.scale = Vector3.ONE * (Metrics.SURFACE_RADIUS / radius)
-	# Drop the playing face onto y=0 so buttons rest on the wood.
-	var box := _world_aabb(raw)
+	var pack_scale := Metrics.SURFACE_RADIUS / radius
+	holder.scale = Vector3.ONE * pack_scale
+	# Sit the playing face on y=0. Ignore packed discs so they do not
+	# lift the whole table.
+	var box := _world_aabb(playfield)
 	holder.position.y -= box.position.y + box.size.y
-	_hide_packed_discs(raw)
-	_hide_named(raw, "pins")
-	_hide_named(raw, "AnimationPlayer")
 	_dress_club(raw)
+	_hide_named(raw, "AnimationPlayer")
+	_stash_pack_discs(raw)
+	_stash_pack_pins(raw)
+	var disc := _named_mesh(raw, "disc_01")
+	if disc != null:
+		var xf := disc.global_transform
+		xf.origin = Vector3.ZERO
+		Metrics.club_disc_xform = xf
+		var disc_box := _world_aabb(disc)
+		Metrics.club_center_y = disc_box.size.y * 0.5
+		Metrics.club_ditch_y = -0.012
 	return true
 
 
@@ -63,6 +75,7 @@ func _dress_club(node: Node) -> void:
 		"res://assets/board/textures/crokinole_figures_Mat_Roughness.jpg",
 		"res://assets/board/textures/crokinole_figures_Mat_Metallic.jpg"
 	)
+	Metrics.club_figures_mat = figures
 	_apply_mats(node, playfield, figures)
 
 
@@ -115,6 +128,67 @@ func _named_mesh(node: Node, key: String) -> MeshInstance3D:
 		if found != null:
 			return found
 	return null
+
+
+func _stash_pack_discs(node: Node) -> void:
+	Metrics.club_dark.clear()
+	Metrics.club_light.clear()
+	var albedo: Image = Image.load_from_file("res://assets/board/textures/crokinole_figures_Mat_BaseColor.jpg")
+	_collect_discs(node, albedo)
+	_hide_packed_discs(node)
+
+
+func _collect_discs(node: Node, albedo: Image) -> void:
+	if node is MeshInstance3D and "disc" in str(node.name).to_lower() and (node as MeshInstance3D).mesh != null:
+		var mi := node as MeshInstance3D
+		var luma := _disc_luma(mi, albedo)
+		if luma < 0.28:
+			Metrics.club_dark.append(mi.mesh)
+		else:
+			Metrics.club_light.append(mi.mesh)
+	for child in node.get_children():
+		_collect_discs(child, albedo)
+
+
+func _disc_luma(mi: MeshInstance3D, albedo: Image) -> float:
+	if albedo == null or albedo.is_empty():
+		return 0.5
+	var arrays := mi.mesh.surface_get_arrays(0)
+	var uvs: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]
+	if uvs.is_empty():
+		return 0.5
+	var c := Vector2.ZERO
+	for uv in uvs:
+		c += uv
+	c /= float(uvs.size())
+	var px := Vector2i(
+		clampi(int(c.x * albedo.get_width()), 0, albedo.get_width() - 1),
+		clampi(int(c.y * albedo.get_height()), 0, albedo.get_height() - 1)
+	)
+	var col: Color = albedo.get_pixelv(px)
+	return col.r * 0.3 + col.g * 0.59 + col.b * 0.11
+
+
+func _stash_pack_pins(node: Node) -> void:
+	var pins := _named_mesh(node, "pins")
+	if pins == null or pins.mesh == null:
+		return
+	var verts: PackedVector3Array = pins.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var bins: Array[Vector2] = []
+	for v in verts:
+		var p := Vector2(v.x, v.y)
+		var placed := false
+		for i in bins.size():
+			if p.distance_to(bins[i]) < 0.012:
+				bins[i] = (bins[i] + p) * 0.5
+				placed = true
+				break
+		if not placed:
+			bins.append(p)
+	Metrics.club_pegs.clear()
+	for c in bins:
+		var world: Vector3 = pins.to_global(Vector3(c.x, c.y, 0.0))
+		Metrics.club_pegs.append(Vector3(world.x, 0.0, world.z))
 
 
 func _hide_packed_discs(node: Node) -> void:

@@ -16,19 +16,20 @@ var stop_timer := 0.0
 var played := false
 
 var tint := Color("#ff3d9a")
+var _kit_index := 0
 var _visual: Node3D
 
-func setup(player_disc: bool, disc_tint: Color = Color("#ff3d9a")) -> void:
+func setup(player_disc: bool, disc_tint: Color = Color("#ff3d9a"), kit_index: int = 0) -> void:
 	is_player = player_disc
 	tint = disc_tint
+	_kit_index = kit_index
 	_build_visual()
 
 func flat() -> Vector2:
 	return Vector2(position.x, position.z)
 
 func set_flat(spot: Vector2) -> void:
-	var height := Metrics.DITCH_Y if in_ditch else Metrics.DISC_CENTER_Y
-	position = Vector3(spot.x, height, spot.y)
+	position = Vector3(spot.x, Metrics.sit_y(in_ditch), spot.y)
 
 func ring_points() -> int:
 	if is_player and not played:
@@ -70,6 +71,8 @@ func sink_into_hole() -> void:
 func _build_visual() -> void:
 	_visual = Node3D.new()
 	add_child(_visual)
+	if _wear_club():
+		return
 	var body_color := Color("#141414") if is_player else Color("#f3e6cf")
 	var rim_color := Color("#2a2a2e") if is_player else Color("#c4a574")
 	var center_color := tint if is_player else Color("#6b3e28")
@@ -100,5 +103,25 @@ func _build_visual() -> void:
 	shadow_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	shadow_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	shadow_material.albedo_color = Color(0.0, 0.0, 0.0, 0.32)
-	var shadow_mesh := Metrics.add_mesh(self, shadow, shadow_material, Vector3(0.02, -Metrics.DISC_CENTER_Y + 0.003, 0.02))
+	var shadow_mesh := Metrics.add_mesh(self, shadow, shadow_material, Vector3(0.02, -Metrics.sit_y(false) + 0.003, 0.02))
 	shadow_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+func _wear_club() -> bool:
+	var mesh: Mesh = Metrics.club_disc_mesh(is_player, _kit_index)
+	if mesh == null:
+		return false
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.transform = Metrics.club_disc_xform
+	if Metrics.club_figures_mat != null:
+		mi.material_override = Metrics.club_figures_mat
+	_visual.add_child(mi)
+	var shadow := Metrics.cylinder(Metrics.DISC_RADIUS * 1.12, 0.003, 28)
+	var shadow_material := StandardMaterial3D.new()
+	shadow_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	shadow_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	shadow_material.albedo_color = Color(0.0, 0.0, 0.0, 0.28)
+	var shadow_mesh := Metrics.add_mesh(self, shadow, shadow_material, Vector3(0.018, -Metrics.sit_y(false) + 0.002, 0.018))
+	shadow_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return true
