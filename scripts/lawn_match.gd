@@ -53,6 +53,7 @@ var goal_sent := false
 var rack: Array = []
 var gesture
 var fan
+var cue
 var distance_play := false
 var solo_play := false
 var solo_index := 0
@@ -180,6 +181,9 @@ func _wire_shot() -> void:
 	fan = preload("res://scripts/shot_fan.gd").new()
 	fan.name = "ShotFan"
 	ui.add_child(fan)
+	cue = preload("res://scripts/aim_cue.gd").new()
+	cue.name = "AimCue"
+	add_child(cue)
 
 
 func _begin_ready() -> void:
@@ -330,19 +334,9 @@ func _sync_fan() -> void:
 	var disc_px := cursor_at.distance_to(rim)
 	var lift := disc_px + 86.0
 	fan.present(cursor_at, power, needle, show_cursor, _facing(live_pos, _aim_from(0.0)), lift)
-	var dots := PackedVector2Array()
-	var half := PackedFloat32Array()
-	var lefts := PackedVector2Array()
-	var rights := PackedVector2Array()
-	if show_arrow:
-		var idle_centre := cam.unproject_position(live_pos)
-		var idle_edge := cam.unproject_position(live_pos + Vector3(disc.radius, 0.0, 0.0))
-		var cue: Dictionary = fan.project_cue(cam, disc.grass_cue(0.35), 0.04, 0.09, idle_centre, idle_centre.distance_to(idle_edge))
-		dots = cue["pts"]
-		half = cue["half"]
-		lefts = cue["left"]
-		rights = cue["right"]
-	fan.set_cue(dots, half, show_arrow, lefts, rights)
+	if cue != null:
+		cue.clear()
+	fan.set_cue(PackedVector2Array(), PackedFloat32Array(), false)
 	fan.set_line(Vector2.ZERO, Vector2.ZERO, false)
 	fan.set_aim(Vector2.ZERO, Vector2.ZERO, false)
 	fan.set_disc(cursor_at, false)
@@ -372,19 +366,12 @@ func _sync_direct(cam: Camera3D, placed: Vector3) -> void:
 		var rim := cam.unproject_position(live_pos + Vector3(cos(ang), 0.2, sin(ang)) * disc.radius)
 		bowl_r = maxf(bowl_r, centre.distance_to(rim))
 	fan.present(bowl_px, power, 0.0, false, -PI * 0.5, 120.0)
-	var dots := PackedVector2Array()
-	var half := PackedFloat32Array()
-	var lefts := PackedVector2Array()
-	var rights := PackedVector2Array()
 	if pulling:
-		var root_w := lerpf(0.034, 0.055, power)
-		var tip_w := lerpf(0.08, 0.16, power)
-		var cue: Dictionary = fan.project_cue(cam, disc.grass_cue(power), root_w, tip_w, centre, bowl_r * 1.22)
-		dots = cue["pts"]
-		half = cue["half"]
-		lefts = cue["left"]
-		rights = cue["right"]
-	fan.set_cue(dots, half, pulling and dots.size() > 1, lefts, rights)
+		if cue != null:
+			cue.present(disc.grass_cue(power), power)
+	elif cue != null:
+		cue.clear()
+	fan.set_cue(PackedVector2Array(), PackedFloat32Array(), false)
 	fan.set_aim(Vector2.ZERO, Vector2.ZERO, false)
 	fan.set_line(Vector2.ZERO, Vector2.ZERO, false)
 	fan.set_disc(bowl_px, live and not pulling)

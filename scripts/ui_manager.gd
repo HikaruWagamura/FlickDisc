@@ -115,8 +115,8 @@ func set_power_ratio(power_ratio: float) -> void:
 	if power_track != null:
 		inner = power_track.size.y - 20.0
 	var tall := maxf(inner * ratio, 4.0)
-	power_fill.size = Vector2(16.0, tall)
-	power_fill.position = Vector2(8.0, 10.0 + inner - tall)
+	power_fill.size = Vector2(12.0, tall)
+	power_fill.position = Vector2(7.0, 10.0 + inner - tall)
 	_paint_power_fill(ratio)
 	if power_cap != null:
 		power_cap.visible = true
@@ -129,7 +129,7 @@ func set_power_ratio(power_ratio: float) -> void:
 		cap.shadow_color = Color(heat.r, heat.g, heat.b, 0.45)
 		cap.shadow_size = 8
 		power_cap.add_theme_stylebox_override("panel", cap)
-		power_cap.position = Vector2(-2.0, power_fill.position.y - 8.0)
+		power_cap.position = Vector2(1.0, power_fill.position.y - 6.0)
 	if power_max != null:
 		power_max.visible = ratio >= 0.94
 		if power_max.visible:
@@ -392,8 +392,8 @@ func _hand_name() -> String:
 
 func _build_power_meter() -> void:
 	power_track = Panel.new()
-	power_track.position = Vector2(500.0, 148.0)
-	power_track.size = Vector2(32.0, 520.0)
+	power_track.position = Vector2(508.0, 158.0)
+	power_track.size = Vector2(26.0, 196.0)
 	power_track.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var track := StyleBoxFlat.new()
 	track.bg_color = Color(0.05, 0.03, 0.12, 0.88)
@@ -405,24 +405,24 @@ func _build_power_meter() -> void:
 	power_track.add_theme_stylebox_override("panel", track)
 	power_track.clip_contents = false
 	add_child(power_track)
-	for tick in 5:
+	for tick in 4:
 		var mark := ColorRect.new()
 		mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		mark.color = Color(1.0, 1.0, 1.0, 0.18)
 		mark.size = Vector2(10.0, 2.0)
-		mark.position = Vector2(11.0, 18.0 + float(tick) * 96.0)
+		mark.position = Vector2(8.0, 16.0 + float(tick) * 44.0)
 		power_track.add_child(mark)
 	power_fill = TextureRect.new()
 	power_fill.position = Vector2(8.0, 10.0)
-	power_fill.size = Vector2(16.0, 4.0)
+	power_fill.size = Vector2(12.0, 4.0)
 	power_fill.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	power_fill.stretch_mode = TextureRect.STRETCH_SCALE
 	power_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	power_track.add_child(power_fill)
 	_paint_power_fill(0.0)
 	power_cap = Panel.new()
-	power_cap.size = Vector2(28.0, 28.0)
-	power_cap.position = Vector2(-2.0, 490.0)
+	power_cap.size = Vector2(24.0, 24.0)
+	power_cap.position = Vector2(1.0, 166.0)
 	power_cap.visible = true
 	power_cap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var cap := StyleBoxFlat.new()
@@ -434,8 +434,8 @@ func _build_power_meter() -> void:
 	power_track.add_child(power_cap)
 	power_label = Label.new()
 	power_label.text = "POWER"
-	power_label.position = Vector2(478.0, 672.0)
-	power_label.size = Vector2(76.0, 18.0)
+	power_label.position = Vector2(448.0, 356.0)
+	power_label.size = Vector2(86.0, 16.0)
 	power_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	power_label.add_theme_font_override("font", HUD_FONT)
 	power_label.add_theme_font_size_override("font_size", 11)
@@ -444,8 +444,8 @@ func _build_power_meter() -> void:
 	add_child(power_label)
 	power_max = Label.new()
 	power_max.text = "MAX"
-	power_max.position = Vector2(-22.0, -24.0)
-	power_max.size = Vector2(76.0, 22.0)
+	power_max.position = Vector2(-48.0, -4.0)
+	power_max.size = Vector2(48.0, 20.0)
 	power_max.visible = false
 	power_max.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	power_max.add_theme_font_override("font", HUD_FONT)

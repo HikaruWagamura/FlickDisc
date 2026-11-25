@@ -666,15 +666,15 @@ func grass_cue(power: float) -> PackedVector3Array:
 	if flat.length() < 0.001:
 		flat = Vector3(0.0, 0.0, -1.0)
 	flat = flat.normalized()
-	var start := Vector3(global_position.x, 0.028, global_position.z) + flat * (radius + 0.18)
-	var want := lerpf(1.8, 4.8, clampf(power, 0.0, 1.0))
+	var start := Vector3(global_position.x, 0.03, global_position.z) + flat * (radius + 0.08)
+	var want := lerpf(3.4, 6.8, clampf(power, 0.0, 1.0))
 	var out := PackedVector3Array()
 	var use_bias := (not delivering_jack) and absf(bias_ratio) > 0.04
 	if not use_bias:
-		for step in 20:
-			var t := float(step) / 19.0
+		for step in 28:
+			var t := float(step) / 27.0
 			var point := start + flat * (want * t)
-			point.y = 0.028
+			point.y = 0.03
 			out.append(point)
 		return out
 	var pos := global_position
@@ -691,7 +691,7 @@ func grass_cue(power: float) -> PackedVector3Array:
 		travelled += prev.distance_to(pos)
 		if travelled < radius + 0.06:
 			continue
-		var point := Vector3(pos.x, 0.028, pos.z)
+		var point := Vector3(pos.x, 0.03, pos.z)
 		if out[out.size() - 1].distance_to(point) >= 0.07:
 			out.append(point)
 		if travelled >= want or bool(moved[3]) or vel.length() < STOP_SPEED:
