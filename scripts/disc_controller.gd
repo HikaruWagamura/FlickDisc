@@ -80,6 +80,7 @@ func _ready() -> void:
 	start_position = position
 	_build_visual()
 	_build_guide()
+	_apply_visual(0.0)
 
 
 func _process(delta: float) -> void:
@@ -129,6 +130,7 @@ func configure_jack() -> void:
 	if _jack_visual != null:
 		_jack_visual.visible = true
 	line_side = 0.0
+	_apply_visual(0.0)
 	bias_changed.emit(bias_ratio)
 
 
@@ -147,6 +149,7 @@ func configure_bowl(index: int, hand: float) -> void:
 	if _jack_visual != null:
 		_jack_visual.visible = false
 	_place_pip()
+	_apply_visual(0.0)
 	bias_changed.emit(bias_ratio)
 
 
@@ -505,14 +508,14 @@ func _apply_visual(speed: float) -> void:
 		return
 	punch = move_toward(punch, 0.0, 0.08)
 	var lift := clampf(speed / MAX_SPEED, 0.0, 1.0)
-	var sit := 0.0 if delivering_jack else radius
+	var sit := 0.0 if delivering_jack else radius - BowlScript.SIT_NEST
 	_visual.position.y = sit + lift * 0.035 + punch * 0.08
 	_visual.rotation = Vector3.ZERO
 	if delivering_jack and _jack_visual != null:
 		_jack_visual.transform.basis = roll_basis
 	elif _spin != null:
 		_spin.transform.basis = roll_basis
-	_shadow.position = Vector3(0.1 + lift * 0.08, 0.012, 0.06)
+	_shadow.position = Vector3(0.0, 0.003, 0.0)
 
 
 func guide_points() -> PackedVector3Array:
@@ -572,18 +575,18 @@ func _predict_path() -> PackedVector3Array:
 func _build_visual() -> void:
 	_shadow = MeshInstance3D.new()
 	var shadow_mesh := CylinderMesh.new()
-	shadow_mesh.top_radius = 0.16
-	shadow_mesh.bottom_radius = 0.16
-	shadow_mesh.height = 0.008
+	shadow_mesh.top_radius = 0.17
+	shadow_mesh.bottom_radius = 0.17
+	shadow_mesh.height = 0.006
 	shadow_mesh.radial_segments = 24
 	_shadow.mesh = shadow_mesh
 	var shadow_mat := StandardMaterial3D.new()
 	shadow_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	shadow_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	shadow_mat.albedo_color = Color(0.0, 0.05, 0.02, 0.34)
+	shadow_mat.albedo_color = Color(0.0, 0.04, 0.02, 0.46)
 	_shadow.material_override = shadow_mat
 	_shadow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_shadow.position = Vector3(0.1, 0.012, 0.06)
+	_shadow.position = Vector3(0.0, 0.003, 0.0)
 	add_child(_shadow)
 
 	_visual = Node3D.new()
@@ -606,7 +609,7 @@ func _build_visual() -> void:
 	jack_mat.emission_enabled = true
 	jack_mat.emission = Color(0.62, 0.42, 0.08)
 	jack_mat.emission_energy_multiplier = 0.35
-	_add_sphere(_jack_visual, Vector3(0.0, BowlScript.JACK_RADIUS, 0.0), BowlScript.JACK_RADIUS, Vector3.ONE, jack_mat)
+	_add_sphere(_jack_visual, Vector3(0.0, BowlScript.JACK_RADIUS - BowlScript.SIT_NEST, 0.0), BowlScript.JACK_RADIUS, Vector3.ONE, jack_mat)
 
 
 func _place_pip() -> void:

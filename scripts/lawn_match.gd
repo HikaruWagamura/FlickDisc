@@ -255,7 +255,7 @@ func _sync_fan() -> void:
 	if cam == null:
 		return
 	gesture.camera = cam
-	var placed := Vector3(place_x, 0.05, line_z)
+	var placed := Vector3(place_x, 0.0, line_z)
 	gesture.anchor = placed
 	var phase := str(gesture.phase)
 	var live: bool = phase != "busy" and bool(disc.visible) and not bool(disc.shot_in_progress)

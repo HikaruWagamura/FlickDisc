@@ -15,6 +15,9 @@ const DISC_RESTITUTION := 0.46
 const JACK_RESTITUTION := 0.4
 ## Uploaded GLB sits on Y=0 and stands 0.978 tall, about 0.978 across.
 const MESH_HEIGHT := 0.97834063
+## Sink the running surface into the green. A round bowl on a flat plane
+## reads as hovering unless the contact is buried for the rink camera.
+const SIT_NEST := 0.05
 const BOWL_SCENE := preload("res://assets/bowls/lawn_bowl.glb")
 const ALBEDO_BLUE := preload("res://assets/bowls/bowl_albedo_blue.jpg")
 
@@ -188,10 +191,13 @@ func present(speed: float) -> void:
 		return
 	punch = move_toward(punch, 0.0, 0.08)
 	var lift := clampf(speed / 21.5, 0.0, 1.0)
-	_spin.position.y = radius + lift * 0.03 + punch * 0.06
+	# Jack mesh is already offset to the green. Bowls are centred on _spin
+	# so the spin node has to sit at radius.
+	var sit := 0.0 if is_jack else radius - SIT_NEST
+	_spin.position.y = sit + lift * 0.03 + punch * 0.06
 	_spin.transform.basis = roll_basis
 	if _shadow != null:
-		_shadow.position = Vector3(0.08 + lift * 0.05, 0.012, 0.05)
+		_shadow.position = Vector3(0.0, 0.003, 0.0)
 
 
 func set_hand(hand: float) -> void:
@@ -206,7 +212,7 @@ func set_scoring(on: bool) -> void:
 
 
 func _build_disc(index: int, hand: float) -> void:
-	_shadow = _make_shadow(0.22)
+	_shadow = _make_shadow(0.18)
 	add_child(_shadow)
 	_spin = Node3D.new()
 	add_child(_spin)
@@ -241,7 +247,7 @@ func _build_jack() -> void:
 	mesh.radial_segments = 24
 	mesh.rings = 12
 	ball.mesh = mesh
-	ball.position = Vector3(0.0, JACK_RADIUS, 0.0)
+	ball.position = Vector3(0.0, JACK_RADIUS - SIT_NEST, 0.0)
 	var mat := _mat(Color(0.98, 0.82, 0.28), 0.22, 0.72)
 	mat.emission_enabled = true
 	mat.emission = Color(0.62, 0.42, 0.08)
@@ -250,7 +256,7 @@ func _build_jack() -> void:
 	_spin.add_child(ball)
 	var band := MeshInstance3D.new()
 	band.mesh = _annulus(0.09, 0.125, 24)
-	band.position = Vector3(0.0, JACK_RADIUS + 0.01, 0.0)
+	band.position = Vector3(0.0, JACK_RADIUS - SIT_NEST + 0.01, 0.0)
 	band.material_override = _flat(Color(0.98, 0.96, 0.9))
 	band.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_spin.add_child(band)
@@ -267,10 +273,10 @@ func _make_shadow(size: float) -> MeshInstance3D:
 	var shadow_mat := StandardMaterial3D.new()
 	shadow_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	shadow_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	shadow_mat.albedo_color = Color(0.0, 0.05, 0.02, 0.34)
+	shadow_mat.albedo_color = Color(0.0, 0.04, 0.02, 0.46)
 	shadow.material_override = shadow_mat
 	shadow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	shadow.position = Vector3(0.08, 0.012, 0.05)
+	shadow.position = Vector3(0.0, 0.003, 0.0)
 	return shadow
 
 
