@@ -221,6 +221,17 @@ func release_dial() -> void:
 	launch()
 
 
+func pose_aim(aim: Vector3) -> void:
+	if shot_in_progress:
+		return
+	if aim.length() < 0.001:
+		aim_direction = Vector3(0.0, 0.0, -1.0)
+	else:
+		aim_direction = aim.normalized()
+	_aim_target = aim_direction
+	_apply_visual(0.0)
+
+
 func preview_take(aim: Vector3, power: float) -> void:
 	if shot_in_progress:
 		return
@@ -237,6 +248,7 @@ func preview_take(aim: Vector3, power: float) -> void:
 	is_aiming = shown >= 0.08
 	if not is_aiming:
 		_hide_guide()
+	_apply_visual(0.0)
 	aim_changed.emit(Vector2(aim_direction.x, aim_direction.z), shown)
 
 
@@ -264,6 +276,8 @@ func launch() -> void:
 	shot_power = power_ratio
 	shot_bias = 0.0 if delivering_jack else bias_ratio
 	velocity = _delivery_velocity(aim_direction, shot_power)
+	var yaw := atan2(aim_direction.x, -aim_direction.z)
+	roll_basis = Basis(Vector3.UP, yaw)
 	shot_in_progress = true
 	stop_timer = 0.0
 	shot_started.emit()
@@ -543,7 +557,12 @@ func _apply_visual(speed: float) -> void:
 		_visual.position.y = sit + lift * 0.035 + punch * 0.08
 		_visual.rotation = Vector3.ZERO
 		if _spin != null:
-			_spin.transform.basis = roll_basis
+			if shot_in_progress or speed > 0.2:
+				_spin.transform.basis = roll_basis
+			else:
+				var yaw := atan2(aim_direction.x, -aim_direction.z)
+				_spin.rotation = Vector3(0.0, lerp_angle(_spin.rotation.y, yaw, 0.4), 0.0)
+		_place_pip()
 	_shadow.position = Vector3(0.0, 0.003, 0.0)
 
 
@@ -652,12 +671,13 @@ func _build_visual() -> void:
 
 
 func _show_look() -> void:
-	var wide := BowlScript.is_wide(_look_index)
+	# Play the CGTrader pack on every bias. The earlier sculpt stays in
+	# the project as WIDE art, but it is not the bowl on the mat.
 	if _club_holder != null:
-		_club_holder.visible = not wide
+		_club_holder.visible = true
 	if _wide_holder != null:
-		_wide_holder.visible = wide
-	_bias_pip = _wide_holder if wide else _club_holder
+		_wide_holder.visible = false
+	_bias_pip = _club_holder
 
 
 func _place_pip() -> void:

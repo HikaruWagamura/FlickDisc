@@ -342,7 +342,9 @@ func _build_disc(index: int, hand: float) -> void:
 	add_child(_spin)
 	var variant := _next_club_variant
 	_next_club_variant += 1
-	var dressed: Dictionary = dress_stone(_spin, index, hand, is_wide(bias_type), variant)
+	# The paid pack is the bowl you play. WIDE is still a stronger bias,
+	# not a swap back to the earlier sculpt.
+	var dressed: Dictionary = dress_stone(_spin, index, hand, false, variant)
 	_rim_mat = dressed["rim"]
 	_body_mat = dressed["body"]
 	_cap_mat = dressed["cap"]
@@ -425,13 +427,28 @@ static func _dress_club(parent: Node3D, index: int, hand: float, variant: int = 
 		mi.mesh = sphere
 	holder.add_child(mi)
 	holder.rotation = Vector3(0.0, hand_yaw(hand), 0.0)
-	var mat := StandardMaterial3D.new()
-	mat.roughness = 0.38
-	mat.metallic = 0.06
-	mat.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
-	mi.material_override = mat
-	apply_team(mat, index, false)
-	return {"rim": mat, "body": mat, "cap": mat, "mark": mat, "weight": holder}
+	var body := StandardMaterial3D.new()
+	body.roughness = 0.38
+	body.metallic = 0.06
+	body.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
+	apply_team(body, index, false)
+	var ring := StandardMaterial3D.new()
+	ring.albedo_color = Color(0.94, 0.91, 0.84)
+	ring.roughness = 0.26
+	ring.metallic = 0.14
+	ring.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
+	var mark := StandardMaterial3D.new()
+	mark.albedo_color = Color(0.98, 0.97, 0.93)
+	mark.roughness = 0.22
+	mark.metallic = 0.04
+	if mi.mesh != null and mi.mesh.get_surface_count() > 1:
+		mi.set_surface_override_material(0, body)
+		mi.set_surface_override_material(1, ring)
+		if mi.mesh.get_surface_count() > 2:
+			mi.set_surface_override_material(2, mark)
+	else:
+		mi.material_override = body
+	return {"rim": ring, "body": body, "cap": mark, "mark": mark, "weight": holder}
 
 
 static func _dress_wide(parent: Node3D, index: int, hand: float) -> Dictionary:

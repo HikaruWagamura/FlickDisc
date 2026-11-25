@@ -267,10 +267,9 @@ func _sync_fan() -> void:
 	var needle: float = gesture.read_needle() if pulling else 0.0
 	if live:
 		disc.global_position = placed + Vector3(0.0, 0.0, power * PULL_BACK)
+		disc.pose_aim(_aim_from(0.0))
 		if show_arrow:
 			disc.preview_take(_aim_from(0.0), 0.55)
-		elif disc.is_aiming:
-			disc.preview_take(Vector3(0.0, 0.0, -1.0), 0.0)
 		if pulling:
 			feel.aim(power)
 			if delivering_jack:
