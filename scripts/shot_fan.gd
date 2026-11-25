@@ -142,8 +142,10 @@ func _draw_aim() -> void:
 		return
 	var dir := delta / length
 	var tip := _aim_from + dir * minf(length, 168.0)
-	draw_line(_aim_from, tip, Color(1.0, 0.55, 0.72, 0.35), 8.0, true)
-	draw_line(_aim_from, tip, Color(1.0, 0.9, 0.55, 0.98), 3.0, true)
+	draw_line(_aim_from, tip, Color(0.96, 0.86, 0.55, 0.35), 10.0, true)
+	draw_line(_aim_from, tip, Color(1.0, 0.97, 0.88, 0.98), 3.0, true)
+	draw_circle(_aim_to, 11.0, Color(0.98, 0.94, 0.84, 0.95))
+	draw_circle(_aim_to, 5.0, Color(0.16, 0.28, 0.18, 0.95))
 	var side := Vector2(-dir.y, dir.x)
 	var head := PackedVector2Array([
 		tip,

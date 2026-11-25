@@ -5,16 +5,23 @@ extends Node3D
 ## Banks rebound unless ditch mode is on. Then a narrow ditch at each side
 ## and at the far end can take a bowl, and two spare jacks sit on the back bank.
 
-const LENGTH := 68.0
-const HALF_WIDTH := 5.5
 const DITCH_W := 0.88
 const SHORT_MIN := 14.0
 const SHORT_MAX := 28.0
 const LONG_MIN := 44.0
 const NEAR_Z := 0.0
-const FAR_Z := -LENGTH
 const DISC_Z := -1.65
 const SURFACE_Y := 0.0
+## A match rink is 68 m by 11 m. The long green stretches both.
+var LENGTH := 68.0
+var HALF_WIDTH := 5.5
+var FAR_Z := -68.0
+
+
+func prepare_span(next_length: float, next_half: float) -> void:
+	LENGTH = next_length
+	HALF_WIDTH = next_half
+	FAR_Z = -next_length
 
 var head: Node3D
 var _camera: Camera3D
@@ -26,6 +33,7 @@ var _shot_live := false
 var _mat := Vector3(0.0, 0.0, -4.05)
 var _head := Vector3(0.0, 0.0, -22.0)
 var _head_hold := false
+var _head_gap := 0.0
 var _cam_pos := Vector3(0.0, 1.7, -1.7)
 var _cam_look := Vector3(0.0, 0.15, -12.0)
 var _cam_fov := 48.0
@@ -60,6 +68,26 @@ func _ready() -> void:
 	_build_surrounds()
 	_build_clubhouse()
 	_build_head()
+
+
+var _mark: Node3D
+
+
+func place_mark(at: Vector3) -> void:
+	if _mark == null:
+		_mark = Node3D.new()
+		_mark.name = "MysteryMark"
+		add_child(_mark)
+		var cloth := _lit(Color(0.82, 0.16, 0.18), 0.48)
+		_cylinder(_mark, Vector3(0.0, 0.85, 0.0), 0.035, 1.7, _gold, Vector3.ZERO, 8, false)
+		_box(_mark, Vector3(0.32, 1.55, 0.0), Vector3(0.58, 0.32, 0.03), cloth, Vector3.ZERO, false)
+		_cylinder(_mark, Vector3(0.0, 0.02, 0.0), 0.62, 0.025, _gold, Vector3.ZERO, 18, false)
+	_mark.position = Vector3(at.x, 0.0, at.z)
+	_mark.visible = true
+
+
+func has_mark() -> bool:
+	return _mark != null and _mark.visible
 
 
 func place_head(jack_xz: Vector2) -> void:
@@ -124,7 +152,7 @@ func _build_environment() -> void:
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.fog_enabled = true
 	env.fog_mode = Environment.FOG_MODE_EXPONENTIAL
-	env.fog_density = 0.0026
+	env.fog_density = 0.00048 if LENGTH > 200.0 else 0.0026
 	env.fog_light_color = Color(0.76, 0.86, 0.95)
 	env.fog_aerial_perspective = 0.28
 	env.fog_sun_scatter = 0.12
@@ -164,7 +192,7 @@ func _build_lights() -> void:
 	sun.shadow_normal_bias = 1.4
 	sun.shadow_blur = 1.15
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
-	sun.directional_shadow_max_distance = 150.0
+	sun.directional_shadow_max_distance = 260.0 if LENGTH > 200.0 else 150.0
 	sun.directional_shadow_blend_splits = true
 	sun.look_at_from_position(Vector3.ZERO, Vector3(0.42, -1.05, 0.48), Vector3.UP)
 	add_child(sun)
@@ -183,7 +211,7 @@ func _build_camera() -> void:
 	camera.name = "GameCamera"
 	camera.fov = 42.0
 	camera.near = 0.08
-	camera.far = 240.0
+	camera.far = 1800.0 if LENGTH > 200.0 else 240.0
 	# Close to the mat so the bowl reads as a puck you can take hold of.
 	# The head camera below is unchanged.
 	camera.fov = 48.0
@@ -212,37 +240,51 @@ func _process(delta: float) -> void:
 	var response := 5.0
 	if _head_hold:
 		goal_look = _head + Vector3(0.0, 0.18, 0.0)
-		goal_pos = _head + Vector3(0.35, 3.5, 5.2)
-		goal_fov = 36.0
+		if _head_gap > 12.0:
+			var lift := clampf(_head_gap * 0.22, 4.0, 36.0)
+			var back := clampf(_head_gap * 0.28, 6.0, 42.0)
+			goal_pos = _head + Vector3(0.0, lift, back)
+			goal_fov = clampf(30.0 + _head_gap * 0.035, 34.0, 58.0)
+		else:
+			goal_pos = _head + Vector3(0.35, 3.5, 5.2)
+			goal_fov = 36.0
 		response = 2.7
 	elif _shot_live and chase:
 		# Trail toward the mat. A wide or ditched bowl lifts the lens so we
 		# look down into the trench instead of skimming the grass into the trees.
 		var flat := Vector3(_shot_vel.x, 0.0, _shot_vel.z)
-		var pace := clampf(flat.length() / 12.0, 0.0, 1.0)
-		var side := clampf(absf(_shot_pos.x) / 2.8, 0.0, 1.0)
+		var long_green := LENGTH > 200.0
+		var pace := clampf(flat.length() / (22.0 if long_green else 12.0), 0.0, 1.0)
+		var side := clampf(absf(_shot_pos.x) / (8.0 if long_green else 2.8), 0.0, 1.0)
 		var sunk := clampf(-_shot_pos.y / 0.16, 0.0, 1.0)
 		var widen := maxf(side, sunk)
-		var trail := lerpf(2.7, 7.2, widen)
-		var height := lerpf(1.95, 6.2, widen)
-		goal_pos = Vector3(clampf(_shot_pos.x * 0.12, -1.2, 1.2), height, _shot_pos.z + trail)
+		var trail := lerpf(3.4, 16.0, maxf(widen, pace)) if long_green else lerpf(2.7, 7.2, widen)
+		var height := lerpf(2.6, 10.5, maxf(widen, pace)) if long_green else lerpf(1.95, 6.2, widen)
+		var x_follow := 0.35 if long_green else 0.12
+		var x_cap := HALF_WIDTH * 0.55 if long_green else 1.2
+		goal_pos = Vector3(clampf(_shot_pos.x * x_follow, -x_cap, x_cap), height, _shot_pos.z + trail)
 		goal_look = Vector3(_shot_pos.x * 0.72, 0.2, _shot_pos.z)
-		goal_fov = lerpf(44.0, 50.0, widen * 0.5)
-		response = 11.0 if widen > 0.45 else lerpf(7.5, 5.0, pace)
+		goal_fov = lerpf(40.0, 56.0, pace) if long_green else lerpf(44.0, 50.0, widen * 0.5)
+		response = 8.0 if long_green else (11.0 if widen > 0.45 else lerpf(7.5, 5.0, pace))
 	elif _shot_live:
-		var along := clampf(-_shot_pos.z / 55.0, 0.0, 1.0)
-		goal_pos = Vector3(0.0, lerpf(1.7, 7.4, along * along), _mat.z + lerpf(2.15, 5.6, along))
+		var along := clampf(-_shot_pos.z / maxf(LENGTH * 0.75, 55.0), 0.0, 1.0)
+		var crane := 22.0 if LENGTH > 200.0 else 7.4
+		goal_pos = Vector3(0.0, lerpf(1.7, crane, along * along), _mat.z + lerpf(2.15, 8.0, along))
 		goal_look = Vector3(_shot_pos.x * 0.9, 0.18, _shot_pos.z)
 		goal_fov = lerpf(50.0, 34.0, along)
 		response = 4.0
 	else:
-		goal_pos = Vector3(0.0, 1.7, _mat.z + 2.15)
-		goal_look = Vector3(_mat.x * 0.3, 0.14, _mat.z - 9.0)
+		var idle_look := 32.0 if LENGTH > 200.0 else 14.0
+		var idle_height := 5.0 if LENGTH > 200.0 else 3.15
+		var idle_back := 6.2 if LENGTH > 200.0 else 4.9
+		goal_pos = Vector3(0.0, idle_height, _mat.z + idle_back)
+		goal_look = Vector3(_mat.x * 0.25, 0.1, _mat.z - idle_look)
 		goal_fov = 48.0
 		response = 5.5
 	goal_pos.y = maxf(goal_pos.y, 1.55)
 	goal_look.y = maxf(goal_look.y, 0.12)
-	goal_pos.x = clampf(goal_pos.x, -4.2, 4.2)
+	var x_limit := HALF_WIDTH * 0.7 if LENGTH > 200.0 else 4.2
+	goal_pos.x = clampf(goal_pos.x, -x_limit, x_limit)
 	var gap := _cam_pos.distance_to(goal_pos)
 	if _shot_live and gap > 8.0:
 		response = 9.0
@@ -256,7 +298,7 @@ func _process(delta: float) -> void:
 	_cam_look = _cam_look.lerp(goal_look, blend)
 	_cam_fov = lerpf(_cam_fov, goal_fov, blend)
 	# A wide bowl used to drag the lens along the grass for a frame. Stay above it.
-	if _shot_live and absf(_shot_pos.x) > 2.0:
+	if LENGTH < 120.0 and _shot_live and absf(_shot_pos.x) > 2.0:
 		_cam_pos.y = maxf(_cam_pos.y, 4.4)
 		_cam_pos.x = clampf(_cam_pos.x, -1.4, 1.4)
 		_cam_look.y = maxf(_cam_look.y, 0.2)
@@ -275,11 +317,19 @@ func view_camera() -> Camera3D:
 func focus_head(at: Vector3) -> void:
 	# Rise off the chase so the head, the jack, and the bowl that just finished are in one frame.
 	_head = at
+	_head_gap = 0.0
+	_head_hold = true
+
+
+func focus_pair(a: Vector3, b: Vector3) -> void:
+	_head = (a + b) * 0.5
+	_head_gap = a.distance_to(b)
 	_head_hold = true
 
 
 func release_head() -> void:
 	_head_hold = false
+	_head_gap = 0.0
 
 
 func _build_grounds() -> void:
@@ -293,12 +343,15 @@ func _build_grounds() -> void:
 	# The ditch has to stay open. One big plane used to cover the trench, so a
 	# bowl that fell in disappeared under the grass.
 	var outer := HALF_WIDTH + DITCH_W
-	var side_span := 50.0 - outer
-	var side_x := (50.0 + outer) * 0.5
-	_outfield_quad(outfield, Vector3(-side_x, -0.04, -46.0), Vector2(side_span, 130.0))
-	_outfield_quad(outfield, Vector3(side_x, -0.04, -46.0), Vector2(side_span, 130.0))
-	_outfield_quad(outfield, Vector3(0.0, -0.04, -99.5), Vector2(outer * 2.0, 62.0))
-	_outfield_quad(outfield, Vector3(0.0, -0.04, 9.0), Vector2(outer * 2.0, 20.0))
+	var world_half := maxf(50.0, HALF_WIDTH + 36.0)
+	var side_span := world_half - outer
+	var side_x := (world_half + outer) * 0.5
+	var depth := LENGTH + 80.0
+	var mid_z := -LENGTH * 0.5
+	_outfield_quad(outfield, Vector3(-side_x, -0.04, mid_z), Vector2(side_span, depth))
+	_outfield_quad(outfield, Vector3(side_x, -0.04, mid_z), Vector2(side_span, depth))
+	_outfield_quad(outfield, Vector3(0.0, -0.04, FAR_Z - 36.0), Vector2(outer * 2.0, 48.0))
+	_outfield_quad(outfield, Vector3(0.0, -0.04, 12.0), Vector2(outer * 2.0, 24.0))
 
 	_hill(Vector3(-18.0, -4.5, -96.0), 16.0, Color(0.45, 0.58, 0.62))
 	_hill(Vector3(2.0, -6.0, -104.0), 18.0, Color(0.40, 0.55, 0.50))
@@ -431,9 +484,22 @@ func _markings() -> void:
 	_box(self, Vector3(0.0, y, FAR_Z + 0.55), Vector3(HALF_WIDTH * 2.0 - 0.45, line_h, 0.045), _white_line, Vector3.ZERO, false)
 	# Dashed center line. Gaps keep the stripe from turning into a solid wall.
 	var dash_z := -6.2
+	var dash_step := 8.0 if LENGTH > 120.0 else 1.18
+	var dash_len := 2.4 if LENGTH > 120.0 else 0.58
 	while dash_z > FAR_Z + 1.2:
-		_box(self, Vector3(0.0, y, dash_z), Vector3(0.04, line_h, 0.58), _white_line, Vector3.ZERO, false)
-		dash_z -= 1.18
+		_box(self, Vector3(0.0, y, dash_z), Vector3(0.04, line_h, dash_len), _white_line, Vector3.ZERO, false)
+		dash_z -= dash_step
+	if LENGTH > 120.0:
+		var post := 100.0
+		while post < LENGTH - 30.0:
+			var post_z := -post
+			_cylinder(self, Vector3(HALF_WIDTH - 1.1, 0.55, post_z), 0.07, 1.1, _white_line, Vector3.ZERO, 8, false)
+			_sphere(self, Vector3(HALF_WIDTH - 1.1, 1.15, post_z), 0.09, _gold, 8, false)
+			var tag := _label("%d m" % int(post), 0.7)
+			tag.position = Vector3(HALF_WIDTH - 1.1, 1.7, post_z)
+			tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+			add_child(tag)
+			post += 100.0
 	# Corner pegs.
 	for corner in [Vector2(HALF_WIDTH - 0.08, -0.35), Vector2(-HALF_WIDTH + 0.08, -0.35), Vector2(HALF_WIDTH - 0.08, FAR_Z + 0.35), Vector2(-HALF_WIDTH + 0.08, FAR_Z + 0.35)]:
 		_cylinder(self, Vector3(corner.x, 0.22, corner.y), 0.035, 0.44, _white_line, Vector3.ZERO, 8, false)
@@ -456,8 +522,10 @@ func _build_surrounds() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 4041
 	var tree_x := HALF_WIDTH + DITCH_W + 1.85
-	for i in 16:
-		var z := -4.2 - float(i) * 3.9
+	var tree_count := 22 if LENGTH > 120.0 else 16
+	var tree_gap := (LENGTH - 10.0) / float(tree_count) if LENGTH > 120.0 else 3.9
+	for i in tree_count:
+		var z := -4.2 - float(i) * tree_gap
 		var scale_a := rng.randf_range(0.86, 1.16)
 		var scale_b := rng.randf_range(0.86, 1.16)
 		_tree(self, Vector3(tree_x, 0.0, z), scale_a, rng)
@@ -472,16 +540,19 @@ func _build_surrounds() -> void:
 		_flowers(self, Vector3(-path_x - 0.28, 0.0, z - 0.2), rng)
 
 	# Outer row fills the upper corners once the green narrows.
-	for i in 6:
-		var z := -14.0 - float(i) * 5.2
-		_tree(self, Vector3(9.4, 0.0, z), rng.randf_range(1.05, 1.35), rng)
-		_tree(self, Vector3(-9.6, 0.0, z + 1.6), rng.randf_range(1.05, 1.35), rng)
+	if HALF_WIDTH < 8.0:
+		for i in 6:
+			var z := -14.0 - float(i) * 5.2
+			_tree(self, Vector3(9.4, 0.0, z), rng.randf_range(1.05, 1.35), rng)
+			_tree(self, Vector3(-9.6, 0.0, z + 1.6), rng.randf_range(1.05, 1.35), rng)
 
 	var banner_x := HALF_WIDTH + DITCH_W + 0.35
-	_banner(self, Vector3(banner_x, 0.0, -LENGTH * 0.36), "PLAY\nSLIDE\nCOMPETE", Color(0.11, 0.32, 0.58))
-	_banner(self, Vector3(-banner_x, 0.0, -LENGTH * 0.36), "PLAY\nSLIDE\nCOMPETE", Color(0.11, 0.32, 0.58))
-	_banner(self, Vector3(banner_x, 0.0, -LENGTH * 0.58), "DISC\nQUEST", Color(0.08, 0.24, 0.46))
-	_banner(self, Vector3(-banner_x, 0.0, -LENGTH * 0.58), "DISC\nQUEST", Color(0.08, 0.24, 0.46))
+	var near_banner := "THE LONG\nGREEN" if LENGTH > 200.0 else "FLICK\nBOWLS"
+	var far_banner := "FIND THE\nMARK" if LENGTH > 200.0 else "DRAW\nTHE LINE"
+	_banner(self, Vector3(banner_x, 0.0, -LENGTH * 0.18), near_banner, Color(0.10, 0.32, 0.18))
+	_banner(self, Vector3(-banner_x, 0.0, -LENGTH * 0.18), near_banner, Color(0.10, 0.32, 0.18))
+	_banner(self, Vector3(banner_x, 0.0, -LENGTH * 0.36), far_banner, Color(0.11, 0.32, 0.58))
+	_banner(self, Vector3(-banner_x, 0.0, -LENGTH * 0.36), far_banner, Color(0.11, 0.32, 0.58))
 
 	_flowers(self, Vector3(1.35, 0.0, FAR_Z - 1.3), rng)
 	_flowers(self, Vector3(-1.35, 0.0, FAR_Z - 1.5), rng)
@@ -539,7 +610,7 @@ func _build_clubhouse() -> void:
 
 	var plaque := _lit(Color(0.10, 0.22, 0.38), 0.45, 0.1)
 	_box(club, Vector3(0.0, 3.15, front_z + 0.02), Vector3(4.4, 0.62, 0.08), plaque, Vector3.ZERO, false)
-	var sign := _label("RIVERSIDE DISC CLUB", 0.42)
+	var sign := _label("FLICK BOWLS", 0.42)
 	sign.position = Vector3(0.0, 3.15, front_z + 0.1)
 	club.add_child(sign)
 

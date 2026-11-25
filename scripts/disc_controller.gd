@@ -50,6 +50,9 @@ var shot_bias := 0.0
 var shot_power := 0.0
 var delivering_jack := false
 var ditch_mode := false
+## Distance play stretches the run. 1 is a normal end.
+var pace_scale := 1.0
+var drag := DECEL
 var in_ditch := false
 var bowl_bias := 0.95
 var hand_sign := -1.0
@@ -256,10 +259,12 @@ func fire_taken(aim: Vector3, power: float) -> void:
 	# Leave from the hand. Snapping back to the mat was a hitch on release.
 	var held := global_position
 	var runup := held.z - start_position.z
-	if runup < -0.05 or runup > RUNUP_MAX or absf(held.x - start_position.x) > 0.4:
+	# Stay where the hand left the bowl. Snapping sideways made the line
+	# jump off the finger on the release.
+	if runup < -0.05 or runup > RUNUP_MAX or absf(held.x - start_position.x) > 1.5:
 		global_position = start_position
 	else:
-		global_position = Vector3(start_position.x, 0.0, held.z)
+		global_position = Vector3(held.x, 0.0, held.z)
 	if power_ratio < 0.08:
 		power_ratio = 0.0
 		aim_changed.emit(Vector2(aim_direction.x, aim_direction.z), 0.0)
@@ -276,8 +281,18 @@ func launch() -> void:
 	shot_started.emit()
 
 
+func set_pace(scale: float, slowdown: float) -> void:
+	pace_scale = maxf(scale, 0.4)
+	drag = maxf(slowdown, 0.2)
+
+
+func reach_for(power: float) -> float:
+	var speed := lerpf(MIN_SPEED, MAX_SPEED, clampf(power, 0.0, 1.0)) * pace_scale
+	return speed * speed / (2.0 * drag)
+
+
 func _delivery_velocity(aim: Vector3, power: float) -> Vector3:
-	var speed := lerpf(MIN_SPEED, MAX_SPEED, power)
+	var speed := lerpf(MIN_SPEED, MAX_SPEED, power) * pace_scale
 	var planar := Vector2(aim.x, aim.z)
 	if planar.length() < 0.001:
 		planar = Vector2(0.0, -1.0)
@@ -532,8 +547,9 @@ func weight_for_length(metres: float, bias: float) -> float:
 func predict_rest(from: Vector3, aim: Vector3, power: float, bias: float) -> Vector3:
 	var pos := from
 	var vel := _delivery_velocity(aim, power)
-	var step := 0.05
-	for _i in 480:
+	var step := 0.05 if pace_scale < 1.2 else 0.08
+	var limit := 480 if pace_scale < 1.2 else 800
+	for _i in limit:
 		var moved := _move_planar(pos, vel, radius, bias, true, step, power)
 		pos = moved[0]
 		vel = moved[1]
@@ -567,14 +583,15 @@ func _damp(vel: Vector3, bias: float, delta: float) -> Vector3:
 	if speed < 0.001:
 		return Vector3.ZERO
 	if absf(bias) > 0.001:
-		var slow := clampf(1.0 - speed / MAX_SPEED, 0.0, 1.0)
+		var slow := clampf(1.0 - speed / (MAX_SPEED * pace_scale), 0.0, 1.0)
 		var curve := CURL_PER_METRE * (1.0 + CURL_DRAW * slow * slow)
 		# Turn with the distance run. Negative bias is the forehand
 		# and bends to the player's left. The same bowl takes the same
 		# hand from a centre line or a wide one.
-		planar = planar.rotated(bias * curve * speed * delta)
+		var hand := 1.0 if pace_scale < 1.2 else 0.075
+		planar = planar.rotated(bias * curve * hand * speed * delta)
 		speed = planar.length()
-	var next := speed - DECEL * delta
+	var next := speed - drag * delta
 	if next <= STOP_SPEED:
 		return Vector3.ZERO
 	planar = planar / speed * next
@@ -658,7 +675,8 @@ func _predict_path() -> PackedVector3Array:
 			dists.append(travelled)
 		if moved[3] or vel.length() < STOP_SPEED:
 			break
-	var limit := maxf(travelled * GUIDE_PORTION, 1.2)
+	var portion := GUIDE_PORTION if pace_scale < 1.2 else 0.07
+	var limit := maxf(travelled * portion, 1.2)
 	var points := PackedVector3Array()
 	for i in samples.size():
 		if dists[i] <= limit:

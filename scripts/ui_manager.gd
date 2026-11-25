@@ -114,7 +114,7 @@ func set_power_ratio(power_ratio: float) -> void:
 func show_jack_prompt(end_number: int, match_label: String, score_line: String) -> void:
 	level_label.text = "END %d" % end_number
 	throws_label.text = "4 EACH"
-	status_label.text = "TOUCH TO AIM  •  TAP THE JACK TO LOCK"
+	status_label.text = "DRAG THE JACK BACK  •  LET GO TO BOWL"
 	score_label.text = "%s  •  %s" % [match_label, score_line]
 	reset_button.visible = true
 	next_button.visible = false
@@ -144,9 +144,9 @@ func show_camera_mode(chase: bool) -> void:
 
 func show_place_line(jack: bool) -> void:
 	if jack:
-		status_label.text = "TOUCH TO AIM  •  TAP THE JACK TO LOCK"
+		status_label.text = "DRAG THE JACK BACK  •  LET GO TO BOWL"
 	else:
-		status_label.text = "TOUCH TO AIM  •  TAP THE BOWL TO LOCK"
+		status_label.text = "DRAG THE BOWL BACK  •  LET GO TO BOWL"
 
 
 func show_sliding(jack: bool) -> void:
@@ -157,19 +157,27 @@ func show_aiming_line(jack: bool) -> void:
 	show_place_line(jack)
 
 
+func show_drag(metres: float, long_green: bool) -> void:
+	var reach := int(round(metres))
+	if long_green:
+		status_label.text = "DRAG BACK  •  ABOUT %d m" % reach
+	else:
+		status_label.text = "THE LINE IS YOUR DRAG  •  ABOUT %d m" % reach
+
+
 func show_aim_ready(jack: bool) -> void:
 	if jack:
-		status_label.text = "TAP THE JACK TO LOCK"
+		status_label.text = "DRAG THE JACK BACK  •  LET GO TO BOWL"
 	else:
-		status_label.text = "TAP THE BOWL TO LOCK"
+		status_label.text = "DRAG THE BOWL BACK  •  LET GO TO BOWL"
 
 
 func show_take_shot(_jack: bool = false) -> void:
-	status_label.text = "PULL THE BOWL  •  RELEASE ON THE GREEN"
+	status_label.text = "DRAG THE BOWL BACK  •  LET GO TO BOWL"
 
 
 func show_jack_aim(_power_ratio: float) -> void:
-	status_label.text = "RELEASE ON THE GREEN"
+	status_label.text = "LET GO TO BOWL"
 
 
 func show_jack_running() -> void:
@@ -192,7 +200,71 @@ func show_jack_set(travelled: float, bowl_name: String, side_name: String) -> vo
 
 
 func show_aiming(_power_ratio: float) -> void:
-	status_label.text = "RELEASE ON THE GREEN"
+	status_label.text = "LET GO TO BOWL"
+
+
+func show_drive_prompt(left: int, longest: float, best_miss: float) -> void:
+	level_label.text = "LONG GREEN"
+	throws_label.text = "%d BOWLS" % left
+	status_label.text = "DRAG BACK  •  FIND THE MARK"
+	var far := "NO DRIVE YET" if longest < 1.0 else "LONGEST  %d m" % int(round(longest))
+	var near := "MARK IS OUT THERE" if best_miss > 500.0 else "BEST MARK  %.1f m" % best_miss
+	score_label.text = "%s  •  %s" % [far, near]
+	hide_summary()
+	next_button.visible = false
+	show_bowl_controls(true)
+
+
+func show_drive_result(travelled: float, miss: float, left: int, in_ditch: bool) -> void:
+	throws_label.text = "%d LEFT" % left
+	if in_ditch:
+		status_label.text = "IN THE DITCH  •  %d m" % int(round(travelled))
+	else:
+		status_label.text = "%d m  •  %.1f m FROM THE MARK" % [int(round(travelled)), miss]
+	score_label.text = "THE MARK STAYS FOR THIS ROUND"
+
+
+func show_drive_done(longest: float, best_miss: float) -> void:
+	summary.visible = true
+	summary_title.text = "THE LONG GREEN"
+	summary_shots.text = "%d m" % int(round(longest))
+	summary_detail.text = "LONGEST BOWL\nNEAREST MARK  %.1f m" % best_miss
+	status_label.text = "ROUND COMPLETE"
+	score_label.text = "TRY ANOTHER THREE"
+	next_button.text = "NEW ROUND"
+	next_button.visible = true
+	reset_button.visible = true
+	show_bowl_controls(false)
+
+
+func show_solo_prompt(end_number: int, end_count: int, end_name: String, blurb: String) -> void:
+	level_label.text = "END %d / %d" % [end_number, end_count]
+	throws_label.text = "ONE BOWL"
+	status_label.text = end_name
+	score_label.text = blurb
+	hide_summary()
+	next_button.visible = false
+	show_bowl_controls(true)
+
+
+func show_solo_result(won: bool, end_name: String, miss: float, in_ditch: bool) -> void:
+	summary.visible = true
+	summary_title.text = end_name
+	if in_ditch:
+		summary_shots.text = "DITCH"
+		summary_detail.text = "That bowl is dead.\nDrag again."
+	elif won:
+		summary_shots.text = "SHOT"
+		summary_detail.text = "Your bowl is closest.\n%.2f m from the jack." % miss
+	else:
+		summary_shots.text = "SHORT"
+		summary_detail.text = "Theirs is closer.\nYou finished %.2f m off." % miss
+	status_label.text = "END WON" if won else "HAVE ANOTHER GO"
+	score_label.text = "ONE BOWL  •  BE THE SHOT"
+	next_button.text = "NEXT END" if won else "TRY AGAIN"
+	next_button.visible = true
+	reset_button.visible = true
+	show_bowl_controls(false)
 
 
 func show_in_motion(side_name: String, bowl_name: String, forehand: bool, score_line: String) -> void:

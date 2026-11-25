@@ -4,15 +4,16 @@ extends CanvasLayer
 
 signal play_requested(setup: Dictionary)
 
-const PINK := Color("#873EFF")
-const PINK_DEEP := Color("#5425A5")
-const INK := Color("#080719")
-const CARD := Color(0.14, 0.09, 0.24, 0.98)
-const PLUM := Color(0.09, 0.06, 0.16, 0.98)
-const MUTED := Color("#A69DBD")
-const CREAM := Color("#E7E0F5")
+const PINK := Color("#E4C56A")
+const PINK_DEEP := Color("#1B6B3C")
+const INK := Color("#07140C")
+const CARD := Color(0.07, 0.16, 0.11, 0.96)
+const PLUM := Color(0.05, 0.12, 0.08, 0.96)
+const MUTED := Color("#C5D4C6")
+const CREAM := Color("#F7F4EA")
 
 var profile
+var feel
 var root: Control
 var backdrop: Control
 var pages := {}
@@ -37,6 +38,7 @@ var home_name: Label
 var home_level: Label
 var home_letter: Label
 var home_record: Label
+var home_tally: Label
 var home_xp: ColorRect
 var chip_wins: Label
 var chip_losses: Label
@@ -66,6 +68,10 @@ var profile_disc: Label
 var profile_xp: ColorRect
 var rank_name: Label
 var rank_record: Label
+var board_solo: Label
+var board_drive: Label
+var board_mark: Label
+var board_recent: Label
 var friend_code: Label
 var nav: Control
 var nav_icons: Array = []
@@ -84,6 +90,9 @@ var swatch_buttons: Array = []
 
 func setup(player_profile) -> void:
 	profile = player_profile
+	feel = preload("res://scripts/feel.gd").new()
+	feel.name = "MenuFeel"
+	add_child(feel)
 	room_code = _make_code()
 	_prepare_fonts()
 	logo_tex = _logo_texture()
@@ -146,7 +155,7 @@ func _prepare_fonts() -> void:
 	bold_font = FONT_INTER_BOLD
 
 
-const LOGO := preload("res://assets/syncbowls_logo.png")
+const LOGO := preload("res://assets/flick_bowls_logo.jpg")
 
 
 func _logo_texture() -> Texture2D:
@@ -207,7 +216,7 @@ func _build_splash() -> void:
 	mark.position = Vector2(70, 230)
 	mark.size = Vector2(400, 400)
 	page.add_child(mark)
-	var tag := _label("FLICK HARD. PLAY DIRTY.", 26, PINK, script_font)
+	var tag := _label("FLICK BOWLS", 28, CREAM, title_font)
 	tag.position = Vector2(30, 660)
 	tag.size = Vector2(480, 48)
 	tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -270,36 +279,47 @@ func _build_home() -> void:
 	_paint_button(gear, PLUM, PINK, CREAM, 12, 0)
 	gear.pressed.connect(_show.bind("settings"))
 
-	var server := _label("SERVER ONLINE", 11, PINK, bold_font)
+	var server := _label("FLICK BOWLS", 11, PINK, bold_font)
 	_place(page, server, Vector2(20, 80), Vector2(220, 16))
 
 	var plate := Panel.new()
 	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_place(page, plate, Vector2(36, 102), Vector2(468, 262))
-	plate.add_theme_stylebox_override("panel", _flat(Color(0.05, 0.04, 0.12, 0.55), Color("#873EFF"), 1, 28, 0))
+	_place(page, plate, Vector2(70, 96), Vector2(400, 168))
+	plate.add_theme_stylebox_override("panel", _flat(Color(0.05, 0.12, 0.08, 0.2), Color(0, 0, 0, 0), 0, 18, 0))
 	var mark := _mark_rect()
-	_place(page, mark, Vector2(115, 108), Vector2(310, 248))
+	_place(page, mark, Vector2(70, 96), Vector2(400, 168))
 
-	var play := _button("PLAY", 22)
-	_place(page, play, Vector2(20, 392), Vector2(500, 64))
-	_paint_button(play, PINK_DEEP, Color("#C4AEFF"), CREAM, 18, 0)
-	var play_mark := _label("▶", 18, CREAM, bold_font)
-	play_mark.position = Vector2(430, 18)
-	play_mark.size = Vector2(40, 28)
-	play.add_child(play_mark)
-	play.pressed.connect(_open_setup.bind("classic"))
+	var play := _button("BOWL A MATCH", 20)
+	_place(page, play, Vector2(20, 276), Vector2(500, 56))
+	_paint_button(play, PINK_DEEP, PINK, CREAM, 16, 0)
+	play.pressed.connect(func() -> void:
+		_tap()
+		_open_setup("classic")
+	)
 
-	home_record = _label("0W  ·  0L", 15, Color("#a894a0"), bold_font)
-	_place(page, home_record, Vector2(20, 464), Vector2(500, 22))
+	var drive := _button("THE LONG GREEN", 18)
+	_place(page, drive, Vector2(20, 342), Vector2(245, 52))
+	_paint_button(drive, CARD, PINK, CREAM, 14, 0)
+	drive.pressed.connect(_launch_drive)
+	var solo := _button("SOLO ENDS", 18)
+	_place(page, solo, Vector2(275, 342), Vector2(245, 52))
+	_paint_button(solo, CARD, PINK, CREAM, 14, 0)
+	solo.pressed.connect(_launch_solo)
+
+	home_record = _label("0W  ·  0L", 15, CREAM, bold_font)
+	_place(page, home_record, Vector2(20, 404), Vector2(500, 20))
 	home_record.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	home_tally = _label("ENDS 0  ·  NO DRIVE YET", 13, PINK, bold_font)
+	_place(page, home_tally, Vector2(20, 426), Vector2(500, 18))
+	home_tally.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
-	_home_card(page, Rect2(16, 496, 164, 112), "1", "CLASSIC 1V1", "Skill. Strategy.\nVictory.", "classic")
-	_home_card(page, Rect2(188, 496, 164, 112), "2", "CLASSIC 2V2", "Team up.\nTake control.", "duo")
-	_home_card(page, Rect2(360, 496, 164, 112), "⚡", "CHAOS MODE", "Power-ups.\nNo mercy.", "chaos")
-	_home_card(page, Rect2(16, 618, 249, 104), "", "PRACTICE", "Improve your game", "practice")
-	_home_card(page, Rect2(275, 618, 249, 104), "", "CHALLENGES", "Daily shots. Big rewards.", "challenges")
-	_home_card(page, Rect2(16, 732, 249, 104), "", "FRIENDS", "Play with mates", "friends")
-	_home_card(page, Rect2(275, 732, 249, 104), "", "RANKINGS", "Climb the leaderboard", "rankings")
+	_home_card(page, Rect2(16, 454, 164, 96), "1", "MATCH", "You and another player.", "classic")
+	_home_card(page, Rect2(188, 454, 164, 96), "2", "PASS PHONE", "Two teams, one device.", "duo")
+	_home_card(page, Rect2(360, 454, 164, 96), "", "VERSUS AI", "A computer on the rink.", "classic")
+	_home_card(page, Rect2(16, 560, 249, 92), "", "SOLO ENDS", "One bowl. Be the shot.", "solo")
+	_home_card(page, Rect2(275, 560, 249, 92), "", "LONG GREEN", "How far, and how close.", "drive")
+	_home_card(page, Rect2(16, 662, 249, 92), "", "PRACTICE", "Nothing on the line.", "practice")
+	_home_card(page, Rect2(275, 662, 249, 92), "", "THE BOARD", "Wins, drives, ends.", "rankings")
 
 
 func _home_card(page: Control, rect: Rect2, kicker: String, title: String, body: String, target: String) -> void:
@@ -325,10 +345,16 @@ func _home_card(page: Control, rect: Rect2, kicker: String, title: String, body:
 	detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	button.add_child(detail)
 	button.pressed.connect(func() -> void:
-		if target == "classic" or target == "duo":
-			_open_setup(target)
+		if target == "solo":
+			_launch_solo()
+		elif target == "drive":
+			_launch_drive()
 		else:
-			_show(target)
+			_tap()
+			if target == "classic" or target == "duo":
+				_open_setup(target)
+			else:
+				_show(target)
 	)
 
 
@@ -489,7 +515,11 @@ func _build_practice() -> void:
 	root.add_child(page)
 	_back_on(page, "home")
 	box.add_child(_title("PRACTICE"))
-	box.add_child(_wrapped("Improve your game. These tables keep score, and nothing is on the line except the shot."))
+	box.add_child(_wrapped("Nothing is on the line except the shot. Solo ends and the long green keep a tally."))
+	box.add_child(_wide_card("SOLO ENDS", "Three bowls are already down. One bowl to be the shot.", "PLAY"))
+	box.get_child(box.get_child_count() - 1).pressed.connect(_launch_solo)
+	box.add_child(_wide_card("THE LONG GREEN", "Ten times the rink. Bowl long, and find the mark.", "PLAY"))
+	box.get_child(box.get_child_count() - 1).pressed.connect(_launch_drive)
 	box.add_child(_wide_card("OPEN BOARD", "Crokinmode with a clear road to the hole.", "PLAY"))
 	box.get_child(box.get_child_count() - 1).pressed.connect(_practice.bind("open"))
 	box.add_child(_wide_card("PEG GUARD", "The far side is sitting on the pegs.", "PLAY"))
@@ -543,13 +573,29 @@ func _build_rankings() -> void:
 	pages["rankings"] = page
 	root.add_child(page)
 	_back_on(page, "home")
-	box.add_child(_title("RANKINGS"))
-	box.add_child(_wrapped("Climb the leaderboard. This board is the record on this device."))
-	var row := _wide_card("1    FLICKER", "This device", "0W  0L")
+	box.add_child(_title("THE BOARD"))
+	box.add_child(_wrapped("The tally on this device. Matches won, solo ends cleared, the longest bowl, and the nearest you have been to the mark."))
+	var row := _wide_card("PLAYER", "Most matches won", "0 WINS")
 	rank_name = row.get_node("Heading") as Label
 	rank_record = row.get_node("Trail") as Label
 	row.disabled = true
 	box.add_child(row)
+	var solo_row := _wide_card("SOLO ENDS", "Ends you have won", "0 / 8")
+	board_solo = solo_row.get_node("Trail") as Label
+	solo_row.disabled = true
+	box.add_child(solo_row)
+	var drive_row := _wide_card("LONGEST BOWL", "The long green", "NO DRIVE YET")
+	board_drive = drive_row.get_node("Trail") as Label
+	drive_row.disabled = true
+	box.add_child(drive_row)
+	var mark_row := _wide_card("NEAREST MARK", "How close on the long green", "MARK NOT FOUND")
+	board_mark = mark_row.get_node("Trail") as Label
+	mark_row.disabled = true
+	box.add_child(mark_row)
+	var recent_row := _wide_card("LATEST", "The last thing this device recorded", "NO ROUNDS YET")
+	board_recent = recent_row.get_node("Trail") as Label
+	recent_row.disabled = true
+	box.add_child(recent_row)
 
 
 func _build_profile() -> void:
@@ -660,7 +706,7 @@ func _build_settings() -> void:
 	box.add_child(sound_button)
 	box.add_child(haptic_button)
 	box.add_child(_kicker("HOW A ROUND WORKS"))
-	box.add_child(_wrapped("Crokinole. An empty board. Touch the disc and drag the white dots to aim, then tap to lock. Pull the disc back and release on the green line. You and the far side take turns. Eight discs each. Both colours score. 20 is only the hole. 15, 10 and 5 need the disc clear of that line. A disc on the line scores the lower ring. The ditch is nothing. Only the difference is added. First to the race wins.\n\nLong rink. Touch the jack and drag the white dots to aim, then tap to lock. Pull back and release on the green line. Black bowls four, then red bowls four, alternating. The side closest to the jack scores every bowl nearer than the other side. Play one end, four ends, first to 10, or first to 21. Forehand and backhand are the small button at the bottom right. The dots show only the start of the run. The bowl keeps that hand and will not run straight. Banks rebound unless the ditch is open."))
+	box.add_child(_wrapped("Flick Bowls. Drag the bowl back. The cream line is your finger, and the white dots are where the bowl will run. Let go to bowl. It leaves from your hand and takes its bias as it slows.\n\nA match is four bowls each. Solo ends put three bowls down around the jack. You have one bowl, and as many tries as you want, to finish closer than all of them. The long green is ten times a match rink. Three bowls. The longest one is kept, and a mark sits somewhere out on the green.\n\nThe board on this device stores matches won, ends cleared, the longest bowl, and the nearest mark."))
 
 
 func _build_nav() -> void:
@@ -872,6 +918,47 @@ func _show_online(channel: String) -> void:
 	online_layer.visible = true
 
 
+func _launch_solo() -> void:
+	_tap()
+	play_requested.emit({
+		"rink": "lawn",
+		"solo": true,
+		"distance": false,
+		"back": "home",
+		"opponent": "local",
+		"match_index": 0,
+		"ditch": false,
+		"goal": "solo",
+		"challenge": "",
+		"difficulty": 0,
+		"level": 0,
+		"target": 100,
+	})
+
+
+func _launch_drive() -> void:
+	_tap()
+	play_requested.emit({
+		"rink": "lawn",
+		"solo": false,
+		"distance": true,
+		"back": "home",
+		"opponent": "local",
+		"match_index": 0,
+		"ditch": true,
+		"goal": "",
+		"challenge": "",
+		"difficulty": 0,
+		"level": 0,
+		"target": 100,
+	})
+
+
+func _tap() -> void:
+	if feel != null:
+		feel.tap()
+
+
 func _launch(channel: String) -> void:
 	var setup := {
 		"channel": channel,
@@ -984,6 +1071,8 @@ func _sync_identity() -> void:
 	home_level.text = "Level %d" % profile.level()
 	home_letter.text = initial
 	home_record.text = profile.record_text()
+	if home_tally != null:
+		home_tally.text = "ENDS %d / 8   ·   %s" % [profile.solo_cleared, profile.drive_text()]
 	chip_wins.text = str(profile.wins)
 	chip_losses.text = str(profile.losses)
 	home_xp.size.x = 150.0 * profile.xp_ratio()
@@ -996,8 +1085,16 @@ func _sync_identity() -> void:
 		profile_disc.text = "Disc  ·  %s" % profile.disc_name()
 		profile_xp.size.x = 220.0 * profile.xp_ratio()
 	if rank_name != null:
-		rank_name.text = "1    %s" % profile.player_name.to_upper()
-		rank_record.text = "%dW  %dL" % [profile.wins, profile.losses]
+		rank_name.text = profile.player_name.to_upper()
+		rank_record.text = "%d WINS" % profile.wins
+	if board_solo != null:
+		board_solo.text = "%d / 8" % profile.solo_cleared
+	if board_drive != null:
+		board_drive.text = profile.drive_text()
+	if board_mark != null:
+		board_mark.text = profile.mark_text()
+	if board_recent != null:
+		board_recent.text = profile.results[0] if profile.results.size() > 0 else "NO ROUNDS YET"
 
 
 func _sync_settings() -> void:
@@ -1166,7 +1263,7 @@ func _wide_card(title: String, body: String, trailing: String) -> Button:
 	button.text = ""
 	button.custom_minimum_size = Vector2(0, 86)
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_paint_button(button, CARD, Color(1, 0.55, 0.72, 0.85), CREAM, 16, 14)
+	_paint_button(button, CARD, PINK, CREAM, 16, 14)
 	var heading := _label(title, 16, CREAM, bold_font)
 	heading.name = "Heading"
 	heading.position = Vector2(14, 12)
@@ -1229,7 +1326,8 @@ func _row_button(text: String, on_press: Callable) -> Button:
 	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	button.custom_minimum_size = Vector2(0, 60)
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_paint_button(button, Color(0.08, 0.07, 0.16, 0.88), Color("#873EFF"), CREAM, 16, 18, 2)
+	_paint_button(button, PLUM, PINK, CREAM, 16, 18, 2)
+	button.pressed.connect(_tap)
 	_chevron(button)
 	if on_press.is_valid():
 		button.pressed.connect(on_press)
@@ -1240,7 +1338,8 @@ func _primary(text: String, on_press: Callable) -> Button:
 	var button := _button(text, 18)
 	button.custom_minimum_size = Vector2(0, 68)
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_paint_button(button, Color("#873EFF"), Color("#C4AEFF"), Color("#F7F4FF"), 16, 12, 0)
+	_paint_button(button, PINK_DEEP, PINK, CREAM, 16, 12, 0)
+	button.pressed.connect(_tap)
 	_chevron(button)
 	button.pressed.connect(on_press)
 	return button
@@ -1317,7 +1416,7 @@ func _place(parent: Control, node: Control, pos: Vector2, box: Vector2) -> void:
 func _paint_button(button: Button, fill: Color, border: Color, font_color: Color, radius: int, side: int, width: int = 1) -> void:
 	button.add_theme_stylebox_override("normal", _flat(fill, border, width, radius, side))
 	button.add_theme_stylebox_override("hover", _flat(fill.lightened(0.12), border, width, radius, side))
-	button.add_theme_stylebox_override("pressed", _flat(fill.darkened(0.08), Color("#C4AEFF"), width, radius, side))
+	button.add_theme_stylebox_override("pressed", _flat(fill.darkened(0.08), PINK, width, radius, side))
 	button.add_theme_stylebox_override("disabled", _flat(fill, border, width, radius, side))
 	button.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	button.add_theme_color_override("font_color", font_color)

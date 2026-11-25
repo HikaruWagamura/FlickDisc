@@ -11,6 +11,15 @@ signal opened_take
 signal cancelled_pull
 signal fired(power: float, needle: float)
 
+## One drag is the whole shot. The finger pulls the bowl back, and the
+## bowl leaves along that same line. No separate lock, no timing needle.
+var direct := false
+var direct_aim := Vector3(0.0, 0.0, -1.0)
+var direct_power := 0.0
+var direct_hold := Vector3.ZERO
+var finger := Vector2.ZERO
+const DIRECT_METRES := 1.55
+
 const TakeScript := preload("res://scripts/shot_take.gd")
 
 var phase := "idle"
@@ -70,6 +79,9 @@ func read_aim() -> float:
 
 func _input(event: InputEvent) -> void:
 	if phase == "busy":
+		return
+	if direct:
+		_direct_input(event)
 		return
 	if _is_mouse_press(event):
 		var frame := Engine.get_process_frames()
@@ -205,6 +217,78 @@ func _pull_pixels(from: Vector2, to: Vector2) -> float:
 func _side_pixels(from: Vector2, to: Vector2) -> float:
 	var axis := _pull_axis()
 	return (to - from).dot(Vector2(-axis.y, axis.x))
+
+
+func _direct_input(event: InputEvent) -> void:
+	if _is_mouse_press(event):
+		var frame := Engine.get_process_frames()
+		if frame == _press_frame:
+			return
+		var screen: Vector2 = event.position
+		if not _direct_can_start(screen):
+			return
+		_press_frame = frame
+		phase = "pull"
+		_from = screen
+		_travel = 0.0
+		_apply_direct(screen)
+		get_viewport().set_input_as_handled()
+		return
+	if phase != "pull":
+		return
+	if event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+		_apply_direct(event.position)
+		get_viewport().set_input_as_handled()
+	elif _is_mouse_release(event):
+		var frame := Engine.get_process_frames()
+		if frame == _release_frame:
+			return
+		_release_frame = frame
+		_apply_direct(event.position)
+		if direct_power >= 0.07:
+			phase = "busy"
+			fired.emit(direct_power, 0.0)
+		else:
+			phase = "idle"
+			direct_power = 0.0
+			direct_hold = anchor
+			cancelled_pull.emit()
+		get_viewport().set_input_as_handled()
+
+
+func _direct_can_start(screen: Vector2) -> bool:
+	var hovered := get_viewport().gui_get_hovered_control()
+	if hovered != null and hovered.mouse_filter == Control.MOUSE_FILTER_STOP:
+		return false
+	if hit_test.is_valid() and bool(hit_test.call(screen)):
+		return true
+	var view := get_viewport().get_visible_rect().size
+	# The mat sits in the lower half. A press there still takes the bowl.
+	return screen.y > view.y * 0.58 and screen.x > 36.0 and screen.x < view.x - 36.0
+
+
+func _apply_direct(screen: Vector2) -> void:
+	finger = screen
+	_travel = maxf(_travel, _from.distance_to(screen))
+	var spot := anchor
+	if board_point.is_valid():
+		spot = board_point.call(screen)
+	# Back is toward the bowler. The bowl follows that drag, and the shot
+	# leaves the other way, through the mat and up the green.
+	var side := spot.x - anchor.x
+	var back := maxf(spot.z - anchor.z, 0.0)
+	var metres := Vector2(side, back).length()
+	if metres < 0.025:
+		direct_power = 0.0
+		direct_aim = Vector3(0.0, 0.0, -1.0)
+		direct_hold = anchor
+		return
+	var aim_back := maxf(back, 0.28)
+	direct_aim = Vector3(-side, 0.0, -aim_back).normalized()
+	var travel := clampf(metres / DIRECT_METRES, 0.0, 1.0)
+	direct_power = pow(travel, 1.08)
+	var unit := Vector3(side, 0.0, back) / metres
+	direct_hold = anchor + unit * minf(metres, DIRECT_METRES)
 
 
 func _is_mouse_press(event: InputEvent) -> bool:
