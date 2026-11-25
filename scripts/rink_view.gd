@@ -44,7 +44,6 @@ var _ditch_frame: Node3D
 var _spare_dots: Array[MeshInstance3D] = []
 
 var _grass_shader: Shader
-const MOWN_GRASS := preload("res://assets/grass/mowed_grass.fbx")
 var _wood_shader: Shader
 var _path_shader: Shader
 var _wood_mat: ShaderMaterial
@@ -384,7 +383,6 @@ func _build_playing_surface() -> void:
 	)
 	surface.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(surface)
-	_build_mown_tufts()
 
 	_timber_frame()
 	_build_ditch_option()
@@ -761,111 +759,6 @@ func _grass_material(stripe_a: Color, stripe_b: Color, stripe_width: float, half
 	mat.set_shader_parameter("stripe_width", stripe_width)
 	mat.set_shader_parameter("half_width", half_width)
 	mat.set_shader_parameter("depth_fade", depth_fade)
-	return mat
-
-
-func _build_mown_tufts() -> void:
-	# The short clumps from the mowed-grass set. Preview 8 and 9.
-	var names := ["Mowed-Grass-04", "Mowed-Grass-03", "Mowed-Grass-05", "Mowed-Grass-02", "Mowed-Grass-01", "Dandelion-01", "Dandelion-02"]
-	var weights := [6, 5, 3, 1, 1, 1, 1]
-	var source := MOWN_GRASS.instantiate()
-	var meshes: Array[Mesh] = []
-	for clump_name in names:
-		var src := source.get_node_or_null(clump_name) as MeshInstance3D
-		if src == null or src.mesh == null:
-			meshes.append(null)
-			continue
-		var leaf_start := 18 if str(clump_name).begins_with("Dandelion") else 1
-		meshes.append(_bake_upright(src.mesh, src.transform.basis, leaf_start))
-	source.free()
-	var buckets: Array = []
-	for _mesh in meshes:
-		buckets.append([])
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 1701
-	var half := minf(HALF_WIDTH - 0.25, 6.2)
-	var front := 5.0
-	var back := -minf(LENGTH, 18.0)
-	var z := front
-	while z > back:
-		var step := 0.46 if z > -8.0 else 0.95
-		var x := -half
-		while x < half:
-			var px := x + rng.randf_range(-0.16, 0.16)
-			var pz := z + rng.randf_range(-0.16, 0.16)
-			if Vector2(px, pz - DISC_Z).length() > 0.55:
-				var pick := _weighted_pick(weights, rng)
-				if meshes[pick] != null:
-					var yaw := rng.randf_range(0.0, TAU)
-					var scale := rng.randf_range(0.95, 1.35)
-					var basis := Basis(Vector3.UP, yaw).scaled(Vector3(scale, scale, scale))
-					buckets[pick].append(Transform3D(basis, Vector3(px, 0.006, pz)))
-			x += step
-		z -= step
-	var holder := Node3D.new()
-	holder.name = "MownTufts"
-	add_child(holder)
-	for i in meshes.size():
-		var placed: Array = buckets[i]
-		if meshes[i] == null or placed.is_empty():
-			continue
-		var multi := MultiMesh.new()
-		multi.transform_format = MultiMesh.TRANSFORM_3D
-		multi.mesh = meshes[i]
-		multi.instance_count = placed.size()
-		for n in placed.size():
-			multi.set_instance_transform(n, placed[n])
-		var inst := MultiMeshInstance3D.new()
-		inst.multimesh = multi
-		inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		holder.add_child(inst)
-
-
-func _weighted_pick(weights: Array, rng: RandomNumberGenerator) -> int:
-	var total := 0
-	for w in weights:
-		total += int(w)
-	var roll := rng.randi_range(1, total)
-	var acc := 0
-	for i in weights.size():
-		acc += int(weights[i])
-		if roll <= acc:
-			return i
-	return 0
-
-
-func _bake_upright(mesh: Mesh, stand: Basis, leaf_start: int) -> ArrayMesh:
-	var baked := ArrayMesh.new()
-	for s in mesh.get_surface_count():
-		var arrays := mesh.surface_get_arrays(s)
-		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-		var norms: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
-		var has_norms := norms.size() == verts.size()
-		for i in verts.size():
-			verts[i] = stand * verts[i]
-			if has_norms:
-				norms[i] = (stand * norms[i]).normalized()
-		arrays[Mesh.ARRAY_VERTEX] = verts
-		if has_norms:
-			arrays[Mesh.ARRAY_NORMAL] = norms
-		baked.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-		baked.surface_set_material(baked.get_surface_count() - 1, _leaf_material(leaf_start + s))
-	return baked
-
-
-func _leaf_material(index: int) -> StandardMaterial3D:
-	var mat := StandardMaterial3D.new()
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	mat.roughness = 0.62
-	mat.metallic = 0.0
-	mat.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
-	var leaf := clampi(index, 1, 19)
-	if leaf >= 18:
-		mat.albedo_texture = load("res://assets/grass/Grass_01_Leaf_%02d.png" % leaf)
-		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
-		mat.alpha_scissor_threshold = 0.4
-	else:
-		mat.albedo_texture = load("res://assets/grass/Grass_01_Leaf_%02d.jpg" % leaf)
 	return mat
 
 
