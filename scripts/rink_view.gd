@@ -153,6 +153,11 @@ func _build_environment() -> void:
 	env.ambient_light_energy = 0.42
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	env.glow_enabled = true
+	env.glow_intensity = 0.22
+	env.glow_strength = 0.4
+	env.glow_bloom = 0.04
+	env.glow_hdr_threshold = 1.0
 	env.fog_enabled = true
 	env.fog_mode = Environment.FOG_MODE_EXPONENTIAL
 	env.fog_density = 0.00048 if LENGTH > 200.0 else 0.0026
