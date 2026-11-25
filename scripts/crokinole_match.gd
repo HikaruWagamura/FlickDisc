@@ -175,9 +175,9 @@ func _update_surface(puck) -> void:
 	if not puck.in_ditch and distance > Metrics.SURFACE_RADIUS - Metrics.DISC_RADIUS * 0.25:
 		puck.in_ditch = true
 	if puck.in_ditch:
-		puck.position.y = Metrics.DITCH_Y
+		puck.position.y = Metrics.sit_y(true)
 	else:
-		puck.position.y = Metrics.DISC_CENTER_Y
+		puck.position.y = Metrics.sit_y(false)
 
 func _solve_pegs() -> void:
 	for puck in pucks:
@@ -247,7 +247,7 @@ func _solve_rail() -> void:
 		puck.set_flat(normal * limit)
 		if not puck.in_ditch:
 			puck.in_ditch = true
-			puck.position.y = Metrics.DITCH_Y
+			puck.position.y = Metrics.sit_y(true)
 		var velocity := Vector2(puck.velocity.x, puck.velocity.z)
 		var outward := velocity.dot(normal)
 		if outward > 0.0:
@@ -450,7 +450,11 @@ func _clear_pucks() -> void:
 func _spawn_puck(player_disc: bool, spot: Vector2):
 	var puck = PuckScript.new()
 	var tint_color := player_tint if player_disc else Color("#6b3e28")
-	puck.setup(player_disc, tint_color)
+	var kit_index := 0
+	for other in pucks:
+		if bool(other.is_player) == player_disc:
+			kit_index += 1
+	puck.setup(player_disc, tint_color, kit_index)
 	puck.set_flat(spot)
 	puck.add_to_group("crokinole_puck")
 	pucks_root.add_child(puck)

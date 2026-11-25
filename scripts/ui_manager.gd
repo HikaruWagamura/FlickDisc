@@ -1,6 +1,10 @@
 class_name UIManager
 extends CanvasLayer
 
+const BowlScript := preload("res://scripts/bowl.gd")
+const BiasChipScript := preload("res://scripts/bias_chip.gd")
+const HandSwitchScript := preload("res://scripts/hand_switch.gd")
+
 signal reset_requested
 signal next_level_requested
 signal bias_cycle_requested
@@ -30,8 +34,10 @@ var hand_label: Label
 var fore_button: Button
 var back_button: Button
 var turn_mark: Control
-var bias_buttons: Array[Button] = []
-var bias_rail: Panel
+var bias_buttons: Array = []
+var bias_rail: Control
+var hand_switch
+var bias_team := 0
 var summary: Panel
 var summary_title: Label
 var summary_shots: Label
@@ -103,10 +109,10 @@ func set_power_ratio(power_ratio: float) -> void:
 		power_cap.position = Vector2(4.0 + power_fill.size.x - 7.0, 4.0)
 
 
-func show_jack_prompt(end_number: int, match_label: String, score_line: String) -> void:
+func show_jack_prompt(end_number: int, match_label: String, score_line: String, caster: String = "RED") -> void:
 	level_label.text = "END %d" % end_number
 	throws_label.text = "4 EACH"
-	status_label.text = "TOUCH TO AIM  •  TAP THE JACK TO LOCK"
+	status_label.text = "%s TO CAST THE JACK  •  TAP TO LOCK" % caster
 	score_label.text = "%s  •  %s" % [match_label, score_line]
 	reset_button.visible = true
 	next_button.visible = false
@@ -182,10 +188,15 @@ func show_in_motion(side_name: String, bowl_name: String, forehand: bool, score_
 	score_label.text = "BOWL ROLLING"
 
 
-func show_computer(side_name: String, left: int) -> void:
+func show_computer(side_name: String, left: int, intent: String = "DRAW") -> void:
 	throws_label.text = "%s %d LEFT" % [side_name, left]
 	status_label.text = "COMPUTER  •  %s BOWL" % side_name
-	score_label.text = "DRAWING TO THE JACK"
+	var line := "DRAWING TO THE JACK"
+	if intent == "FIRE":
+		line = "FIRING AT THE SHOT"
+	elif intent == "TRAIL":
+		line = "TRAILING THE HEAD"
+	score_label.text = line
 	show_bowl_controls(false)
 
 
@@ -210,7 +221,7 @@ func show_throw_result(disc_distance: float, closest: float, next_side: String, 
 		score_label.text = "%s TO BOWL  •  CLOSEST %.2f m%s" % [next_side, closest, note]
 
 
-func show_end_summary(end_number: int, side_name: String, shots: int, closest: float, score_line: String, match_over: bool) -> void:
+func show_end_summary(end_number: int, side_name: String, shots: int, closest: float, score_line: String, match_over: bool, mat_name: String = "") -> void:
 	summary.visible = true
 	if match_over:
 		summary_title.text = "MATCH"
@@ -225,7 +236,10 @@ func show_end_summary(end_number: int, side_name: String, shots: int, closest: f
 	var nearest := "NO BOWL ON THE GREEN"
 	if closest >= 0.0:
 		nearest = "CLOSEST  %.2f m" % closest
-	summary_detail.text = "%s\n%s" % [nearest, score_line]
+	var mat_line := ""
+	if not match_over and mat_name != "":
+		mat_line = "\n%s TAKES THE MAT" % mat_name
+	summary_detail.text = "%s\n%s%s" % [nearest, score_line, mat_line]
 	throws_label.text = score_line
 	status_label.text = "MATCH COMPLETE" if match_over else "END COMPLETE"
 	score_label.text = score_line
@@ -242,29 +256,28 @@ func hide_summary() -> void:
 
 func show_hand(forehand: bool, _bowl_name: String) -> void:
 	current_bias = -1.0 if forehand else 1.0
-	if fore_button != null:
-		fore_button.text = "FORE" if forehand else "BACK"
-		_style_arrow(fore_button, true)
+	if hand_switch != null:
+		hand_switch.set_forehand(forehand)
 
 
-func show_bias(index: int) -> void:
+func show_bias(index: int, team: int = -1) -> void:
+	if team >= 0:
+		bias_team = team
 	for i in bias_buttons.size():
-		var selected := i == index
-		var fill := Color("#f3bd56") if selected else Color(0.10, 0.07, 0.09, 0.94)
-		var border := Color("#ffe9a4") if selected else Color("#c6a15a")
-		var font := Color("#1a1408") if selected else Color("#f8f1e4")
-		bias_buttons[i].add_theme_stylebox_override("normal", _premium_style(fill, border))
-		bias_buttons[i].add_theme_stylebox_override("hover", _premium_style(Color("#ffe09a"), Color("#fff4d2")))
-		bias_buttons[i].add_theme_color_override("font_color", font)
+		var chip = bias_buttons[i]
+		var tex: Texture2D = BowlScript.chip_texture(bias_team, i)
+		chip.set_chip(i, bias_team, tex, i == index)
 
 
 func show_bowl_controls(enabled: bool) -> void:
 	if bias_rail != null:
 		bias_rail.visible = enabled
+	if hand_switch != null:
+		hand_switch.visible = enabled
 	if fore_button != null:
-		fore_button.visible = enabled
-	for button in bias_buttons:
-		button.visible = enabled
+		fore_button.visible = false
+	for chip in bias_buttons:
+		chip.visible = enabled
 
 
 func _hand_name() -> String:
@@ -336,26 +349,21 @@ func _build_aim_dial() -> void:
 
 
 func _build_bias_row() -> void:
-	bias_rail = Panel.new()
-	bias_rail.position = Vector2(444.0, 168.0)
-	bias_rail.size = Vector2(84.0, 328.0)
+	bias_rail = Control.new()
+	bias_rail.position = Vector2(456.0, 176.0)
+	bias_rail.size = Vector2(76.0, 400.0)
 	bias_rail.visible = false
 	bias_rail.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var rail := StyleBoxFlat.new()
-	rail.bg_color = Color(0.05, 0.03, 0.05, 0.62)
-	rail.border_color = Color(0.86, 0.68, 0.38, 0.85)
-	rail.set_border_width_all(1)
-	rail.set_corner_radius_all(22)
-	bias_rail.add_theme_stylebox_override("panel", rail)
 	add_child(bias_rail)
-	var names := ["NARROW", "MEDIUM", "WIDE", "HOOK"]
-	for i in names.size():
-		var button := _make_button(names[i], Vector2(451.0, 178.0 + float(i) * 78.0), Vector2(70.0, 66.0))
-		button.add_theme_font_size_override("font_size", 11)
-		button.visible = false
-		button.pressed.connect(_emit_bias.bind(i))
-		bias_buttons.append(button)
-	show_bias(1)
+	for i in 4:
+		var chip := BiasChipScript.new()
+		chip.position = Vector2(2.0, float(i) * 96.0)
+		chip.size = Vector2(72.0, 94.0)
+		chip.visible = false
+		chip.picked.connect(_emit_bias)
+		bias_rail.add_child(chip)
+		bias_buttons.append(chip)
+	show_bias(1, 0)
 
 
 func _emit_bias(index: int) -> void:
@@ -363,10 +371,15 @@ func _emit_bias(index: int) -> void:
 
 
 func _build_hand_bar() -> void:
+	hand_switch = HandSwitchScript.new()
+	hand_switch.position = Vector2(276.0, 868.0)
+	hand_switch.size = Vector2(248.0, 72.0)
+	hand_switch.visible = false
+	hand_switch.chosen.connect(func(fore: bool) -> void: hand_selected.emit(fore))
+	add_child(hand_switch)
 	fore_button = _make_button("FORE", Vector2(448.0, 900.0), Vector2(76.0, 40.0))
-	fore_button.add_theme_font_size_override("font_size", 12)
 	fore_button.visible = false
-	fore_button.pressed.connect(func() -> void: hand_selected.emit(current_bias >= 0.0))
+	fore_button.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 
 func _style_arrow(button: Button, selected: bool) -> void:

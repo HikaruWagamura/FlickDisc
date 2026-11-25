@@ -119,6 +119,8 @@ func _draw() -> void:
 
 
 func _draw_dots() -> void:
+	if _dots.size() >= 2:
+		draw_polyline(_dots, Color(0.98, 0.86, 0.42, 0.55), 3.0, true)
 	var last := _dots.size() - 1
 	for i in _dots.size():
 		var spot := _dots[i]
@@ -126,7 +128,7 @@ func _draw_dots() -> void:
 		var near := clampf((spot.y - 160.0) / 620.0, 0.0, 1.0)
 		var radius := lerpf(5.0, 8.2, near) * lerpf(1.0, 0.82, along)
 		draw_circle(spot, radius + 2.6, Color(0.05, 0.07, 0.08, 0.88))
-		draw_circle(spot, radius, Color(0.98, 0.99, 1.0, 0.98))
+		draw_circle(spot, radius, Color(1.0, 0.94, 0.72, 0.98))
 
 
 func _draw_line() -> void:

@@ -29,9 +29,9 @@ func _ready() -> void:
 
 func _apply_host() -> void:
 	if OS.has_feature("web"):
-		menu.rink = "lawn"
+		menu.rink = "crokinole"
 		menu.open_screen("setup")
-		print("HOST_SETUP rink=lawn")
+		print("HOST_SETUP rink=crokinole")
 		return
 	var host := _host_launch()
 	if bool(host["play"]):
@@ -66,9 +66,9 @@ func _host_launch() -> Dictionary:
 			play_now = true
 		elif arg.begins_with("--match="):
 			match_index = int(arg.trim_prefix("--match="))
-	var rink_name := table if table != "" else "lawn"
+	var rink_name := table if table != "" else "crokinole"
 	if rink_name != "lawn" and rink_name != "crokinole":
-		rink_name = "lawn"
+		rink_name = "crokinole"
 	return {
 		"direct": embed or table != "",
 		"play": play_now,
@@ -82,7 +82,7 @@ func _play(setup: Dictionary) -> void:
 	return_screen = str(setup.get("back", "home"))
 	pending_challenge = str(setup.get("challenge", ""))
 	profile.note_round()
-	var rink_name := str(setup.get("rink", "lawn"))
+	var rink_name := str(setup.get("rink", "crokinole"))
 	var packed: PackedScene = CROKINOLE_SCENE if rink_name == "crokinole" else LAWN_SCENE
 	current = packed.instantiate()
 	current.goal = str(setup.get("goal", ""))

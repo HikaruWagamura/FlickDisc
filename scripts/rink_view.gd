@@ -18,11 +18,11 @@ const SURFACE_Y := 0.0
 
 var head: Node3D
 var _camera: Camera3D
-var _home_position := Vector3(0.0, 9.2, 10.8)
-var _home_look := Vector3(0.0, 0.28, -18.0)
+var _home_position := Vector3(0.0, 10.4, 12.2)
+var _home_look := Vector3(0.0, 0.32, -26.0)
 var _home_fov := 49.0
-var _zoom_position := Vector3(0.0, 9.2, 10.8)
-var _zoom_look := Vector3(0.0, 0.28, -18.0)
+var _zoom_position := Vector3(0.0, 10.4, 12.2)
+var _zoom_look := Vector3(0.0, 0.32, -26.0)
 var _zoom_fov := 34.0
 var _zoom_weight := 0.0
 var _zoom_goal := 0.0

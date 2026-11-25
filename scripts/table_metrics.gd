@@ -31,12 +31,37 @@ const DISC_RESTITUTION := 0.9
 const RAIL_RESTITUTION := 0.4
 const STOP_SPEED := 0.055
 
+## Filled when the paid crokinole pack is on the table. Pegs and buttons
+## then use the pack's own size and placement instead of the procedural set.
+static var club_pegs: Array[Vector3] = []
+static var club_dark: Array = []
+static var club_light: Array = []
+static var club_disc_xform := Transform3D.IDENTITY
+static var club_figures_mat: Material
+static var club_center_y := DISC_CENTER_Y
+static var club_ditch_y := DITCH_Y
+
 static func peg_positions() -> Array[Vector3]:
+	if club_pegs.size() >= 8:
+		return club_pegs
 	var points: Array[Vector3] = []
 	for index in 8:
 		var angle := PI / 8.0 + float(index) * TAU / 8.0
 		points.append(Vector3(cos(angle) * PEG_RING, 0.0, sin(angle) * PEG_RING))
 	return points
+
+
+static func sit_y(in_ditch: bool) -> float:
+	return club_ditch_y if in_ditch else club_center_y
+
+
+static func club_disc_mesh(player_disc: bool, kit_index: int) -> Mesh:
+	var bank: Array = club_dark if player_disc else club_light
+	if bank.is_empty():
+		bank = club_light if player_disc else club_dark
+	if bank.is_empty():
+		return null
+	return bank[kit_index % bank.size()]
 
 static func points_for(distance_from_center: float, sunk: bool) -> int:
 	# A disc scores a ring only when it is clear of that ring's line.
