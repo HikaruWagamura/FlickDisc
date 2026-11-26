@@ -1213,9 +1213,9 @@ func _cuetest() -> void:
 	if cue_blocks != null and cue_blocks.has_method("set_style"):
 		cue_blocks.set_style(0)
 	var steps := [
-		{"power": 0.30, "bias": 3, "hand": -1.0, "aim": Vector3(0.22, 0.0, -1.0), "file": "blocks_light", "title": "5 + 3  •  LIGHT  •  100 100 100 95", "kind": 0},
-		{"power": 0.62, "bias": 3, "hand": -1.0, "aim": Vector3(0.22, 0.0, -1.0), "file": "blocks_mid", "title": "5 + 3  •  MID  •  TAPER TO 80", "kind": 0},
-		{"power": 0.90, "bias": 3, "hand": -1.0, "aim": Vector3(0.22, 0.0, -1.0), "file": "blocks_heavy", "title": "5 + 3  •  FULL  •  TAPER TO 70", "kind": 0},
+		{"power": 0.18, "bias": 3, "hand": -1.0, "aim": Vector3(0.22, 0.0, -1.0), "file": "blocks_light", "title": "5 + 3  •  LIGHT  •  ICE", "kind": 0},
+		{"power": 0.52, "bias": 3, "hand": -1.0, "aim": Vector3(0.22, 0.0, -1.0), "file": "blocks_mid", "title": "5 + 3  •  MID  •  PINK", "kind": 0},
+		{"power": 0.92, "bias": 3, "hand": -1.0, "aim": Vector3(0.22, 0.0, -1.0), "file": "blocks_heavy", "title": "5 + 3  •  FULL  •  RED", "kind": 0},
 		{"power": 0.90, "bias": 3, "hand": 1.0, "aim": Vector3(-0.22, 0.0, -1.0), "file": "blocks_left", "title": "5 + 3  •  AIM LEFT", "kind": 0},
 		{"power": 0.90, "bias": 1, "hand": -1.0, "aim": Vector3(0.0, 0.0, -1.0), "file": "blocks_ahead", "title": "5 + 3  •  STRAIGHT AHEAD", "kind": 0},
 		{"power": 0.96, "bias": 3, "hand": -1.0, "aim": Vector3(0.22, 0.0, -1.0), "file": "solid_heavy", "title": "SOLID  •  FULL WEIGHT", "kind": 1},
@@ -1237,7 +1237,7 @@ func _cuetest() -> void:
 	_compare_power = 0.90
 	_compare_aim = Vector3(0.22, 0.0, -1.0).normalized()
 	disc.configure_bowl(3, -1.0)
-	_set_compare_banner("5 + 3  •  FULL  •  TAPER TO 70")
+	_set_compare_banner("5 + 3  •  FULL  •  RED")
 	_sync_compare_cue()
 	await get_tree().create_timer(2.0).timeout
 	get_tree().quit(0)

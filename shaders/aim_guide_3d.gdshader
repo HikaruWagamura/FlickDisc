@@ -6,25 +6,30 @@ uniform float along : hint_range(0.0, 1.0) = 0.5;
 uniform bool glow_enabled = true;
 
 void fragment() {
-	float along_v = clamp(mix(UV.y, along, 0.72), 0.0, 1.0);
+	float heat = clamp(power, 0.0, 1.0);
+	// The far heads run a little hotter so the line still reads front to back.
+	heat = clamp(heat + along * 0.16 * heat, 0.0, 1.0);
 
-	vec3 cyan = vec3(0.04, 0.78, 1.0);
-	vec3 violet = vec3(0.54, 0.16, 0.96);
-	vec3 ember = vec3(1.0, 0.24, 0.08);
+	vec3 ice = vec3(0.28, 0.82, 1.0);
+	vec3 lilac = vec3(0.78, 0.42, 1.0);
+	vec3 pink = vec3(1.0, 0.28, 0.72);
+	vec3 hot = vec3(1.0, 0.10, 0.16);
+	vec3 dark = vec3(0.52, 0.02, 0.08);
 
-	vec3 shaft = mix(cyan, violet, smoothstep(0.0, 0.68, along_v));
-	vec3 tip = mix(violet, ember, smoothstep(0.22, 1.0, power));
-	vec3 colour = mix(shaft, tip, smoothstep(0.40, 1.0, along_v) * (0.28 + 0.72 * power));
+	vec3 colour = mix(ice, lilac, smoothstep(0.00, 0.28, heat));
+	colour = mix(colour, pink, smoothstep(0.22, 0.52, heat));
+	colour = mix(colour, hot, smoothstep(0.46, 0.78, heat));
+	colour = mix(colour, dark, smoothstep(0.72, 1.00, heat));
 
 	float top = smoothstep(0.15, 0.95, clamp(NORMAL.y, 0.0, 1.0));
-	vec3 lit = colour * mix(0.58, 1.02, top);
+	vec3 lit = colour * mix(0.62, 1.10, top);
 
 	ALBEDO = lit;
-	METALLIC = 0.12;
-	ROUGHNESS = mix(0.42, 0.30, power);
-	SPECULAR = 0.28;
+	METALLIC = mix(0.08, 0.16, heat);
+	ROUGHNESS = mix(0.42, 0.26, heat);
+	SPECULAR = 0.32;
 
-	float emission_strength = glow_enabled ? (0.05 + power * 0.22) : 0.03;
+	float emission_strength = glow_enabled ? (0.08 + heat * 0.36) : 0.03;
 	EMISSION = colour * emission_strength;
 	ALPHA = 1.0;
 }

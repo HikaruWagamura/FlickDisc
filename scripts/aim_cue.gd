@@ -18,9 +18,12 @@ const SEAT_RIG := 0.052
 const STYLE_BLOCKS := 0
 const STYLE_RIGGED := 1
 const STYLE_BOTH := 2
-## First three stay full size so they still read on the grass. Then the
-## line eases off: 95, 90, 85, 80, and 70 at the tip.
-const TAPER := [1.00, 1.00, 1.00, 0.95, 0.90, 0.85, 0.80, 0.70]
+## First three stay full size so they still read on the grass. The fourth
+## sits a little smaller, then the line eases 90, 85, 80, and 70 at the tip.
+const TAPER := [1.00, 1.00, 1.00, 0.90, 0.90, 0.85, 0.80, 0.70]
+## Start where the old second head sat, so the first block clears the bowl.
+const T_START := 0.223
+const T_END := 0.96
 
 var style := STYLE_BLOCKS
 var size_scale := 1.0
@@ -248,21 +251,13 @@ func present(path: PackedVector3Array, power: float, _facing: Vector3 = Vector3.
 	_showing = true
 	_path = path
 	_power = clampf(power, 0.0, 1.0)
-	_count = _wanted(_power)
+	_count = MAIN_ARROWS
 	_place()
 
 
 func _process(_delta: float) -> void:
 	if _showing and _path.size() >= 2:
 		_place()
-
-
-func _wanted(power: float) -> int:
-	if power < 0.32:
-		return 3
-	if power < 0.66:
-		return 4
-	return 5
 
 
 func _place() -> void:
@@ -301,14 +296,13 @@ func _place_blocks() -> void:
 	var amount := _power
 	var wave := float(Time.get_ticks_msec()) * 0.001
 	var length := _path_length()
-	var main_n := _count
-	var total := main_n + TAIL_ARROWS
+	var total := MAX_ARROWS
 	var body := maxf(_local_size.z, 0.18)
 	var fit := (length * 0.88) / maxf(float(total), 1.0)
 	var scale_l := clampf(fit / body, 0.10, 0.60) * size_scale
 	var scale_w := scale_l * 0.62
-	# Keep the blocks chunky on a small table. Only the footprint shrinks.
-	var scale_h := lerpf(0.62, 0.82, amount) * lerpf(1.0, size_scale, 0.22)
+	# Weight is colour, not size. Keep the blocks chunky on a small table.
+	var scale_h := 0.74 * lerpf(1.0, size_scale, 0.22)
 	if style == STYLE_BOTH:
 		scale_l *= 0.90
 		scale_w *= 0.90
@@ -318,9 +312,9 @@ func _place_blocks() -> void:
 			mi.visible = false
 			continue
 		mi.visible = true
-		var t := 0.36
+		var t := T_START
 		if total > 1:
-			t = lerpf(0.10, 0.96, float(i) / float(total - 1))
+			t = lerpf(T_START, T_END, float(i) / float(total - 1))
 		var taper := 0.70
 		if i < TAPER.size():
 			taper = float(TAPER[i])
