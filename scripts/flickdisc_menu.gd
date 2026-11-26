@@ -82,6 +82,12 @@ var nav: Control
 var nav_icons: Array = []
 var nav_captions: Array = []
 var nav_buttons: Array = []
+var nav_glyphs: Array = []
+var match_chips: Array = []
+var skill_chips: Array = []
+var match_kicker: Label
+var skill_kicker: Label
+var emoji_font: Font
 var choice_layer: Control
 var choice_box: VBoxContainer
 var online_layer: Control
@@ -164,9 +170,11 @@ func _prepare_fonts() -> void:
 	script_font = FONT_PACIFICO
 	body_font = FONT_INTER
 	bold_font = FONT_INTER_BOLD
-	var emoji := SystemFont.new()
-	emoji.font_names = PackedStringArray(["DejaVu Sans", "Noto Sans Symbols2"])
-	var stack: Array[Font] = [emoji]
+	emoji_font = SystemFont.new()
+	emoji_font.font_names = PackedStringArray(["Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji"])
+	var marks := SystemFont.new()
+	marks.font_names = PackedStringArray(["Noto Sans Symbols2", "DejaVu Sans"])
+	var stack: Array[Font] = [emoji_font, marks]
 	var faces: Array[FontFile] = [FONT_ANTON, FONT_INTER, FONT_INTER_BOLD, FONT_PACIFICO]
 	for face in faces:
 		face.fallbacks = stack
@@ -244,7 +252,7 @@ func _build_splash() -> void:
 	tag.size = Vector2(480, 56)
 	tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	page.add_child(tag)
-	var line := _label("Draw. Flick. Win.", 22, PINK, script_font)
+	var line := _label("Draw. Flick. Win.", 22, CREAM, script_font)
 	line.position = Vector2(30, 618)
 	line.size = Vector2(480, 36)
 	line.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -283,7 +291,7 @@ func _build_home() -> void:
 	home_name.position = Vector2(54, 8)
 	home_name.size = Vector2(180, 22)
 	pill.add_child(home_name)
-	home_level = _label("Level 1", 12, PINK, bold_font)
+	home_level = _label("Level 1", 12, CREAM, bold_font)
 	home_level.position = Vector2(54, 30)
 	home_level.size = Vector2(180, 16)
 	pill.add_child(home_level)
@@ -308,65 +316,65 @@ func _build_home() -> void:
 	gear.pressed.connect(_show.bind("settings"))
 
 	var mark := _mark_rect()
-	_place(page, mark, Vector2(70, 92), Vector2(400, 300))
-	var brand := _label("FLICKDISC", 36, CREAM, title_font)
+	_place(page, mark, Vector2(88, 78), Vector2(364, 248))
+	var brand := _label("FLICKDISC", 40, CREAM, title_font)
 	brand.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_place(page, brand, Vector2(20, 392), Vector2(500, 44))
-	var line := _label("Draw. Flick. Win.", 20, PINK, script_font)
+	_place(page, brand, Vector2(20, 326), Vector2(500, 46))
+	var line := _label("Draw. Flick. Win.", 22, CREAM, script_font)
 	line.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_place(page, line, Vector2(20, 436), Vector2(500, 30))
+	_place(page, line, Vector2(20, 368), Vector2(500, 32))
 
-	var play := _button("PLAY A MATCH", 22)
-	_place(page, play, Vector2(28, 486), Vector2(484, 64))
-	_paint_button(play, PINK_DEEP, Color("#FFE4F6"), CREAM, 18, 0)
+	var play := _button("PLAY A MATCH", 24)
+	_place(page, play, Vector2(28, 412), Vector2(484, 64))
+	_paint_button(play, PINK_DEEP, Color("#FFE4F6"), CREAM, 20, 0)
 	home_play = play
 	play.pressed.connect(func() -> void:
 		_tap()
 		_open_setup("classic")
 	)
 
-	var drive := _button("LONG GREEN", 16)
-	_place(page, drive, Vector2(28, 568), Vector2(232, 72))
-	_paint_button(drive, CARD, PINK, CREAM, 16, 0)
-	drive.pressed.connect(_launch_drive)
-	var solo := _button("SOLO ENDS", 16)
-	_place(page, solo, Vector2(280, 568), Vector2(232, 72))
-	_paint_button(solo, CARD, PINK, CREAM, 16, 0)
-	solo.pressed.connect(_launch_solo)
+	_home_card(page, Rect2(28, 488, 236, 124), "LONG GREEN", "A full match rink.", "green", "🌿", "drive")
+	_home_card(page, Rect2(276, 488, 236, 124), "SOLO ENDS", "One bowl. The jack.", "solo", "🎯", "solo")
+	_home_card(page, Rect2(28, 624, 236, 124), "PRACTICE", "You and the jack.", "practice", "🔥", "practice")
+	_home_card(page, Rect2(276, 624, 236, 124), "THE BOARD", "Wins. Ends. Runs.", "board", "🏆", "rankings")
 
-	_home_card(page, Rect2(28, 658, 232, 88), "", "PRACTICE", "Just the shot", "practice")
-	_home_card(page, Rect2(280, 658, 232, 88), "", "THE BOARD", "Wins and records", "rankings")
-
-	home_record = _label("0W  ·  0L", 16, CREAM, bold_font)
-	_place(page, home_record, Vector2(20, 764), Vector2(500, 22))
+	home_record = _label("0W  ·  0L", 18, CREAM, bold_font)
+	_place(page, home_record, Vector2(20, 752), Vector2(500, 24))
 	home_record.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	home_tally = _label("ENDS 0  ·  NO DRIVE YET", 13, PINK, bold_font)
-	_place(page, home_tally, Vector2(20, 786), Vector2(500, 18))
+	home_tally = _label("ENDS 0  ·  NO DRIVE YET", 13, MUTED, bold_font)
+	_place(page, home_tally, Vector2(20, 776), Vector2(500, 18))
 	home_tally.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
 
-func _home_card(page: Control, rect: Rect2, kicker: String, title: String, body: String, target: String) -> void:
+func _home_card(page: Control, rect: Rect2, title: String, body: String, stamp_kind: String, glyph: String, target: String) -> void:
 	var button := Button.new()
 	button.text = ""
+	button.clip_contents = true
 	_place(page, button, rect.position, rect.size)
-	_paint_button(button, PLUM, Color("#FF4FA3"), CREAM, 18, 14, 2)
-	var y := 6.0
-	if kicker != "":
-		var kick := _label(kicker, 18, PINK, bold_font)
-		kick.position = Vector2(12, 4)
-		kick.size = Vector2(rect.size.x - 24, 22)
-		button.add_child(kick)
-		y = 26.0
-	var heading := _label(title, 14, CREAM, bold_font)
-	heading.position = Vector2(12, y)
-	heading.size = Vector2(rect.size.x - 24, 22)
-	heading.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_paint_button(button, PLUM, Color("#FF4FA3"), CREAM, 20, 14, 2)
+	var heading := _label(title, 24, CREAM, title_font)
+	heading.position = Vector2(16, 22)
+	heading.size = Vector2(rect.size.x - 118, 36)
+	heading.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	button.add_child(heading)
-	var detail := _label(body, 11, MUTED, body_font)
-	detail.position = Vector2(12, y + 22)
-	detail.size = Vector2(rect.size.x - 24, 28)
-	detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	var detail := _label(body, 14, MUTED, body_font)
+	detail.position = Vector2(16, 64)
+	detail.size = Vector2(rect.size.x - 118, 40)
+	detail.autowrap_mode = TextServer.AUTOWRAP_OFF
+	detail.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	button.add_child(detail)
+	var art := Stamp.new()
+	art.kind = stamp_kind
+	art.lit = true
+	art.position = Vector2(rect.size.x - 90, 26)
+	art.size = Vector2(72, 72)
+	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	button.add_child(art)
+	var badge := _glyph(glyph, 32)
+	badge.position = Vector2(rect.size.x - 84, 38)
+	badge.size = Vector2(60, 48)
+	badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	button.add_child(badge)
 	button.pressed.connect(func() -> void:
 		if target == "solo":
 			_launch_solo()
@@ -382,7 +390,7 @@ func _home_card(page: Control, rect: Rect2, kicker: String, title: String, body:
 
 
 func _build_setup() -> void:
-	# One screen. Every control sits above the bottom edge. No scroll.
+	# One clean play sheet. Online lives on Friends, not here.
 	var page := Control.new()
 	page.set_anchors_preset(Control.PRESET_FULL_RECT)
 	page.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -390,15 +398,15 @@ func _build_setup() -> void:
 	root.add_child(page)
 	_back_on(page, "home")
 
-	title_label = _label("CLASSIC 1V1", 32, CREAM, title_font)
+	title_label = _label("PLAY", 40, CREAM, title_font)
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_place(page, title_label, Vector2(16, 78), Vector2(508, 40))
-	sub_label = _label("Set the rink, then choose who you bowl.", 14, MUTED, body_font)
+	_place(page, title_label, Vector2(16, 78), Vector2(508, 48))
+	sub_label = _label("Pick the table. Then bowl.", 16, CREAM, script_font)
 	sub_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_place(page, sub_label, Vector2(16, 118), Vector2(508, 22))
+	_place(page, sub_label, Vector2(16, 124), Vector2(508, 28))
 
-	lawn_card = _rink_card("LONG RINK", "Bowls. About 10 seconds to the jack.")
-	crokin_card = _rink_card("CROKINMODE", "Classic round board.")
+	lawn_card = _rink_card("FLICK BOWLS", "The long green.", "green", true)
+	crokin_card = _rink_card("FLICKDISC", "The round board.", "crokin", false)
 	lawn_tag = lawn_card.get_node("Tag") as Label
 	crokin_tag = crokin_card.get_node("Tag") as Label
 	lawn_card.pressed.connect(func() -> void:
@@ -409,60 +417,51 @@ func _build_setup() -> void:
 		rink = "crokinole"
 		_sync_setup()
 	)
-	_place(page, lawn_card, Vector2(20, 156), Vector2(244, 132))
-	_place(page, crokin_card, Vector2(276, 156), Vector2(244, 132))
+	_place(page, lawn_card, Vector2(20, 168), Vector2(244, 176))
+	_place(page, crokin_card, Vector2(276, 168), Vector2(244, 176))
 
-	hint_label = _label("", 12, MUTED, body_font)
-	hint_label.visible = false
-	_place(page, hint_label, Vector2(16, 294), Vector2(508, 18))
+	hint_label = _label("", 13, MUTED, body_font)
+	hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_place(page, hint_label, Vector2(20, 356), Vector2(500, 22))
 
-	difficulty_button = _choice_button()
-	difficulty_button.pressed.connect(func() -> void:
-		_open_choices(_difficulty_options(), difficulty, _set_difficulty)
+	match_kicker = _kicker("MATCH")
+	_place(page, match_kicker, Vector2(28, 392), Vector2(200, 18))
+	match_chips = _chip_row(page, Vector2(20, 414), PackedStringArray(["1 END", "4 ENDS", "TO 10", "TO 21"]), func(i: int) -> void:
+		race = i
+		_sync_setup()
 	)
-	_place(page, difficulty_button, Vector2(20, 318), Vector2(500, 56))
-	race_button = _choice_button()
-	race_button.pressed.connect(func() -> void:
-		_open_choices(_race_options(), race, _set_race)
+	skill_kicker = _kicker("AI")
+	_place(page, skill_kicker, Vector2(28, 478), Vector2(200, 18))
+	skill_chips = _chip_row(page, Vector2(20, 500), PackedStringArray(["EASY", "MEDIUM", "HARD"]), func(i: int) -> void:
+		difficulty = i
+		_sync_setup()
 	)
-	_place(page, race_button, Vector2(20, 386), Vector2(500, 56))
 
 	big_play = _primary("PLAY VERSUS AI", func() -> void: _launch("ai"))
-	_place(page, big_play, Vector2(20, 464), Vector2(500, 64))
+	_place(page, big_play, Vector2(20, 572), Vector2(500, 72))
 	friend_button = _row_button("PLAY A FRIEND", func() -> void: _launch("local"))
-	_place(page, friend_button, Vector2(20, 544), Vector2(500, 56))
-	var own := _row_button("PRACTICE", func() -> void: _practice("jack"))
-	_place(page, own, Vector2(20, 612), Vector2(500, 56))
+	_place(page, friend_button, Vector2(20, 656), Vector2(500, 60))
 
 	duo_note = _label("Both teams play on this device. Pass the phone each shot.", 13, MUTED, body_font)
 	duo_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	duo_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_place(page, duo_note, Vector2(20, 544), Vector2(500, 40))
+	duo_note.visible = false
+	_place(page, duo_note, Vector2(20, 656), Vector2(500, 40))
+
+	difficulty_button = _choice_button()
+	difficulty_button.visible = false
+	_place(page, difficulty_button, Vector2(20, 900), Vector2(20, 20))
+	race_button = _choice_button()
+	race_button.visible = false
+	_place(page, race_button, Vector2(48, 900), Vector2(20, 20))
 
 	online_box = Control.new()
+	online_box.visible = false
 	online_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_place(page, online_box, Vector2(20, 688), Vector2(500, 250))
-	var online_kick := _label("ONLINE", 12, PINK, bold_font)
-	_place(online_box, online_kick, Vector2(4, 0), Vector2(492, 18))
-	var casual := _row_button("Casual", func() -> void: _show_online("casual"))
-	var ranked := _row_button("Ranked", func() -> void: _show_online("ranked"))
-	_place(online_box, casual, Vector2(0, 26), Vector2(244, 52))
-	_place(online_box, ranked, Vector2(256, 26), Vector2(244, 52))
-	var code := _code_row()
-	_place(online_box, code, Vector2(0, 90), Vector2(500, 52))
+	_place(page, online_box, Vector2(20, 900), Vector2(20, 20))
 	join_edit = LineEdit.new()
-	join_edit.placeholder_text = "ROOM CODE"
-	join_edit.max_length = 5
-	_style_edit(join_edit)
-	join_edit.text_changed.connect(func(value: String) -> void:
-		var upper := value.to_upper()
-		if upper != value:
-			join_edit.text = upper
-			join_edit.caret_column = upper.length()
-	)
-	_place(online_box, join_edit, Vector2(0, 154), Vector2(244, 52))
-	var join := _primary("JOIN", _join_room)
-	_place(online_box, join, Vector2(256, 154), Vector2(244, 52))
+	join_edit.visible = false
+	_place(online_box, join_edit, Vector2(0, 0), Vector2(20, 20))
 
 
 func _build_simple_pages() -> void:
@@ -722,37 +721,46 @@ func _build_nav() -> void:
 	glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	nav.add_child(glow)
 	var row := HBoxContainer.new()
-	row.position = Vector2(8, 10)
-	row.size = Vector2(496, 86)
-	row.add_theme_constant_override("separation", 4)
+	row.position = Vector2(8, 8)
+	row.size = Vector2(496, 90)
+	row.add_theme_constant_override("separation", 2)
 	nav.add_child(row)
-	_nav_item(row, "home", "HOME")
-	_nav_item(row, "profile", "ME")
-	_nav_item(row, "customise", "BOWLS")
-	_nav_item(row, "shop", "SHOP")
-	_nav_item(row, "settings", "GEAR")
+	_nav_item(row, "home", "HOME", "🏠")
+	_nav_item(row, "profile", "ME", "😎")
+	_nav_item(row, "customise", "BOWLS", "🎳")
+	_nav_item(row, "shop", "SHOP", "🛍️")
+	_nav_item(row, "settings", "GEAR", "⚙️")
 
 
-func _nav_item(row: HBoxContainer, ident: String, caption: String) -> void:
+func _nav_item(row: HBoxContainer, ident: String, caption: String, glyph: String) -> void:
 	var button := Button.new()
 	button.text = ""
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	button.custom_minimum_size = Vector2(0, 86)
+	button.custom_minimum_size = Vector2(0, 90)
 	_paint_button(button, Color(0, 0, 0, 0), Color(0, 0, 0, 0), CREAM, 18, 0)
-	var icon := Mark.new()
-	icon.kind = ident
-	icon.custom_minimum_size = Vector2(44, 44)
-	icon.size = Vector2(44, 44)
-	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	var label := _label(caption, 11, MUTED, bold_font)
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var box := VBoxContainer.new()
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
 	box.set_anchors_preset(Control.PRESET_FULL_RECT)
-	box.add_theme_constant_override("separation", 6)
-	box.add_child(icon)
+	box.add_theme_constant_override("separation", 2)
+	var stack := Control.new()
+	stack.custom_minimum_size = Vector2(52, 52)
+	stack.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var icon := Stamp.new()
+	icon.kind = ident
+	icon.set_anchors_preset(Control.PRESET_FULL_RECT)
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stack.add_child(icon)
+	var face := _glyph(glyph, 26)
+	face.set_anchors_preset(Control.PRESET_FULL_RECT)
+	face.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	face.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	stack.add_child(face)
+	var label := _label(caption, 11, MUTED, bold_font)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_child(stack)
 	box.add_child(label)
 	button.add_child(box)
 	button.pressed.connect(_show.bind(ident))
@@ -760,6 +768,7 @@ func _nav_item(row: HBoxContainer, ident: String, caption: String) -> void:
 	nav_icons.append(icon)
 	nav_captions.append(label)
 	nav_buttons.append(button)
+	nav_glyphs.append(face)
 
 
 func _build_choice_layer() -> void:
@@ -848,16 +857,30 @@ func _sync_setup() -> void:
 	if title_label == null:
 		return
 	var classic := kind == "classic"
-	title_label.text = "CLASSIC 1V1" if classic else "CLASSIC 2V2"
-	sub_label.text = "Set the rink, then choose who you bowl." if classic else "Two teams on one phone. Pass it each shot."
+	title_label.text = "PLAY" if classic else "2 v 2"
+	sub_label.text = "Pick the table. Then bowl." if classic else "Two teams. Pass the phone each shot."
 	big_play.text = "PLAY VERSUS AI" if classic else "PLAY LOCAL"
-	online_box.visible = classic
+	online_box.visible = false
 	duo_note.visible = not classic
 	if friend_button != null:
 		friend_button.visible = classic
-	hint_label.text = "The round board. First to the target." if rink == "crokinole" else "Four bowls each. Closest to the jack takes the end."
-	difficulty_button.text = _difficulty_options()[difficulty]
-	race_button.text = _race_options()[race]
+	hint_label.text = "Round board. First to the target." if rink == "crokinole" else "Four bowls each. Closest to the jack."
+	if difficulty_button != null:
+		difficulty_button.text = _difficulty_options()[difficulty]
+	var match_captions := PackedStringArray(["1 END", "4 ENDS", "TO 10", "TO 21"])
+	if rink == "crokinole":
+		match_captions = PackedStringArray(["TO 50", "TO 100", "TO 150"])
+	if race >= match_captions.size():
+		race = mini(1, match_captions.size() - 1)
+	if race_button != null:
+		race_button.text = _race_options()[race]
+	_layout_chips(match_chips, match_captions, Vector2(20, 414))
+	_paint_chips(match_chips, race)
+	if skill_kicker != null:
+		skill_kicker.visible = classic
+	for chip in skill_chips:
+		chip.visible = classic
+	_paint_chips(skill_chips, difficulty)
 	_paint_rinks()
 	if code_label != null:
 		code_label.text = room_code
@@ -1205,13 +1228,15 @@ func _paint_challenges() -> void:
 
 func _paint_nav(current: String) -> void:
 	for i in nav_icons.size():
-		var icon: Mark = nav_icons[i]
+		var icon: Stamp = nav_icons[i]
 		var caption := nav_captions[i] as Label
 		var lit := icon.kind == current
 		icon.set_lit(lit)
 		caption.add_theme_color_override("font_color", CREAM if lit else Color("#C48AA8"))
+		if i < nav_glyphs.size():
+			nav_glyphs[i].modulate = Color(1, 1, 1, 1.0 if lit else 0.72)
 		if i < nav_buttons.size():
-			var fill := Color(1.0, 0.22, 0.55, 0.28) if lit else Color(0, 0, 0, 0)
+			var fill := Color(1.0, 0.22, 0.55, 0.32) if lit else Color(0, 0, 0, 0)
 			var border := PINK if lit else Color(0, 0, 0, 0)
 			_paint_button(nav_buttons[i], fill, border, CREAM, 18, 0)
 
@@ -1250,9 +1275,15 @@ func _back_on(page: Control, target: String) -> void:
 	var shield := ColorRect.new()
 	shield.position = Vector2(0, 0)
 	shield.size = Vector2(540, 68)
-	shield.color = Color(0.035, 0.031, 0.051, 0.96)
+	shield.color = Color(0.10, 0.02, 0.07, 0.96)
 	shield.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	page.add_child(shield)
+	var hairline := ColorRect.new()
+	hairline.position = Vector2(0, 66)
+	hairline.size = Vector2(540, 2)
+	hairline.color = PINK
+	hairline.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	page.add_child(hairline)
 	var button := _button("‹   Back", 15)
 	button.position = Vector2(16, 16)
 	button.size = Vector2(124, 40)
@@ -1279,29 +1310,42 @@ func _code_row() -> PanelContainer:
 	return panel
 
 
-func _rink_card(title: String, body: String) -> Button:
+func _rink_card(title: String, body: String, stamp_kind: String, show_logo: bool) -> Button:
 	var button := Button.new()
 	button.text = ""
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	button.clip_contents = true
-	button.custom_minimum_size = Vector2(150, 142)
-	var tag := _label("SELECTED", 10, PINK, bold_font)
+	button.custom_minimum_size = Vector2(150, 176)
+	var tag := _label("SELECTED", 11, CREAM, bold_font)
 	tag.name = "Tag"
-	tag.position = Vector2(12, 8)
-	tag.size = Vector2(200, 16)
+	tag.position = Vector2(14, 10)
+	tag.size = Vector2(216, 16)
 	tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	button.add_child(tag)
-	var heading := _label(title, 18, CREAM, bold_font)
-	heading.position = Vector2(12, 32)
-	heading.size = Vector2(210, 28)
+	var heading := _label(title, 22, CREAM, title_font)
+	heading.position = Vector2(14, 30)
+	heading.size = Vector2(216, 32)
 	heading.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	button.add_child(heading)
-	var detail := _label(body, 13, MUTED, body_font)
-	detail.position = Vector2(12, 64)
-	detail.size = Vector2(210, 56)
+	var detail := _label(body, 14, MUTED, body_font)
+	detail.position = Vector2(14, 64)
+	detail.size = Vector2(120, 40)
 	detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	detail.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	button.add_child(detail)
+	if show_logo:
+		var mark := _mark_rect()
+		mark.position = Vector2(128, 78)
+		mark.size = Vector2(100, 86)
+		button.add_child(mark)
+	else:
+		var art := Stamp.new()
+		art.kind = stamp_kind
+		art.lit = true
+		art.position = Vector2(142, 86)
+		art.size = Vector2(78, 78)
+		art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		button.add_child(art)
 	return button
 
 
@@ -1354,7 +1398,62 @@ func _title(text: String) -> Label:
 
 
 func _kicker(text: String) -> Label:
-	return _label(text, 12, PINK, bold_font)
+	return _label(text, 12, CREAM, bold_font)
+
+
+func _glyph(text: String, size: int) -> Label:
+	var label := Label.new()
+	label.text = text
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if emoji_font != null:
+		label.add_theme_font_override("font", emoji_font)
+	label.add_theme_font_size_override("font_size", size)
+	label.add_theme_color_override("font_color", CREAM)
+	return label
+
+
+func _chip_row(page: Control, pos: Vector2, captions: PackedStringArray, pick: Callable) -> Array:
+	var chips: Array = []
+	var gap := 8.0
+	var wide := (500.0 - gap * float(captions.size() - 1)) / float(captions.size())
+	for i in captions.size():
+		var button := _button(captions[i], 13)
+		_place(page, button, Vector2(pos.x + float(i) * (wide + gap), pos.y), Vector2(wide, 48))
+		var idx := i
+		button.pressed.connect(func() -> void:
+			_tap()
+			pick.call(idx)
+		)
+		chips.append(button)
+	return chips
+
+
+func _paint_chips(chips: Array, current: int) -> void:
+	for i in chips.size():
+		if not chips[i].visible:
+			continue
+		var on := i == current
+		var fill := PINK_DEEP if on else PLUM
+		var border := Color("#FFE4F6") if on else PINK
+		_paint_button(chips[i], fill, border, CREAM, 14, 4, 2 if on else 1)
+
+
+func _layout_chips(chips: Array, captions: PackedStringArray, pos: Vector2) -> void:
+	var gap := 8.0
+	var count := captions.size()
+	if count <= 0:
+		return
+	var wide := (500.0 - gap * float(count - 1)) / float(count)
+	for i in chips.size():
+		var chip: Button = chips[i]
+		if i < count:
+			chip.visible = true
+			chip.text = captions[i]
+			chip.position = Vector2(pos.x + float(i) * (wide + gap), pos.y)
+			chip.size = Vector2(wide, 48)
+			chip.custom_minimum_size = Vector2(wide, 48)
+		else:
+			chip.visible = false
 
 
 func _wrapped(text: String) -> Label:
@@ -1504,7 +1603,7 @@ func _style_edit(edit: LineEdit) -> void:
 	edit.add_theme_stylebox_override("focus", _flat(PLUM, Color("#ffd0ea"), 2, 14, 14))
 
 
-class Mark extends Control:
+class Stamp extends Control:
 	var kind := "home"
 	var lit := false
 
@@ -1515,54 +1614,114 @@ class Mark extends Control:
 	func _draw() -> void:
 		var box := size
 		if box.x < 2.0:
-			box = Vector2(44, 44)
+			box = Vector2(52, 52)
 		var mid := box * 0.5
+		var r := minf(mid.x, mid.y) - 1.0
 		var pink := Color("#FF3D9A")
-		var chrome := Color("#F4F4FA")
-		var dim := Color(0.72, 0.42, 0.56, 0.95)
-		var ink := chrome if lit else dim
-		draw_circle(mid, mid.x - 1.0, Color(pink.r, pink.g, pink.b, 0.22 if lit else 0.08))
+		var cream := Color("#FFF6FF")
+		var grass := Color("#2E9A4A")
+		var gold := Color("#F5C84B")
+		var ink := Color("#1A0610")
+		draw_circle(mid, r, Color(pink.r, pink.g, pink.b, 0.95 if lit else 0.55))
+		draw_circle(mid, r * 0.86, Color(0.42, 0.04, 0.22, 0.92 if lit else 0.72))
 		if lit:
-			draw_circle(mid, mid.x - 5.0, Color(1.0, 0.28, 0.58, 0.42))
-			draw_arc(mid, mid.x - 2.0, 0.0, TAU, 36, pink, 2.4, true)
-		if kind == "home":
-			var roof := PackedVector2Array([
-				Vector2(mid.x, 6),
-				Vector2(box.x - 6, 18),
-				Vector2(box.x - 12, 18),
-				Vector2(mid.x, 10),
-				Vector2(12, 18),
-				Vector2(6, 18),
-			])
-			draw_colored_polygon(roof, ink)
-			draw_rect(Rect2(12, 18, box.x - 24, 18), ink, true)
-			draw_rect(Rect2(mid.x - 4, 24, 8, 12), Color("#1A0610") if lit else Color(0.12, 0.04, 0.08, 0.85), true)
-		elif kind == "profile":
-			draw_circle(Vector2(mid.x, 14), 7.0, ink)
-			draw_colored_polygon(PackedVector2Array([
-				Vector2(mid.x, 22),
-				Vector2(box.x - 8, 38),
-				Vector2(8, 38),
-			]), ink)
-		elif kind == "customise":
-			draw_circle(mid, 14.0, ink)
-			draw_circle(mid, 9.0, Color("#1A0610") if lit else Color(0.12, 0.04, 0.08, 0.9))
-			draw_circle(mid, 3.2, pink)
-			draw_arc(mid, 14.0, -0.4, 2.2, 16, Color("#FFF6FF") if lit else Color(1, 1, 1, 0.35), 2.4, true)
-		elif kind == "shop":
-			var bag := PackedVector2Array([
-				Vector2(12, 16),
-				Vector2(box.x - 12, 16),
-				Vector2(box.x - 9, 38),
-				Vector2(9, 38),
-			])
-			draw_colored_polygon(bag, ink)
-			draw_arc(Vector2(mid.x, 16), 8.0, PI, TAU, 14, ink, 2.6, true)
-			draw_circle(Vector2(mid.x, 26), 3.0, pink)
-		else:
-			_gear(mid, 13.0, ink)
-			draw_circle(mid, 4.2, Color("#1A0610") if lit else Color(0.12, 0.04, 0.08, 0.9))
-			draw_circle(mid, 2.0, pink)
+			draw_arc(mid, r - 1.2, 0.0, TAU, 40, cream, 2.2, true)
+		match kind:
+			"home":
+				_house(mid, r * 0.62, cream)
+			"profile":
+				_face(mid, r * 0.58, cream, pink)
+			"customise":
+				_bowl(mid, r * 0.58, cream, pink, ink)
+			"shop":
+				_bag(mid, r * 0.58, cream, gold)
+			"settings":
+				_gear(mid, r * 0.52, cream)
+				draw_circle(mid, r * 0.18, ink)
+				draw_circle(mid, r * 0.08, pink)
+			"green", "lawn":
+				_rink(mid, r * 0.7, grass, cream, pink)
+			"solo":
+				_target(mid, r * 0.62, cream, pink, gold)
+			"practice":
+				_jack(mid, r * 0.42, cream, gold)
+			"board":
+				_cup(mid, r * 0.62, gold, cream)
+			"crokin":
+				_board(mid, r * 0.68, cream, pink, gold)
+			_:
+				draw_circle(mid, r * 0.28, cream)
+
+	func _house(mid: Vector2, span: float, color: Color) -> void:
+		draw_colored_polygon(PackedVector2Array([
+			Vector2(mid.x, mid.y - span),
+			Vector2(mid.x + span, mid.y - span * 0.18),
+			Vector2(mid.x - span, mid.y - span * 0.18),
+		]), color)
+		draw_rect(Rect2(mid.x - span * 0.62, mid.y - span * 0.18, span * 1.24, span * 0.92), color, true)
+		draw_rect(Rect2(mid.x - span * 0.14, mid.y + span * 0.08, span * 0.28, span * 0.66), Color("#1A0610"), true)
+
+	func _face(mid: Vector2, span: float, color: Color, pink: Color) -> void:
+		draw_circle(Vector2(mid.x, mid.y - span * 0.38), span * 0.42, color)
+		draw_colored_polygon(PackedVector2Array([
+			Vector2(mid.x, mid.y - span * 0.05),
+			Vector2(mid.x + span * 0.82, mid.y + span * 0.92),
+			Vector2(mid.x - span * 0.82, mid.y + span * 0.92),
+		]), color)
+		draw_circle(Vector2(mid.x, mid.y + span * 0.55), span * 0.16, pink)
+
+	func _bowl(mid: Vector2, span: float, cream: Color, pink: Color, ink: Color) -> void:
+		draw_circle(mid, span, cream)
+		draw_circle(mid, span * 0.72, ink)
+		draw_circle(mid, span * 0.28, pink)
+		draw_arc(mid, span * 0.88, -0.7, 1.1, 12, Color(1, 1, 1, 0.55), 2.4, true)
+
+	func _bag(mid: Vector2, span: float, cream: Color, gold: Color) -> void:
+		draw_colored_polygon(PackedVector2Array([
+			Vector2(mid.x - span * 0.72, mid.y - span * 0.12),
+			Vector2(mid.x + span * 0.72, mid.y - span * 0.12),
+			Vector2(mid.x + span * 0.58, mid.y + span * 0.92),
+			Vector2(mid.x - span * 0.58, mid.y + span * 0.92),
+		]), cream)
+		draw_arc(Vector2(mid.x, mid.y - span * 0.12), span * 0.42, PI, TAU, 14, cream, 3.0, true)
+		draw_circle(mid + Vector2(0, span * 0.28), span * 0.16, gold)
+
+	func _rink(mid: Vector2, span: float, grass: Color, cream: Color, pink: Color) -> void:
+		draw_rect(Rect2(mid.x - span * 0.28, mid.y - span, span * 0.56, span * 2.0), grass, true)
+		draw_rect(Rect2(mid.x - span * 0.22, mid.y - span * 0.86, span * 0.44, span * 1.72), Color("#1F6B34"), true)
+		draw_circle(Vector2(mid.x, mid.y - span * 0.42), span * 0.16, cream)
+		draw_circle(Vector2(mid.x, mid.y + span * 0.38), span * 0.22, pink)
+
+	func _target(mid: Vector2, span: float, cream: Color, pink: Color, gold: Color) -> void:
+		draw_circle(mid, span, cream)
+		draw_circle(mid, span * 0.72, pink)
+		draw_circle(mid, span * 0.46, cream)
+		draw_circle(mid, span * 0.22, gold)
+
+	func _jack(mid: Vector2, span: float, cream: Color, gold: Color) -> void:
+		draw_circle(mid, span, cream)
+		draw_circle(mid, span * 0.62, gold)
+		draw_arc(mid + Vector2(-span * 0.15, -span * 0.55), span * 1.15, -0.2, 1.4, 10, Color("#FF8A3A"), 3.2, true)
+		draw_arc(mid + Vector2(span * 0.2, -span * 0.7), span * 1.05, 1.8, 3.2, 10, Color("#FF5C2A"), 2.6, true)
+
+	func _cup(mid: Vector2, span: float, gold: Color, cream: Color) -> void:
+		draw_colored_polygon(PackedVector2Array([
+			Vector2(mid.x - span * 0.55, mid.y - span * 0.55),
+			Vector2(mid.x + span * 0.55, mid.y - span * 0.55),
+			Vector2(mid.x + span * 0.28, mid.y + span * 0.22),
+			Vector2(mid.x - span * 0.28, mid.y + span * 0.22),
+		]), gold)
+		draw_rect(Rect2(mid.x - span * 0.12, mid.y + span * 0.18, span * 0.24, span * 0.38), gold, true)
+		draw_rect(Rect2(mid.x - span * 0.38, mid.y + span * 0.52, span * 0.76, span * 0.16), cream, true)
+		draw_arc(Vector2(mid.x - span * 0.55, mid.y - span * 0.22), span * 0.32, PI * 0.45, PI * 1.45, 10, gold, 2.6, true)
+		draw_arc(Vector2(mid.x + span * 0.55, mid.y - span * 0.22), span * 0.32, -PI * 0.45, PI * 0.55, 10, gold, 2.6, true)
+
+	func _board(mid: Vector2, span: float, cream: Color, pink: Color, gold: Color) -> void:
+		draw_circle(mid, span, Color("#7A3A18"))
+		draw_circle(mid, span * 0.78, Color("#C4783A"))
+		draw_circle(mid, span * 0.52, cream)
+		draw_circle(mid, span * 0.28, pink)
+		draw_circle(mid, span * 0.12, gold)
 
 	func _gear(mid: Vector2, radius: float, color: Color) -> void:
 		var pts := PackedVector2Array()
