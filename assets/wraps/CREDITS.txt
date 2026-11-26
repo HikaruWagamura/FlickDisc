@@ -1,0 +1,24 @@
+FlickDisc wrap textures
+
+woodland.png, desert.png, urban.png
+  Pixelated Camouflage Set by netzapps
+  License: CC0
+  https://opengameart.org/content/pixelated-camouflage-set
+
+arctic.png, digital.png
+  camo-1024 by FacadeGaikan
+  License: CC0
+  https://opengameart.org/content/camo-1024
+
+marble.png
+  Marble012 by ambientCG
+  License: CC0
+  https://ambientcg.com/view?id=Marble012
+
+metal.png
+  Metal032 by ambientCG
+  License: CC0
+  https://ambientcg.com/view?id=Metal032
+
+carbon.png
+  Generated 2x2 twill carbon fibre for FlickDisc.

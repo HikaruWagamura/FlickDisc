@@ -39,7 +39,7 @@ const PALETTES := [
 
 const SKINS := [
 	{"id": "split", "name": "HALF / HALF", "look": LOOK_SPLIT},
-	{"id": "both", "name": "BOTH SIDES", "look": LOOK_BOTH},
+	{"id": "both", "name": "SOLID", "look": LOOK_BOTH},
 	{"id": "camo", "name": "WOODLAND", "look": LOOK_GRAPHIC},
 	{"id": "arctic", "name": "ARCTIC", "look": LOOK_GRAPHIC},
 	{"id": "desert", "name": "DESERT", "look": LOOK_GRAPHIC},
@@ -47,17 +47,23 @@ const SKINS := [
 	{"id": "urban", "name": "URBAN", "look": LOOK_GRAPHIC},
 	{"id": "carbon", "name": "CARBON", "look": LOOK_GRAPHIC},
 	{"id": "marble", "name": "MARBLE", "look": LOOK_GRAPHIC},
+	{"id": "metal", "name": "METAL", "look": LOOK_GRAPHIC},
 	{"id": "flame", "name": "FLAME", "look": LOOK_GRAPHIC},
 	{"id": "galaxy", "name": "GALAXY", "look": LOOK_GRAPHIC},
-	{"id": "sunset", "name": "SUNSET", "look": LOOK_GRAPHIC},
-	{"id": "royal", "name": "ROYAL", "look": LOOK_GRAPHIC},
-	{"id": "tiger", "name": "TIGER", "look": LOOK_GRAPHIC},
-	{"id": "honeycomb", "name": "HONEYCOMB", "look": LOOK_GRAPHIC},
-	{"id": "checker", "name": "CHECKER", "look": LOOK_GRAPHIC},
-	{"id": "gold", "name": "GOLD LEAF", "look": LOOK_GRAPHIC},
 	{"id": "photo", "name": "PHOTO FACE", "look": LOOK_GRAPHIC_ONE},
 	{"id": "photo_both", "name": "PHOTO WRAP", "look": LOOK_GRAPHIC},
 ]
+
+const WRAPS := {
+	"camo": "res://assets/wraps/woodland.png",
+	"arctic": "res://assets/wraps/arctic.png",
+	"desert": "res://assets/wraps/desert.png",
+	"digital": "res://assets/wraps/digital.png",
+	"urban": "res://assets/wraps/urban.png",
+	"carbon": "res://assets/wraps/carbon.png",
+	"marble": "res://assets/wraps/marble.png",
+	"metal": "res://assets/wraps/metal.png",
+}
 
 static var _graphic_cache := {}
 static var _preview_cache := {}
@@ -106,13 +112,18 @@ static func pack(skin_id: String, color: int) -> Dictionary:
 static func paint_holder(holder: Node3D, kit: Dictionary, opponent: bool = false) -> void:
 	if holder == null:
 		return
-	var mi := _find_mesh(holder)
-	if mi == null:
-		return
-	if opponent:
-		mi.material_override = null
-		return
-	_paint_mesh(mi, kit, false)
+	_paint_tree(holder, kit, opponent)
+
+
+static func _paint_tree(node: Node, kit: Dictionary, opponent: bool) -> void:
+	if node is MeshInstance3D:
+		var mi := node as MeshInstance3D
+		if opponent:
+			mi.material_override = null
+		else:
+			_paint_mesh(mi, kit, false)
+	for child in node.get_children():
+		_paint_tree(child, kit, opponent)
 
 
 static func paint_disc(mi: MeshInstance3D, kit: Dictionary) -> void:
@@ -130,9 +141,14 @@ static func _paint_mesh(mi: MeshInstance3D, kit: Dictionary, for_disc: bool) -> 
 	mat.set_shader_parameter("color_b", pal["b"])
 	mat.set_shader_parameter("look", int(look_info["look"]))
 	mat.set_shader_parameter("seam", 0.08)
-	var graphic := graphic_texture(str(look_info["id"]), pal["a"], pal["b"])
+	var skin_id := str(look_info["id"])
+	var graphic := graphic_texture(skin_id, pal["a"], pal["b"])
 	mat.set_shader_parameter("graphic_tex", graphic)
 	mat.set_shader_parameter("graphic_mix", 1.0)
+	mat.set_shader_parameter("graphic_scale", _wrap_scale(skin_id))
+	if not for_disc:
+		mat.set_shader_parameter("roughness_val", _wrap_roughness(skin_id))
+		mat.set_shader_parameter("metallic_val", _wrap_metal(skin_id))
 	if for_disc:
 		var span := 0.22
 		var face := 0
@@ -153,11 +169,6 @@ static func _paint_mesh(mi: MeshInstance3D, kit: Dictionary, for_disc: bool) -> 
 			span = maxf(span, 0.001)
 		mat.set_shader_parameter("span", span)
 		mat.set_shader_parameter("face", face)
-	else:
-		var grain: Texture2D = load("res://assets/bowls/textures/bowl_color_3.jpg")
-		var normal: Texture2D = load("res://assets/bowls/textures/bowl_normal.jpg")
-		mat.set_shader_parameter("grain_tex", grain)
-		mat.set_shader_parameter("normal_tex", normal)
 	mi.material_override = mat
 
 
@@ -175,41 +186,23 @@ static func disc_colors(kit: Dictionary) -> Dictionary:
 
 
 static func graphic_texture(skin_id: String, color_a: Color, color_b: Color) -> Texture2D:
+	if WRAPS.has(skin_id):
+		var wrap_key := "wrap_%s" % skin_id
+		if _graphic_cache.has(wrap_key):
+			return _graphic_cache[wrap_key]
+		var wrap: Texture2D = load(str(WRAPS[skin_id]))
+		if wrap != null:
+			_graphic_cache[wrap_key] = wrap
+			return wrap
 	var key := "%s_%s_%s" % [skin_id, color_a.to_html(false), color_b.to_html(false)]
 	if _graphic_cache.has(key):
 		return _graphic_cache[key]
 	var image: Image
 	match skin_id:
-		"camo":
-			image = _camo(color_a, Color("#2a3a1c"), Color("#6a5a32"), Color("#c4b48a"))
-		"arctic":
-			image = _camo(Color("#f7fbff"), Color("#c8e6f4"), Color("#8fd0ea"), Color("#dcecff"))
-		"desert":
-			image = _camo(Color("#c4a06a"), Color("#8a6a38"), Color("#e8d2a4"), Color("#5a4020"))
-		"urban":
-			image = _camo(Color("#4a4e56"), Color("#2a2c32"), Color("#8a8e96"), Color("#1a1c20"))
-		"digital":
-			image = _digital(color_a, color_b)
-		"carbon":
-			image = _carbon()
-		"marble":
-			image = _marble(color_b, color_a)
 		"flame":
 			image = _flame(color_a)
 		"galaxy":
 			image = _galaxy()
-		"sunset":
-			image = _sunset(color_a)
-		"royal":
-			image = _royal()
-		"tiger":
-			image = _tiger(color_a)
-		"honeycomb":
-			image = _honeycomb(color_a)
-		"checker":
-			image = _checker(color_a, color_b)
-		"gold":
-			image = _gold()
 		"photo", "photo_both":
 			image = _photo_face()
 		_:
@@ -218,6 +211,38 @@ static func graphic_texture(skin_id: String, color_a: Color, color_b: Color) -> 
 	var tex := ImageTexture.create_from_image(image)
 	_graphic_cache[key] = tex
 	return tex
+
+
+static func _wrap_scale(skin_id: String) -> float:
+	match skin_id:
+		"camo", "arctic", "desert", "urban", "digital":
+			return 2.2
+		"carbon":
+			return 3.4
+		"marble", "metal":
+			return 1.6
+		_:
+			return 1.0
+
+
+static func _wrap_roughness(skin_id: String) -> float:
+	match skin_id:
+		"carbon", "metal":
+			return 0.26
+		"marble":
+			return 0.20
+		_:
+			return 0.42
+
+
+static func _wrap_metal(skin_id: String) -> float:
+	match skin_id:
+		"carbon":
+			return 0.62
+		"metal":
+			return 0.78
+		_:
+			return 0.04
 
 
 static func preview(kit: Dictionary, for_disc: bool) -> Texture2D:

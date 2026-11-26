@@ -104,6 +104,7 @@ var _jack_sit := 0.162
 var _bias_pip: Node3D
 var _stone: Node3D
 var _bowl_index := -1
+var _bowl_sit := BowlScript.DISC_RADIUS + BowlScript.GROUND_CLEAR
 
 
 func _ready() -> void:
@@ -211,7 +212,21 @@ func configure_bowl(index: int, hand: float) -> void:
 	_redress_bowl(index)
 	set_palette(palette_index)
 	_place_pip()
+	seat_visual()
 	bias_changed.emit(bias_ratio)
+
+
+func seat_visual() -> void:
+	_refresh_sit()
+	_apply_visual(0.0)
+	if not is_inside_tree() or _visual == null:
+		return
+	var bottom := visual_bottom()
+	# Nest a few millimetres so a round bowl reads as planted, not hovering.
+	var ground := global_position.y - 0.022
+	if is_finite(bottom) and absf(bottom - ground) > 0.003:
+		_bowl_sit += ground - bottom
+		_apply_visual(0.0)
 
 
 func set_hand(hand: float) -> void:
@@ -802,8 +817,7 @@ func _apply_visual(_speed: float) -> void:
 			_visual.visible = true
 		if _jack_visual != null:
 			_jack_visual.visible = false
-		var sit := BowlScript.DISC_RADIUS - BowlScript.SIT_NEST + BowlScript.GROUND_CLEAR
-		_visual.position = Vector3(0.0, sit, 0.0)
+		_visual.position = Vector3(0.0, _bowl_sit, 0.0)
 		# Keep the parent still. Roll lives only on _spin, so the painted
 		# centre line turns like a wheel instead of wandering.
 		_visual.basis = Basis.IDENTITY
@@ -955,6 +969,8 @@ func _build_visual() -> void:
 	_stone = dressed["weight"]
 	_paint_club_bowl()
 	_place_pip()
+	_refresh_sit()
+	_apply_visual(0.0)
 
 	_jack_visual = Node3D.new()
 	_jack_visual.visible = false
@@ -1008,6 +1024,11 @@ func _redress_bowl(index: int) -> void:
 	_bias_pip = dressed["weight"]
 	_stone = dressed["weight"]
 	_paint_club_bowl()
+	_refresh_sit()
+
+
+func _refresh_sit() -> void:
+	_bowl_sit = BowlScript.sit_from_holder(_stone)
 
 
 func _paint_club_bowl() -> void:
@@ -1016,6 +1037,7 @@ func _paint_club_bowl() -> void:
 	var holder := _spin.get_node_or_null("ClubBowl") if _spin != null else null
 	if holder is Node3D:
 		Kit.paint_holder(holder, Kit.from_meta(get_tree()), false)
+		_refresh_sit()
 
 
 func _place_pip() -> void:

@@ -1925,32 +1925,39 @@ func _kitshot() -> void:
 		disc.set_palette(0)
 		disc.global_position = Vector3(0.0, 0.0, line_z)
 		disc.start_position = disc.global_position
+		disc.seat_visual()
 		if disc._spin != null:
-			disc._spin.rotation = Vector3(0.0, 0.85, 0.0)
+			disc._spin.rotation = Vector3(0.0, 2.28, 0.0)
 	if ui != null:
 		ui.visible = false
 	if gesture != null:
 		gesture.busy()
 	var cam: Camera3D = rink.view_camera() if rink != null else null
 	if cam != null and disc != null:
-		var at: Vector3 = disc.global_position + Vector3(0.0, 0.08, 0.0)
-		cam.fov = 34.0
-		cam.position = at + Vector3(0.62, 0.38, 0.95)
+		var lift := 0.14
+		if disc._visual != null:
+			lift = maxf(disc._visual.position.y, 0.12)
+		var at: Vector3 = disc.global_position + Vector3(0.0, lift * 0.45, 0.0)
+		cam.fov = 38.0
+		cam.position = at + Vector3(0.48, 0.38, 1.18)
 		cam.look_at(at, Vector3.UP)
 	var looks := [
-		{"file": "kit_bowl_split", "skin": "split", "color": 1},
-		{"file": "kit_bowl_both", "skin": "both", "color": 0},
+		{"file": "kit_bowl_red", "skin": "split", "color": 1},
+		{"file": "kit_bowl_blue", "skin": "split", "color": 11},
 		{"file": "kit_bowl_camo", "skin": "camo", "color": 6},
 		{"file": "kit_bowl_arctic", "skin": "arctic", "color": 8},
+		{"file": "kit_bowl_desert", "skin": "desert", "color": 16},
+		{"file": "kit_bowl_digital", "skin": "digital", "color": 6},
 		{"file": "kit_bowl_carbon", "skin": "carbon", "color": 21},
-		{"file": "kit_bowl_sunset", "skin": "sunset", "color": 0},
-		{"file": "kit_bowl_photo", "skin": "photo", "color": 1},
+		{"file": "kit_bowl_marble", "skin": "marble", "color": 17},
+		{"file": "kit_bowl_metal", "skin": "metal", "color": 20},
 	]
 	for look in looks:
 		_apply_test_kit(str(look["skin"]), int(look["color"]))
 		await get_tree().process_frame
 		await get_tree().process_frame
 		await RenderingServer.frame_post_draw
+		await get_tree().create_timer(0.55).timeout
 		await _dump_compare_shot(str(look["file"]))
 	print("KITSHOT done")
 	get_tree().quit(0)
@@ -1966,8 +1973,9 @@ func _apply_test_kit(skin_id: String, color: int) -> void:
 	get_tree().root.set_meta("flickdisc_kit", kit)
 	if disc != null:
 		disc.set_palette(0)
+		disc.seat_visual()
 		if disc._spin != null:
-			disc._spin.rotation = Vector3(0.0, 0.85, 0.0)
+			disc._spin.rotation = Vector3(0.0, 2.28, 0.0)
 	for bowl in rack:
 		bowl.paint(0, hand_sign)
 
