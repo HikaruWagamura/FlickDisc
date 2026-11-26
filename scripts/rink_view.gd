@@ -665,8 +665,7 @@ func _build_head() -> void:
 	_ring(head, 1.32, 1.16, white)
 	_ring(head, 1.02, 0.84, blue)
 	_ring(head, 0.70, 0.48, red)
-	# The gold ring marks where the jack was delivered. The jack itself is a
-	# live bowl and can be knocked off this mark.
+	# The rings sit on the live jack, so a knock moves the head with it.
 	_ring(head, 0.34, 0.29, _gold)
 
 

@@ -16,7 +16,7 @@ const MIN_SPEED := 6.0
 const CRUISE_SPEED := 11.0
 const FIRE_SPEED := 13.7
 const MAX_SPEED := FIRE_SPEED
-const AIM_RESPONSE := 5.2
+const AIM_RESPONSE := 10.5
 const DIAL_POWER_PIXELS := 148.0
 const DIAL_SIDE_PIXELS := 132.0
 const LINE_LOCK_PIXELS := 36.0
@@ -26,10 +26,15 @@ const DECEL := 2.32
 const STOP_SPEED := 0.15
 const STOP_GRACE_SECONDS := 0.15
 const BANK_KEEP := 0.40
-## Radians of turn per metre at bias 1. The hand tightens as the bowl slows,
-## and a straight delivery still finishes wide of the line.
-const CURL_PER_METRE := 0.0036
-const CURL_DRAW := 1.22
+## Radians of turn per metre at bias 1. Medium bowls keep a gentle draw.
+## Wide and hook steal the last metres into a sideways tail-off.
+const CURL_PER_METRE := 0.0038
+const CURL_DRAW := 1.35
+const TAIL_FROM := 0.85
+const TAIL_SPEED := 5.5
+const TAIL_TURN := 6.0
+const TAIL_KILL := 14.0
+const TAIL_MAX := PI * 0.5
 const DITCH_FLOOR_Y := -0.23
 const RUNUP_MAX := 1.8
 const PICK_RADIUS_PX := 88.0
@@ -58,6 +63,7 @@ var pace_scale := 1.0
 var drag := DECEL
 var in_ditch := false
 var bowl_bias := 0.95
+var bowl_finish := 0.0
 var hand_sign := -1.0
 var line_side := 0.0
 var _line_locked := false
@@ -67,6 +73,7 @@ var spin_angle := 0.0
 var roll_basis := Basis.IDENTITY
 var rest_lean := 0.0
 var travel_facing := Vector3(0.0, 0.0, -1.0)
+var shot_axis := Vector2(0.0, -1.0)
 var punch := 0.0
 var palette_index := 0
 var obstacles: Array = []
@@ -165,6 +172,7 @@ func _mesh_bottom(node: Node) -> float:
 func configure_jack() -> void:
 	delivering_jack = true
 	bowl_bias = 0.0
+	bowl_finish = 0.0
 	bias_ratio = 0.0
 	radius = BowlScript.JACK_RADIUS
 	mass = BowlScript.JACK_MASS
@@ -182,6 +190,7 @@ func configure_bowl(index: int, hand: float) -> void:
 	hand_sign = hand
 	var info: Dictionary = BowlScript.bowl_type(index)
 	bowl_bias = float(info["bias"])
+	bowl_finish = float(info.get("finish", 0.0))
 	bias_ratio = hand_sign * bowl_bias
 	radius = DISC_RADIUS
 	mass = BowlScript.DISC_MASS
@@ -309,6 +318,8 @@ func launch() -> void:
 	shot_power = power_ratio
 	shot_bias = 0.0 if delivering_jack else bias_ratio
 	velocity = _delivery_velocity(aim_direction, shot_power)
+	var axis := Vector2(aim_direction.x, aim_direction.z)
+	shot_axis = axis.normalized() if axis.length() > 0.001 else Vector2(0.0, -1.0)
 	shot_in_progress = true
 	stop_timer = 0.0
 	shot_started.emit()
@@ -354,6 +365,7 @@ func reset_to_start() -> void:
 	roll_basis = Basis.IDENTITY
 	rest_lean = 0.0
 	travel_facing = Vector3(0.0, 0.0, -1.0)
+	shot_axis = Vector2(0.0, -1.0)
 	punch = 0.0
 	visible = true
 	_hide_guide()
@@ -381,7 +393,7 @@ func _advance(body, delta: float, use_shot_bias: bool) -> void:
 	var bias := shot_bias if use_shot_bias else 0.0
 	var length_power := shot_power if use_shot_bias else 0.0
 	var before_pos: Vector3 = body.global_position
-	var moved := _move_planar(body.global_position, body.velocity, body.radius, bias, use_shot_bias, delta, length_power)
+	var moved := _move_planar(body.global_position, body.velocity, body.radius, bias, use_shot_bias, delta, length_power, shot_axis)
 	var fell: bool = moved[3]
 	if fell:
 		body.in_ditch = true
@@ -486,8 +498,8 @@ func _punch(body, amount: float) -> void:
 		body.add_punch(amount)
 
 
-func _move_planar(pos: Vector3, vel: Vector3, body_radius: float, bias: float, use_bias: bool, delta: float, _length_power: float = 0.0) -> Array:
-	vel = _damp(vel, bias if use_bias else 0.0, delta)
+func _move_planar(pos: Vector3, vel: Vector3, body_radius: float, bias: float, use_bias: bool, delta: float, _length_power: float = 0.0, axis: Vector2 = Vector2.ZERO) -> Array:
+	vel = _damp(vel, bias if use_bias else 0.0, delta, axis)
 	var before := vel
 	pos += vel * delta
 	pos.y = 0.0
@@ -588,10 +600,15 @@ func weight_for_length(metres: float, bias: float) -> float:
 func predict_rest(from: Vector3, aim: Vector3, power: float, bias: float) -> Vector3:
 	var pos := from
 	var vel := _delivery_velocity(aim, power)
+	var axis := Vector2(aim.x, aim.z)
+	if axis.length() < 0.001:
+		axis = Vector2(0.0, -1.0)
+	else:
+		axis = axis.normalized()
 	var step := 0.05 if pace_scale < 1.2 else 0.08
 	var limit := 480 if pace_scale < 1.2 else 800
 	for _i in limit:
-		var moved := _move_planar(pos, vel, radius, bias, true, step, power)
+		var moved := _move_planar(pos, vel, radius, bias, true, step, power, axis)
 		pos = moved[0]
 		vel = moved[1]
 		if bool(moved[3]) or vel.length() < STOP_SPEED:
@@ -606,9 +623,14 @@ func _forward_travel(power: float, bias: float) -> float:
 func will_ditch(from: Vector3, aim: Vector3, power: float, bias: float) -> bool:
 	var pos := from
 	var vel := _delivery_velocity(aim, power)
+	var axis := Vector2(aim.x, aim.z)
+	if axis.length() < 0.001:
+		axis = Vector2(0.0, -1.0)
+	else:
+		axis = axis.normalized()
 	var step := 0.05
 	for _i in 480:
-		var moved := _move_planar(pos, vel, radius, bias, true, step, power)
+		var moved := _move_planar(pos, vel, radius, bias, true, step, power, axis)
 		pos = moved[0]
 		vel = moved[1]
 		if bool(moved[3]):
@@ -618,11 +640,28 @@ func will_ditch(from: Vector3, aim: Vector3, power: float, bias: float) -> bool:
 	return false
 
 
-func _damp(vel: Vector3, bias: float, delta: float) -> Vector3:
+func _finish_amount(bias: float) -> float:
+	if absf(absf(bias) - bowl_bias) < 0.05:
+		return bowl_finish
+	var amount := absf(bias)
+	if amount < 0.62:
+		return 0.0
+	if amount < 1.05:
+		return 0.90
+	if amount < 1.65:
+		return 0.55
+	return 1.30
+
+
+func _damp(vel: Vector3, bias: float, delta: float, axis: Vector2 = Vector2.ZERO) -> Vector3:
 	var planar := Vector2(vel.x, vel.z)
 	var speed := planar.length()
 	if speed < 0.001:
 		return Vector3.ZERO
+	if axis.length() < 0.001:
+		axis = Vector2(0.0, -1.0)
+	else:
+		axis = axis.normalized()
 	if absf(bias) > 0.001:
 		var slow := clampf(1.0 - speed / (MAX_SPEED * pace_scale), 0.0, 1.0)
 		var curve := CURL_PER_METRE * (1.0 + CURL_DRAW * slow * slow)
@@ -632,10 +671,31 @@ func _damp(vel: Vector3, bias: float, delta: float) -> Vector3:
 		var hand := 1.0 if pace_scale < 1.2 else 0.075
 		planar = planar.rotated(bias * curve * hand * speed * delta)
 		speed = planar.length()
+		# Finish is the late cut. Width (bias) is how far it sits off the
+		# line; a Blaze can be mid-width and still fall away sideways.
+		var extra := _finish_amount(bias)
+		var tail_at := TAIL_SPEED * pace_scale
+		if extra > 0.01 and speed < tail_at:
+			var u := clampf(1.0 - speed / tail_at, 0.0, 1.0)
+			var perp := Vector2(-axis.y, axis.x)
+			var along := planar.dot(axis)
+			var side := planar.dot(perp)
+			var heading := atan2(side, along)
+			var turn := signf(bias) * extra * TAIL_TURN * u * u * u * delta
+			if absf(heading + turn) > TAIL_MAX:
+				turn = signf(turn) * maxf(0.0, TAIL_MAX - absf(heading))
+			planar = planar.rotated(turn)
+			along = planar.dot(axis)
+			side = planar.dot(perp)
+			if along > 0.0:
+				along = maxf(0.0, along - extra * TAIL_KILL * u * u * delta)
+			planar = axis * along + perp * side
+			speed = planar.length()
 	var next := speed - drag * delta
 	if next <= STOP_SPEED:
 		return Vector3.ZERO
-	planar = planar / speed * next
+	if speed > 0.001:
+		planar = planar / speed * next
 	return Vector3(planar.x, 0.0, planar.y)
 
 
@@ -646,7 +706,7 @@ func _lean_angle(speed: float) -> float:
 	if not shot_in_progress:
 		return rest_lean
 	var slow := clampf(1.0 - speed / MAX_SPEED, 0.0, 1.0)
-	var into := clampf(absf(shot_bias) / 1.45, 0.0, 1.0)
+	var into := clampf(absf(shot_bias) / 2.25, 0.0, 1.0)
 	# A quiet tip onto the bias, no rock. The path already draws.
 	var lean := -signf(shot_bias) * into * lerpf(0.0, 0.045, slow * slow)
 	rest_lean = lean
@@ -758,13 +818,12 @@ func guide_points() -> PackedVector3Array:
 
 
 func grass_cue(power: float) -> PackedVector3Array:
-	# A short block on the green, from under the bowl. The jack
-	# stays straight. A bowl takes the hand of its bias.
+	# Keep the 5+3 short, but stamp the full draw onto it so the heads
+	# snake. Forehand finishes right-to-left; backhand left-to-right.
 	var flat := Vector3(aim_direction.x, 0.0, aim_direction.z)
 	if flat.length() < 0.001:
 		flat = Vector3(0.0, 0.0, -1.0)
 	flat = flat.normalized()
-	# From the bowl centre, on the grass, toward where the bowl will run.
 	var start := Vector3(global_position.x, 0.0, global_position.z)
 	var want := lerpf(2.55, 3.45, clampf(power, 0.0, 1.0))
 	var out := PackedVector3Array()
@@ -777,25 +836,56 @@ func grass_cue(power: float) -> PackedVector3Array:
 			out.append(point)
 		return out
 	var pos := global_position
-	var vel := _delivery_velocity(aim_direction, clampf(maxf(power, 0.18), 0.0, 1.0))
+	var pace := clampf(maxf(power, 0.22), 0.0, 1.0)
+	var vel := _delivery_velocity(aim_direction, pace)
+	var raw := PackedVector3Array()
+	raw.append(start)
 	var travelled := 0.0
 	var bias := bias_ratio
-	out.append(start)
-	var step := 0.04
-	for _i in 180:
+	var axis := Vector2(flat.x, flat.z)
+	var step := 0.07
+	for _i in 240:
 		var prev := pos
-		var moved := _move_planar(pos, vel, radius, bias, true, step, power)
+		var moved := _move_planar(pos, vel, radius, bias, true, step, pace, axis)
 		pos = moved[0]
 		vel = moved[1]
 		travelled += prev.distance_to(pos)
 		var point := Vector3(pos.x, 0.0, pos.z)
-		if out[out.size() - 1].distance_to(point) >= 0.07:
-			out.append(point)
-		if travelled >= want or bool(moved[3]) or vel.length() < STOP_SPEED:
+		if raw[raw.size() - 1].distance_to(point) >= 0.16:
+			raw.append(point)
+		if travelled >= 26.0 or bool(moved[3]) or vel.length() < STOP_SPEED:
 			break
-	if out.size() < 2:
-		out.append(start + flat * want)
+	if raw.size() < 3 or travelled < 1.2:
+		for i in 28:
+			var t := float(i) / 27.0
+			out.append(start + flat * (want * t))
+		return out
+	var perp := Vector2(-axis.y, axis.x)
+	var dists := PackedFloat32Array()
+	dists.append(0.0)
+	for i in range(1, raw.size()):
+		dists.append(dists[i - 1] + raw[i].distance_to(raw[i - 1]))
+	var total: float = maxf(dists[dists.size() - 1], 0.001)
+	var bend := 1.7
+	for s in 28:
+		var t := float(s) / 27.0
+		var sample := _sample_path(raw, dists, t * total)
+		var offset := Vector2(sample.x - start.x, sample.z - start.z)
+		var side := offset.dot(perp) * (want / total) * bend
+		out.append(start + flat * (want * t) + Vector3(perp.x, 0.0, perp.y) * side)
 	return out
+
+
+func _sample_path(points: PackedVector3Array, dists: PackedFloat32Array, at: float) -> Vector3:
+	if points.size() == 1:
+		return points[0]
+	var target := clampf(at, 0.0, dists[dists.size() - 1])
+	for i in range(1, points.size()):
+		if dists[i] >= target:
+			var span := maxf(dists[i] - dists[i - 1], 0.0001)
+			var u := clampf((target - dists[i - 1]) / span, 0.0, 1.0)
+			return points[i - 1].lerp(points[i], u)
+	return points[points.size() - 1]
 
 
 func _update_guide() -> void:

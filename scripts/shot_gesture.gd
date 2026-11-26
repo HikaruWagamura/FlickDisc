@@ -21,13 +21,13 @@ var finger := Vector2.ZERO
 var _raw_aim := Vector3(0.0, 0.0, -1.0)
 var _raw_power := 0.0
 var _raw_hold := Vector3.ZERO
-const DIRECT_METRES := 0.88
-const DIRECT_PULL_PX := 540.0
-const DIRECT_SIDE_PX := 310.0
-const DIRECT_AIM_X := 0.24
-const AIM_SMOOTH := 9.0
-const POWER_SMOOTH := 11.0
-const HOLD_SMOOTH := 10.0
+const DIRECT_METRES := 0.62
+const DIRECT_PULL_PX := 155.0
+const DIRECT_SIDE_PX := 145.0
+const DIRECT_AIM_X := 0.34
+const AIM_SMOOTH := 16.0
+const POWER_SMOOTH := 16.0
+const HOLD_SMOOTH := 14.0
 
 const TakeScript := preload("res://scripts/shot_take.gd")
 
@@ -302,7 +302,7 @@ func _apply_direct(screen: Vector2) -> void:
 	finger = screen
 	_travel = maxf(_travel, _from.distance_to(screen))
 	# The green in front of the camera never reaches behind the mat, so the
-	# pull is the finger's own travel. A full draw is a long, fine drag.
+	# pull is the finger's own travel. Full weight is a short on-screen drag.
 	var pull_px := maxf(_pull_pixels(_from, screen), 0.0)
 	var side_px := _side_pixels(_from, screen)
 	if pull_px < 10.0 and absf(side_px) < 6.0:
@@ -312,14 +312,13 @@ func _apply_direct(screen: Vector2) -> void:
 		return
 	var travel := clampf(pull_px / DIRECT_PULL_PX, 0.0, 1.0)
 	var back := travel * DIRECT_METRES
-	# Aim is only the sideways finger. Coupling it to pull distance made the
-	# line jump as weight changed, so micro-adjusts felt jolty.
-	var side := 0.0
+	# Slingshot: pull bottom-left, send top-right. Finger left is +side_px.
+	var nudge := 0.0
 	if absf(side_px) > 4.0:
-		side = clampf(-side_px / DIRECT_SIDE_PX, -1.0, 1.0)
-	_raw_aim = Vector3(side * DIRECT_AIM_X, 0.0, -1.0).normalized()
-	_raw_power = pow(travel, 0.92)
-	_raw_hold = anchor + Vector3(side * travel * 0.06, 0.0, back)
+		nudge = clampf(side_px / DIRECT_SIDE_PX, -1.0, 1.0)
+	_raw_aim = Vector3(nudge * DIRECT_AIM_X, 0.0, -1.0).normalized()
+	_raw_power = pow(travel, 0.58)
+	_raw_hold = anchor + Vector3(-nudge * travel * 0.10, 0.0, back)
 
 
 func _is_mouse_press(event: InputEvent) -> bool:

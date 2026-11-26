@@ -148,6 +148,10 @@ func _ready() -> void:
 		call_deferred("_handtest")
 	elif OS.get_cmdline_user_args().has("--fixtest"):
 		call_deferred("_fixtest")
+	elif OS.get_cmdline_user_args().has("--pulltest"):
+		call_deferred("_pulltest")
+	elif OS.get_cmdline_user_args().has("--drawtest"):
+		call_deferred("_drawtest")
 
 
 func _process(delta: float) -> void:
@@ -165,6 +169,7 @@ func _process(delta: float) -> void:
 		var mat := Vector3(place_x, 0.0, line_z)
 		var head_at: Vector3 = jack.global_position if jack != null and jack.visible else disc.global_position
 		rink.note_delivery(disc.global_position, disc.velocity, disc.shot_in_progress, mat, head_at, disc.is_aiming)
+		_sync_head_rings()
 
 
 func _lock_portrait_on_device() -> void:
@@ -746,11 +751,14 @@ func _finish_jack(rest_pos: Vector3) -> void:
 		_begin_ready()
 		return
 	delivering_jack = false
-	jack_length = travelled
-	jack_home = Vector3(rest_pos.x, 0.0, rest_pos.z)
+	# The jack only sets the length. Any offline roll is pulled back
+	# onto the centre line before the first bowl.
+	var centred := Vector3(0.0, 0.0, rest_pos.z)
+	jack_length = _distance(centred, disc.start_position)
+	jack_home = centred
 	jack.rest_at(jack_home)
 	jack.visible = true
-	rink.place_head(Vector2(rest_pos.x, rest_pos.z))
+	rink.place_head(Vector2(centred.x, centred.z))
 	disc.configure_bowl(bias_index, hand_sign)
 	disc.set_palette(throw_index % 2)
 	disc.reset_to_start()
@@ -758,7 +766,7 @@ func _finish_jack(rest_pos: Vector3) -> void:
 	ui.show_bias(bias_index, _side())
 	ui.show_hand(hand_sign < 0.0, _bowl_name(bias_index))
 	_place_rack()
-	ui.show_jack_set(travelled, _bowl_name(bias_index), _side_name(0))
+	ui.show_jack_set(jack_length, _bowl_name(bias_index), _side_name(0))
 	_begin_ready()
 
 
@@ -836,6 +844,12 @@ func _check_draw(distance: float, ditched: bool) -> void:
 		goal_cleared.emit()
 
 
+func _sync_head_rings() -> void:
+	if rink == null or jack == null or not jack.visible or delivering_jack:
+		return
+	rink.place_head(Vector2(jack.global_position.x, jack.global_position.z))
+
+
 func _bowl_name(index: int) -> String:
 	return str(BowlScript.bowl_type(index)["name"])
 
@@ -874,11 +888,12 @@ func _play_computer(token: int) -> void:
 	place_x = from.x
 	disc.start_position = from
 	var along := maxf(from.z - jack_at.z, 8.0)
-	var miss := 0.24
+	# Close enough to look like bowling, loose enough to leave a shot.
+	var miss := 0.52
 	if difficulty == 0:
-		miss = 0.48
+		miss = 0.92
 	elif difficulty >= 2:
-		miss = 0.11
+		miss = 0.26
 	var best_aim := Vector3(0.0, 0.0, -1.0)
 	var best_power := 0.55
 	var best_hand := -1.0
@@ -887,10 +902,10 @@ func _play_computer(token: int) -> void:
 		disc.configure_bowl(bias_index, hand)
 		var bias: float = disc.bias_ratio
 		var weight: float = disc.weight_for_length(along, bias)
-		for p_off in [-0.03, 0.0, 0.04]:
-			var power: float = clampf(weight + p_off, 0.22, 0.92)
-			for sample in 13:
-				var line := (float(sample) - 6.0) * 0.32
+		for p_off in [-0.04, 0.0, 0.05]:
+			var power: float = clampf(weight + p_off, 0.22, 0.90)
+			for sample in 7:
+				var line := (float(sample) - 3.0) * 0.48
 				var aim := Vector3(line, 0.0, -along).normalized()
 				var rest: Vector3 = disc.predict_rest(from, aim, power, bias)
 				var err := Vector2(rest.x, rest.z).distance_to(Vector2(jack_at.x, jack_at.z))
@@ -904,9 +919,11 @@ func _play_computer(token: int) -> void:
 	disc.configure_bowl(bias_index, best_hand)
 	disc.set_palette(1)
 	hand_sign = disc.hand_sign
-	var noise := miss * 0.045
-	best_aim = (best_aim + Vector3(randf_range(-noise, noise), 0.0, 0.0)).normalized()
-	best_power = clampf(best_power + randf_range(-miss, miss) * 0.035, 0.22, 0.92)
+	var scatter := miss * randf_range(0.55, 1.15)
+	var side_miss := randf_range(-scatter, scatter)
+	var long_miss := randf_range(-scatter * 0.55, scatter * 0.85)
+	best_aim = Vector3(best_aim.x + side_miss / along, 0.0, best_aim.z).normalized()
+	best_power = clampf(best_power + long_miss * 0.016, 0.22, 0.90)
 	ui.show_hand(best_hand < 0.0, _bowl_name(bias_index))
 	disc.fire_taken(best_aim, best_power)
 
@@ -1323,17 +1340,19 @@ func _fixtest() -> void:
 			var rest: Vector3 = disc.predict_rest(from, aim, power, bias)
 			best = minf(best, Vector2(rest.x, rest.z).distance_to(Vector2(jack_at.x, jack_at.z)))
 	print("FIXTEST ai_draw=%.2f chase=%s cam=%s" % [best, rink.chase, ui.camera_button.text])
-	for bias in [0.0, 0.85, 1.45]:
+	for bias in [0.0, 0.78, 1.28, 1.72]:
 		for power in [0.55, 0.70, 0.85, 1.0]:
 			var rest: Vector3 = disc.predict_rest(from, Vector3(0.0, 0.0, -1.0), power, bias)
 			var along_m := from.z - rest.z
 			print("FIXTEST reach bias=%.2f power=%.2f along=%.1f x=%.2f" % [bias, power, along_m, rest.x])
-	print("FIXTEST weight23 medium=%.2f hook=%.2f" % [disc.weight_for_length(23.0, 0.85), disc.weight_for_length(23.0, 1.45)])
+	print("FIXTEST weight23 blaze=%.2f classic=%.2f" % [disc.weight_for_length(23.0, 0.78), disc.weight_for_length(23.0, 1.72)])
 	var peak := 0.0
 	var pos := from
 	var vel: Vector3 = disc._delivery_velocity(Vector3(0.0, 0.0, -1.0), 1.0)
+	var axis := Vector2(0.0, -1.0)
+	disc.configure_bowl(3, -1.0)
 	for _s in 400:
-		var moved: Array = disc._move_planar(pos, vel, disc.radius, 1.45, true, 0.05, 1.0)
+		var moved: Array = disc._move_planar(pos, vel, disc.radius, disc.bias_ratio, true, 0.05, 1.0, axis)
 		pos = moved[0]
 		vel = moved[1]
 		peak = maxf(peak, absf(pos.x))
@@ -1370,12 +1389,212 @@ func _fixtest() -> void:
 			await _dump_compare_shot("fix_bowl_roll_b")
 	ui.show_bowl_controls(true)
 	ui.show_bias(1, 0)
-	ui.show_hand(true, "MEDIUM")
+	ui.show_hand(true, "BLAZE")
 	await _dump_compare_shot("fix_hand_fore")
 	disc.set_hand(1.0)
-	ui.show_hand(false, "MEDIUM")
+	ui.show_hand(false, "BLAZE")
 	await _dump_compare_shot("fix_hand_back")
 	print("FIXTEST done")
+	get_tree().quit(0)
+
+
+func _pull_snap(screen: Vector2) -> void:
+	if gesture == null:
+		return
+	gesture._from = Vector2(270.0, 620.0)
+	gesture._apply_direct(screen)
+	gesture.direct_aim = gesture._raw_aim
+	gesture.direct_power = gesture._raw_power
+	gesture.direct_hold = gesture._raw_hold
+
+
+func _pulltest() -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+	delivering_jack = false
+	disc.configure_bowl(1, -1.0)
+	disc.set_palette(0)
+	disc.reset_to_start()
+	if gesture != null:
+		gesture.arm()
+		gesture.direct = true
+		gesture.phase = "pull"
+		gesture.anchor = disc.start_position
+		gesture.direct_hold = disc.start_position
+		gesture._raw_hold = disc.start_position
+	_pull_snap(Vector2(270.0, 700.0))
+	for _i in 4:
+		await get_tree().process_frame
+	print("PULLTEST modest 80px power=%.2f" % [gesture.direct_power if gesture != null else 0.0])
+	_set_compare_banner("SHORT PULL • ON SCREEN")
+	await _dump_compare_shot("pull_modest")
+	_pull_snap(Vector2(150.0, 840.0))
+	for _i in 4:
+		await get_tree().process_frame
+	print("PULLTEST left aim_x=%.3f power=%.2f" % [gesture.direct_aim.x if gesture != null else 0.0, gesture.direct_power if gesture != null else 0.0])
+	_set_compare_banner("PULL BOTTOM LEFT • AIM RIGHT")
+	await _dump_compare_shot("pull_bottom_left")
+	_pull_snap(Vector2(390.0, 840.0))
+	for _i in 4:
+		await get_tree().process_frame
+	print("PULLTEST right aim_x=%.3f power=%.2f" % [gesture.direct_aim.x if gesture != null else 0.0, gesture.direct_power if gesture != null else 0.0])
+	_set_compare_banner("PULL BOTTOM RIGHT • AIM LEFT")
+	await _dump_compare_shot("pull_bottom_right")
+	_pull_snap(Vector2(270.0, 840.0))
+	for _i in 4:
+		await get_tree().process_frame
+	print("PULLTEST straight 220px power=%.2f" % [gesture.direct_power if gesture != null else 0.0])
+	_set_compare_banner("FULL POWER ON SCREEN")
+	await _dump_compare_shot("pull_straight_full")
+	DirAccess.make_dir_recursive_absolute("/tmp/pull_anim")
+	var frames := 0
+	for i in 20:
+		var t := float(i) / 19.0
+		_pull_snap(Vector2(270.0, 620.0).lerp(Vector2(150.0, 840.0), t))
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		var tex: Texture2D = get_viewport().get_texture()
+		if tex != null:
+			var img := tex.get_image()
+			if img != null:
+				img.save_png("/tmp/pull_anim/%03d.png" % frames)
+				frames += 1
+	for i in 16:
+		var t := float(i) / 15.0
+		_pull_snap(Vector2(150.0, 840.0).lerp(Vector2(390.0, 840.0), t))
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		var tex: Texture2D = get_viewport().get_texture()
+		if tex != null:
+			var img := tex.get_image()
+			if img != null:
+				img.save_png("/tmp/pull_anim/%03d.png" % frames)
+				frames += 1
+	print("PULLTEST frames=%d" % frames)
+	print("PULLTEST done")
+	get_tree().quit(0)
+
+
+func _drawtest() -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+	delivering_jack = false
+	var from := Vector3(0.0, 0.0, line_z)
+	disc.start_position = from
+	disc.reset_to_start()
+	for index in 4:
+		disc.configure_bowl(index, -1.0)
+		var bias: float = disc.bias_ratio
+		var power: float = disc.weight_for_length(23.0, bias)
+		var rest: Vector3 = disc.predict_rest(from, Vector3(0.0, 0.0, -1.0), power, bias)
+		print("DRAWTEST %s bias=%.2f power=%.2f rest_x=%.2f along=%.1f" % [_bowl_name(index), bias, power, rest.x, from.z - rest.z])
+		if gesture != null:
+			gesture.arm()
+			gesture.direct = true
+			gesture.phase = "pull"
+			gesture.anchor = from
+			gesture._from = Vector2(270.0, 620.0)
+			_pull_snap(Vector2(270.0, 780.0))
+		_compare_aim = Vector3(0.18, 0.0, -1.0).normalized()
+		_compare_power = 0.82
+		_cue_compare = true
+		ui.show_hand(true, _bowl_name(index))
+		_set_compare_banner("%s  •  DRAW" % _bowl_name(index))
+		_sync_compare_cue()
+		await get_tree().create_timer(0.35).timeout
+		await _dump_compare_shot("draw_cue_%s" % _bowl_name(index).to_lower())
+	disc.configure_bowl(3, 1.0)
+	_compare_aim = Vector3(-0.18, 0.0, -1.0).normalized()
+	_compare_power = 0.82
+	_cue_compare = true
+	ui.show_hand(false, "CLASSIC")
+	_set_compare_banner("CLASSIC  •  BACKHAND")
+	_sync_compare_cue()
+	await get_tree().create_timer(0.35).timeout
+	await _dump_compare_shot("draw_cue_classic_back")
+	_cue_compare = false
+	for index in 4:
+		disc.configure_bowl(index, -1.0)
+		var bias: float = disc.bias_ratio
+		var power: float = disc.weight_for_length(23.0, bias)
+		var pos := from
+		var vel: Vector3 = disc._delivery_velocity(Vector3(0.0, 0.0, -1.0), power)
+		var axis := Vector2(0.0, -1.0)
+		var path: Array[Vector3] = []
+		for _s in 500:
+			var moved: Array = disc._move_planar(pos, vel, disc.radius, bias, true, 0.04, power, axis)
+			pos = moved[0]
+			vel = moved[1]
+			path.append(pos)
+			if bool(moved[3]) or vel.length() < 0.15:
+				break
+		var travelled := 0.0
+		var i := path.size() - 1
+		while i > 0 and travelled < 0.6:
+			travelled += path[i].distance_to(path[i - 1])
+			i -= 1
+		var dx: float = path[path.size() - 1].x - path[i].x
+		var dz: float = path[path.size() - 1].z - path[i].z
+		print("DRAWTEST tail %s last0.6 dx=%.2f dz=%.2f ratio=%.2f" % [_bowl_name(index), dx, dz, absf(dx) / maxf(absf(dz), 0.01)])
+	# Offline jack snaps onto the centre line.
+	delivering_jack = true
+	disc.configure_jack()
+	var offline := Vector3(2.35, 0.0, line_z - 23.0)
+	jack.rest_at(offline)
+	jack.visible = true
+	rink.place_head(Vector2(offline.x, offline.z))
+	rink.focus_head(offline)
+	_set_compare_banner("JACK OFF THE LINE")
+	await get_tree().create_timer(0.8).timeout
+	await _dump_compare_shot("draw_jack_offline")
+	_finish_jack(offline)
+	print("DRAWTEST jack_x=%.3f length=%.1f" % [jack.global_position.x, jack_length])
+	rink.focus_head(jack.global_position)
+	_set_compare_banner("JACK CENTRED")
+	await get_tree().create_timer(0.8).timeout
+	await _dump_compare_shot("draw_jack_centred")
+	# Knocked jack takes the rings with it.
+	var knocked := Vector3(1.55, 0.0, jack.global_position.z - 0.4)
+	jack.rest_at(knocked)
+	jack.visible = true
+	_sync_head_rings()
+	rink.focus_head(knocked)
+	_set_compare_banner("RINGS FOLLOW THE JACK")
+	await get_tree().create_timer(0.8).timeout
+	await _dump_compare_shot("draw_rings_follow")
+	# Roll a hook so the last metres run sideways.
+	delivering_jack = false
+	if gesture != null:
+		gesture.busy()
+	disc.configure_bowl(3, -1.0)
+	disc.set_palette(0)
+	disc.reset_to_start()
+	rink.release_head()
+	var hook_power: float = disc.weight_for_length(23.0, disc.bias_ratio)
+	disc.fire_taken(Vector3(0.20, 0.0, -1.0).normalized(), hook_power)
+	DirAccess.make_dir_recursive_absolute("/tmp/hook_anim")
+	var frames := 0
+	var ticks := 0
+	var last_x: float = disc.global_position.x
+	var last_z: float = disc.global_position.z
+	while disc.shot_in_progress and ticks < 400:
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		ticks += 1
+		last_x = disc.global_position.x
+		last_z = disc.global_position.z
+		if disc.velocity.length() < 5.8 and ticks % 2 == 0:
+			var tex: Texture2D = get_viewport().get_texture()
+			if tex != null:
+				var img := tex.get_image()
+				if img != null:
+					img.save_png("/tmp/hook_anim/%03d.png" % frames)
+					frames += 1
+	print("DRAWTEST hook_rest x=%.2f z=%.2f frames=%d ticks=%d" % [last_x, last_z, frames, ticks])
+	await _dump_compare_shot("draw_hook_rest")
+	print("DRAWTEST done")
 	get_tree().quit(0)
 
 
@@ -1388,7 +1607,7 @@ func _handtest() -> void:
 	disc.configure_bowl(3, -1.0)
 	disc.set_palette(0)
 	ui.show_bowl_controls(true)
-	ui.show_hand(true, "HOOK")
+	ui.show_hand(true, "CLASSIC")
 	_set_compare_banner("FOREHAND")
 	_compare_power = 0.9
 	_compare_aim = Vector3(0.22, 0.0, -1.0).normalized()
@@ -1398,7 +1617,7 @@ func _handtest() -> void:
 	await _dump_compare_shot("hand_fore")
 	disc.set_hand(1.0)
 	hand_sign = disc.hand_sign
-	ui.show_hand(false, "HOOK")
+	ui.show_hand(false, "CLASSIC")
 	_set_compare_banner("BACKHAND")
 	_sync_compare_cue()
 	await get_tree().create_timer(0.6).timeout

@@ -5,7 +5,7 @@ extends Node3D
 ## Settled bowls stay where they stop, and later bowls can knock them.
 ## Red is one side, blue is the other. Each side bowls four in an end.
 ## Playable bowls are the purchased CGTrader set: four full lawn-bowl
-## meshes (NARROW / MEDIUM / WIDE / HOOK) plus a half-size jack, with the
+## meshes (LAZER / BLAZE / ACE / CLASSIC) plus a half-size jack, with the
 ## four pack colours. The earlier Tripo sculpt is not used on the green.
 
 const DISC_RADIUS := 0.20
@@ -208,10 +208,13 @@ static func hand_yaw(hand: float) -> float:
 
 static func bowl_type(index: int) -> Dictionary:
 	var types := [
-		{"name": "NARROW", "bias": 0.55},
-		{"name": "MEDIUM", "bias": 0.85},
-		{"name": "WIDE", "bias": 1.15},
-		{"name": "HOOK", "bias": 1.45},
+		# Width is how far it runs off the line. Finish is the late cut —
+		# Blaze stays mid-width then falls away; Classic dies forward and
+		# runs the last steps sideways. Hand (fore/back) still flips the side.
+		{"name": "LAZER", "bias": 0.48, "finish": 0.0},
+		{"name": "BLAZE", "bias": 0.78, "finish": 0.95},
+		{"name": "ACE", "bias": 1.28, "finish": 0.55},
+		{"name": "CLASSIC", "bias": 1.72, "finish": 1.35},
 	]
 	return types[index % types.size()]
 
