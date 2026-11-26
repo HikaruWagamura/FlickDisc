@@ -6,6 +6,9 @@ extends Node3D
 ## and at the far end can take a bowl, and two spare jacks sit on the back bank.
 
 const DITCH_W := 0.88
+## Crystal Mark 2 m mark, plus extra grass so a knock toward the
+## ditch has room before it falls in. Law 9.2 / 56.5 use this T.
+const TEE_FROM_DITCH := 8.0
 const SHORT_MIN := 14.0
 const SHORT_MAX := 28.0
 const LONG_MIN := 44.0
@@ -22,6 +25,10 @@ func prepare_span(next_length: float, next_half: float) -> void:
 	LENGTH = next_length
 	HALF_WIDTH = next_half
 	FAR_Z = -next_length
+
+
+func tee_z() -> float:
+	return FAR_Z + TEE_FROM_DITCH
 
 var head: Node3D
 var _camera: Camera3D
@@ -520,6 +527,10 @@ func _markings() -> void:
 			tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 			add_child(tag)
 			post += 100.0
+	# 2-metre T on the centre line. Short, long, and dead jacks sit here.
+	var tee := tee_z()
+	_box(self, Vector3(0.0, y, tee), Vector3(1.2, line_h, 0.08), _white_line, Vector3.ZERO, false)
+	_box(self, Vector3(0.0, y, tee + 0.42), Vector3(0.08, line_h, 0.84), _white_line, Vector3.ZERO, false)
 	# Corner pegs.
 	for corner in [Vector2(HALF_WIDTH - 0.08, -0.35), Vector2(-HALF_WIDTH + 0.08, -0.35), Vector2(HALF_WIDTH - 0.08, FAR_Z + 0.35), Vector2(-HALF_WIDTH + 0.08, FAR_Z + 0.35)]:
 		_cylinder(self, Vector3(corner.x, 0.22, corner.y), 0.035, 0.44, _white_line, Vector3.ZERO, 8, false)

@@ -255,9 +255,12 @@ func show_jack_illegal(reason: String, travelled: float, detail: String) -> void
 	score_label.text = "%.1f m  •  %s" % [travelled, detail]
 
 
-func show_jack_set(travelled: float, bowl_name: String, side_name: String) -> void:
+func show_jack_set(travelled: float, bowl_name: String, side_name: String, note: String = "") -> void:
 	throws_label.text = "4 EACH"
-	status_label.text = "JACK AT %.1f m" % travelled
+	if note != "":
+		status_label.text = note
+	else:
+		status_label.text = "JACK AT %.1f m" % travelled
 	score_label.text = "%s TO BOWL  •  %s" % [side_name, bowl_name]
 	show_bowl_controls(true)
 	set_power_ratio(0.0)
@@ -357,7 +360,7 @@ func show_throw_result(disc_distance: float, closest: float, next_side: String, 
 		status_label.text = "AT REST  •  THIS BOWL %.2f m" % disc_distance
 	var note := ""
 	if respotted:
-		note = "  •  JACK RE-SPOTTED  •  SPARES %d" % spares
+		note = "  •  JACK RE-SPOTTED ON THE T  •  SPARES %d" % spares
 	elif jack_moved:
 		note = "  •  JACK MOVED"
 	if closest < 0.0:

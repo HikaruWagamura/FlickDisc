@@ -42,6 +42,7 @@ var roll_basis := Basis.IDENTITY
 var stop_timer := 0.0
 var punch := 0.0
 var in_ditch := false
+var is_toucher := false
 var palette_index := 0
 var bias_type := 1
 var hand_sign := -1.0
@@ -369,6 +370,7 @@ func setup_jack() -> void:
 
 func rest_at(where: Vector3) -> void:
 	in_ditch = false
+	is_toucher = false
 	global_position = Vector3(where.x, 0.0, where.z)
 	velocity = Vector3.ZERO
 	moving = false

@@ -80,6 +80,9 @@ const PLACE_HALF := 1.65
 const PULL_BACK := 0.62
 const AIM_CONE := 0.26
 const CURSOR_SPAN := 0.05
+## Crystal Mark Fourth Edition. Law 10.1.3 minimum jack; Law 19.1.3 dead jack.
+const MIN_JACK_LENGTH := 23.0
+const MIN_LIVE_JACK := 20.0
 
 
 func _ready() -> void:
@@ -662,11 +665,12 @@ func _finish_shot(token: int) -> void:
 		thrown.drop_in_ditch(rest_pos)
 	else:
 		thrown.rest_at(rest_pos)
+	thrown.is_toucher = disc.touched_jack
 	settled.append(thrown)
 	throw_index += 1
 	var respotted := false
 	var spares: int = rink.spares_remaining()
-	if jack.in_ditch:
+	if _jack_needs_respot():
 		spares = _respot_jack()
 		respotted = true
 	disc.reset_to_start()
@@ -687,7 +691,7 @@ func _finish_shot(token: int) -> void:
 	var jack_pos: Vector3 = jack.global_position
 	var distances: Array[float] = []
 	for body in settled:
-		if body.in_ditch:
+		if not _bowl_is_live(body):
 			continue
 		distances.append(_distance(body.global_position, jack_pos))
 	score_manager.set_table(distances)
@@ -736,24 +740,22 @@ func _finish_shot(token: int) -> void:
 
 
 func _finish_jack(rest_pos: Vector3) -> void:
-	var travelled := _distance(rest_pos, disc.start_position)
 	var ditched: bool = disc.in_ditch
-	var reason := ""
-	var detail := ""
-	if ditched:
-		reason = "JACK IN THE DITCH"
-		detail = "THROW AGAIN"
-	if reason != "":
-		feel.settled(9.0)
-		disc.configure_jack()
-		disc.reset_to_start()
-		ui.show_jack_illegal(reason, travelled, detail)
-		_begin_ready()
-		return
-	delivering_jack = false
 	# The jack only sets the length. Any offline roll is pulled back
 	# onto the centre line before the first bowl.
 	var centred := Vector3(0.0, 0.0, rest_pos.z)
+	var travelled := _distance(centred, disc.start_position)
+	var note := ""
+	# Law 10.1.3 / 9.2 / 10.1.1. Short, too long, or in the ditch: sit on the T.
+	if ditched or travelled + 0.05 < MIN_JACK_LENGTH or centred.z < rink.tee_z() + 0.05:
+		centred = _tee_spot()
+		if ditched:
+			note = "JACK IN THE DITCH  •  PLACED ON THE T"
+		elif travelled + 0.05 < MIN_JACK_LENGTH:
+			note = "SHORT JACK  •  PLACED ON THE T"
+		else:
+			note = "LONG JACK  •  PLACED ON THE T"
+	delivering_jack = false
 	jack_length = _distance(centred, disc.start_position)
 	jack_home = centred
 	jack.rest_at(jack_home)
@@ -766,14 +768,34 @@ func _finish_jack(rest_pos: Vector3) -> void:
 	ui.show_bias(bias_index, _side())
 	ui.show_hand(hand_sign < 0.0, _bowl_name(bias_index))
 	_place_rack()
-	ui.show_jack_set(jack_length, _bowl_name(bias_index), _side_name(0))
+	ui.show_jack_set(jack_length, _bowl_name(bias_index), _side_name(0), note)
 	_begin_ready()
 
 
+func _tee_spot() -> Vector3:
+	return Vector3(0.0, 0.0, rink.tee_z())
+
+
+func _jack_needs_respot() -> bool:
+	if jack == null:
+		return false
+	if jack.in_ditch:
+		return true
+	# Law 19.1.3: a jack knocked back inside 20 m of the mat is dead.
+	return _distance(jack.global_position, disc.start_position) + 0.05 < MIN_LIVE_JACK
+
+
+func _bowl_is_live(body) -> bool:
+	# Law 17.1.1: a non-toucher in the ditch is dead. A toucher stays live.
+	if body.in_ditch:
+		return bool(body.is_toucher)
+	return true
+
+
 func _respot_jack() -> int:
+	# Law 56.5.3: one re-spot, the T, 2 m from the ditch on the centre line.
 	var spares: int = rink.take_spare()
-	var spot := Vector3(0.0, 0.0, disc.start_position.z - jack_length)
-	spot = _clear_spot(spot)
+	var spot := _clear_spot(_tee_spot())
 	jack.in_ditch = false
 	jack.rest_at(spot)
 	jack.visible = true
@@ -804,7 +826,7 @@ func _count_end() -> Dictionary:
 	var nearest := [-1.0, -1.0]
 	for body in settled:
 		body.set_scoring(false)
-		if body.in_ditch:
+		if not _bowl_is_live(body):
 			continue
 		var dist := _distance(body.global_position, jack_pos)
 		var side := int(body.side)
@@ -827,7 +849,7 @@ func _count_end() -> Dictionary:
 		var other := 1 - holder
 		var limit: float = nearest[other]
 		for body in settled:
-			if body.in_ditch or int(body.side) != holder:
+			if not _bowl_is_live(body) or int(body.side) != holder:
 				continue
 			var dist := _distance(body.global_position, jack_pos)
 			if limit < 0.0 or dist + 0.01 < limit:
@@ -1432,13 +1454,13 @@ func _pulltest() -> void:
 	_pull_snap(Vector2(150.0, 840.0))
 	for _i in 4:
 		await get_tree().process_frame
-	print("PULLTEST left aim_x=%.3f power=%.2f" % [gesture.direct_aim.x if gesture != null else 0.0, gesture.direct_power if gesture != null else 0.0])
+	print("PULLTEST left aim_x=%.3f power=%.2f yaw=%.3f" % [gesture.direct_aim.x if gesture != null else 0.0, gesture.direct_power if gesture != null else 0.0, disc.roll_basis.get_euler().y])
 	_set_compare_banner("PULL BOTTOM LEFT • AIM RIGHT")
 	await _dump_compare_shot("pull_bottom_left")
 	_pull_snap(Vector2(390.0, 840.0))
 	for _i in 4:
 		await get_tree().process_frame
-	print("PULLTEST right aim_x=%.3f power=%.2f" % [gesture.direct_aim.x if gesture != null else 0.0, gesture.direct_power if gesture != null else 0.0])
+	print("PULLTEST right aim_x=%.3f power=%.2f yaw=%.3f" % [gesture.direct_aim.x if gesture != null else 0.0, gesture.direct_power if gesture != null else 0.0, disc.roll_basis.get_euler().y])
 	_set_compare_banner("PULL BOTTOM RIGHT • AIM LEFT")
 	await _dump_compare_shot("pull_bottom_right")
 	_pull_snap(Vector2(270.0, 840.0))
@@ -1564,6 +1586,44 @@ func _drawtest() -> void:
 	_set_compare_banner("RINGS FOLLOW THE JACK")
 	await get_tree().create_timer(0.8).timeout
 	await _dump_compare_shot("draw_rings_follow")
+	# Short jack (under 23 m) is lifted onto the T.
+	delivering_jack = true
+	disc.in_ditch = false
+	var short_at := Vector3(0.0, 0.0, line_z - 8.0)
+	jack.rest_at(short_at)
+	jack.visible = true
+	rink.place_head(Vector2(short_at.x, short_at.z))
+	rink.focus_head(short_at)
+	_set_compare_banner("SHORT JACK  •  8 m")
+	await get_tree().create_timer(0.7).timeout
+	await _dump_compare_shot("draw_jack_short")
+	_finish_jack(short_at)
+	print("DRAWTEST short->tee z=%.2f length=%.1f tee=%.2f" % [jack.global_position.z, jack_length, rink.tee_z()])
+	rink.focus_head(jack.global_position)
+	_set_compare_banner("PLACED ON THE T")
+	await get_tree().create_timer(0.8).timeout
+	await _dump_compare_shot("draw_jack_tee")
+	# Jack in the end ditch re-spots onto the T (Law 56.5).
+	delivering_jack = false
+	jack.drop_in_ditch(Vector3(0.0, -0.18, rink.FAR_Z - 0.35))
+	jack.visible = true
+	rink.focus_head(jack.global_position)
+	_set_compare_banner("JACK IN THE END DITCH")
+	await get_tree().create_timer(0.7).timeout
+	await _dump_compare_shot("draw_jack_ditch")
+	_respot_jack()
+	print("DRAWTEST ditch->tee z=%.2f in_ditch=%s" % [jack.global_position.z, jack.in_ditch])
+	rink.focus_head(jack.global_position)
+	_set_compare_banner("RE-SPOTTED ON THE T")
+	await get_tree().create_timer(0.8).timeout
+	await _dump_compare_shot("draw_jack_respot")
+	# Put a legal jack back for the hook roll.
+	var legal := Vector3(0.0, 0.0, line_z - 23.0)
+	jack.rest_at(legal)
+	jack.visible = true
+	jack_home = legal
+	jack_length = _distance(legal, disc.start_position)
+	rink.place_head(Vector2(legal.x, legal.z))
 	# Roll a hook so the last metres run sideways.
 	delivering_jack = false
 	if gesture != null:

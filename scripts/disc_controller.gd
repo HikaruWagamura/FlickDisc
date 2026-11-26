@@ -17,6 +17,9 @@ const CRUISE_SPEED := 11.0
 const FIRE_SPEED := 13.7
 const MAX_SPEED := FIRE_SPEED
 const AIM_RESPONSE := 10.5
+## The send is only ~15° even on a wide pull. Scale the facing so the
+## painted equator follows the 5+3 on camera.
+const AIM_YAW_SCALE := 2.8
 const DIAL_POWER_PIXELS := 148.0
 const DIAL_SIDE_PIXELS := 132.0
 const LINE_LOCK_PIXELS := 36.0
@@ -85,6 +88,7 @@ var _mark_mat: StandardMaterial3D
 var _impact_speed := 0.0
 var _impact_jack := false
 var _impact_bank := false
+var touched_jack := false
 
 var _visual: Node3D
 var _spin: Node3D
@@ -282,7 +286,7 @@ func preview_take(aim: Vector3, power: float) -> void:
 		aim_direction = direction
 		power_ratio = 0.0
 		_hide_guide()
-		_apply_visual(0.0)
+	_apply_visual(0.0)
 	aim_changed.emit(Vector2(aim_direction.x, aim_direction.z), power_ratio if is_aiming else 0.0)
 
 
@@ -295,6 +299,7 @@ func fire_taken(aim: Vector3, power: float) -> void:
 	is_aiming = false
 	aim_direction = direction
 	_aim_target = direction
+	roll_basis = Basis(Vector3.UP, -atan2(direction.x, -direction.z))
 	power_ratio = clampf(power, 0.0, 1.0)
 	_power_target = power_ratio
 	_hide_guide()
@@ -322,6 +327,7 @@ func launch() -> void:
 	shot_axis = axis.normalized() if axis.length() > 0.001 else Vector2(0.0, -1.0)
 	shot_in_progress = true
 	stop_timer = 0.0
+	touched_jack = false
 	shot_started.emit()
 
 
@@ -367,6 +373,7 @@ func reset_to_start() -> void:
 	travel_facing = Vector3(0.0, 0.0, -1.0)
 	shot_axis = Vector2(0.0, -1.0)
 	punch = 0.0
+	touched_jack = false
 	visible = true
 	_hide_guide()
 	_apply_visual(0.0)
@@ -486,6 +493,8 @@ func _bounce(a, b) -> void:
 		_impact_speed = impact
 		_impact_jack = jack_hit
 		_impact_bank = false
+	if jack_hit and (a == self or b == self):
+		touched_jack = true
 	var hit_punch := clampf(impact / 6.0, 0.35, 1.0)
 	_punch(a, hit_punch)
 	_punch(b, hit_punch)
@@ -791,6 +800,12 @@ func _apply_visual(_speed: float) -> void:
 		# Keep the parent still. Roll lives only on _spin, so the painted
 		# centre line turns like a wheel instead of wandering.
 		_visual.basis = Basis.IDENTITY
+		if is_aiming:
+			# Face the send. Pulling bottom-left turns the equator with the cue.
+			var face := _aim_target
+			if face.length() < 0.001:
+				face = aim_direction
+			roll_basis = Basis(Vector3.UP, -atan2(face.x, -face.z) * AIM_YAW_SCALE)
 		if _spin != null:
 			_spin.position = Vector3.ZERO
 			_spin.transform.basis = roll_basis
