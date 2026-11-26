@@ -40,6 +40,8 @@ var feel
 var _hit_wait := 0.0
 var gesture
 var fan
+var cue
+var _cue_compare := false
 var place_x := 0.0
 var aim_lock := 0.0
 var opponent_left := 0
@@ -71,6 +73,8 @@ func _ready() -> void:
 	ui.bias_cycle_requested.connect(_on_bias_cycle_requested)
 	_wire_shot()
 	_load_level(start_level)
+	if OS.get_cmdline_user_args().has("--cuetest"):
+		call_deferred("_cuetest")
 
 
 func _process(delta: float) -> void:
@@ -333,6 +337,10 @@ func _wire_shot() -> void:
 	fan = preload("res://scripts/shot_fan.gd").new()
 	fan.name = "ShotFan"
 	ui.add_child(fan)
+	cue = preload("res://scripts/aim_cue.gd").new()
+	cue.name = "AimCue"
+	cue.set_size_scale(0.62)
+	add_child(cue)
 
 
 func _on_place_at(spot: Vector3) -> void:
@@ -400,6 +408,8 @@ func _facing(origin: Vector3, aim: Vector3) -> float:
 func _sync_fan() -> void:
 	if gesture == null or fan == null or camera == null:
 		return
+	if _cue_compare:
+		return
 	var placed := Vector3(place_x, 0.02, Metrics.PLAYER_START_Z)
 	gesture.anchor = placed
 	var phase := str(gesture.phase)
@@ -413,14 +423,15 @@ func _sync_fan() -> void:
 		active_puck.set_flat(Vector2(place_x, Metrics.PLAYER_START_Z + power * PULL_BACK))
 		active_puck.rotation.y = 0.0
 		disc.global_position = active_puck.global_position
-		if show_arrow:
-			disc.show_aim_line(_aim_from(0.0), true)
-		else:
-			disc.show_aim_line(Vector3.ZERO, false)
 		if pulling:
+			disc.preview_take(_aim_from(needle), maxf(power, 0.12))
 			ui.show_aiming(power)
 			if feel != null:
 				feel.aim(power)
+		elif show_arrow:
+			disc.show_aim_line(_aim_from(0.0), true)
+		else:
+			disc.show_aim_line(Vector3.ZERO, false)
 	var live_pos: Vector3 = placed
 	if active_puck != null:
 		live_pos = active_puck.global_position
@@ -429,10 +440,16 @@ func _sync_fan() -> void:
 	var disc_px := cursor_at.distance_to(rim)
 	var lift := disc_px + 78.0
 	fan.present(cursor_at, power, needle, show_cursor, _facing(live_pos, _aim_from(0.0)), lift)
-	var dots := PackedVector2Array()
-	if show_arrow:
-		dots = fan.project_dots(camera, live_pos, disc.guide_points(), Metrics.DISC_RADIUS * 0.4, cursor_at, disc_px + 12.0)
-	fan.set_dots(dots, show_arrow)
+	if cue != null:
+		if live and (pulling or show_arrow):
+			var path: PackedVector3Array = disc.guide_points()
+			if path.size() >= 2:
+				cue.present(path, power if pulling else 0.55)
+			else:
+				cue.clear()
+		else:
+			cue.clear()
+	fan.set_dots(PackedVector2Array(), false)
 	fan.set_line(Vector2.ZERO, Vector2.ZERO, false)
 	fan.set_aim(Vector2.ZERO, Vector2.ZERO, false)
 	fan.set_disc(cursor_at, false)
@@ -681,3 +698,48 @@ func _on_reset_requested() -> void:
 func _on_next_level_requested() -> void:
 	if current_level_index < level_manager.get_level_count() - 1:
 		_load_level(current_level_index + 1)
+
+
+func _cuetest() -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_cue_compare = true
+	if gesture != null:
+		gesture.busy()
+	if active_puck == null:
+		_arm_next_disc()
+	_snap_disc()
+	ui.status_label.text = ""
+	var steps := [
+		{"power": 0.30, "bias": 1.0, "aim": Vector3(0.08, 0.0, -1.0), "file": "crok_blocks_light", "title": "CROKINOLE  •  LIGHT 5 + 3"},
+		{"power": 0.62, "bias": 1.0, "aim": Vector3(0.08, 0.0, -1.0), "file": "crok_blocks_mid", "title": "CROKINOLE  •  MID 5 + 3"},
+		{"power": 0.92, "bias": 1.0, "aim": Vector3(0.12, 0.0, -1.0), "file": "crok_blocks_right", "title": "CROKINOLE  •  FULL  •  RIGHT BIAS"},
+		{"power": 0.92, "bias": -1.0, "aim": Vector3(-0.12, 0.0, -1.0), "file": "crok_blocks_left", "title": "CROKINOLE  •  FULL  •  LEFT BIAS"},
+	]
+	for step in steps:
+		disc.set_bias(float(step["bias"]))
+		var aim: Vector3 = step["aim"]
+		disc.preview_take(aim.normalized(), float(step["power"]))
+		if cue != null:
+			cue.present(disc.guide_points(), float(step["power"]))
+		ui.status_label.text = str(step["title"])
+		await get_tree().create_timer(1.4).timeout
+		await _dump_cue_shot(str(step["file"]))
+		await get_tree().create_timer(0.6).timeout
+	print("CROK CUETEST done")
+	get_tree().quit(0)
+
+
+func _dump_cue_shot(name: String) -> void:
+	await RenderingServer.frame_post_draw
+	var tex: Texture2D = get_viewport().get_texture()
+	if tex == null:
+		return
+	var img := tex.get_image()
+	if img == null:
+		return
+	DirAccess.make_dir_recursive_absolute("/tmp/cue_compare")
+	DirAccess.make_dir_recursive_absolute("/opt/cursor/artifacts")
+	img.save_png("/tmp/cue_compare/%s.png" % name)
+	img.save_png("/opt/cursor/artifacts/%s.png" % name)
+	print("CUE_SHOT %s" % name)

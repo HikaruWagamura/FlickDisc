@@ -18,8 +18,12 @@ const SEAT_RIG := 0.052
 const STYLE_BLOCKS := 0
 const STYLE_RIGGED := 1
 const STYLE_BOTH := 2
+## First three stay full size so they still read on the grass. Then the
+## line eases off: 95, 90, 85, 80, and 70 at the tip.
+const TAPER := [1.00, 1.00, 1.00, 0.95, 0.90, 0.85, 0.80, 0.70]
 
 var style := STYLE_BLOCKS
+var size_scale := 1.0
 var _material: ShaderMaterial
 var _chevron: ArrayMesh
 var _local_centre := Vector3.ZERO
@@ -85,6 +89,12 @@ func set_style(which: int) -> void:
 		_place()
 	else:
 		_hide_parts()
+
+
+func set_size_scale(value: float) -> void:
+	size_scale = clampf(value, 0.15, 2.5)
+	if _showing:
+		_place()
 
 
 func _load_chevron() -> ArrayMesh:
@@ -230,7 +240,7 @@ func clear() -> void:
 	_hide_parts()
 
 
-func present(path: PackedVector3Array, power: float) -> void:
+func present(path: PackedVector3Array, power: float, _facing: Vector3 = Vector3.ZERO) -> void:
 	if path.size() < 2:
 		clear()
 		return
@@ -295,9 +305,10 @@ func _place_blocks() -> void:
 	var total := main_n + TAIL_ARROWS
 	var body := maxf(_local_size.z, 0.18)
 	var fit := (length * 0.88) / maxf(float(total), 1.0)
-	var scale_l := clampf(fit / body, 0.26, 0.60)
+	var scale_l := clampf(fit / body, 0.10, 0.60) * size_scale
 	var scale_w := scale_l * 0.62
-	var scale_h := lerpf(0.62, 0.82, amount)
+	# Keep the blocks chunky on a small table. Only the footprint shrinks.
+	var scale_h := lerpf(0.62, 0.82, amount) * lerpf(1.0, size_scale, 0.22)
 	if style == STYLE_BOTH:
 		scale_l *= 0.90
 		scale_w *= 0.90
@@ -307,24 +318,12 @@ func _place_blocks() -> void:
 			mi.visible = false
 			continue
 		mi.visible = true
-		var t := 0.18
-		var taper := 1.0
-		if i < main_n:
-			if main_n == 1:
-				t = 0.36
-			else:
-				t = lerpf(0.12, 0.66, float(i) / float(main_n - 1))
-		else:
-			var tail := i - main_n
-			if tail == 0:
-				taper = 0.90
-				t = 0.76
-			elif tail == 1:
-				taper = 0.70
-				t = 0.86
-			else:
-				taper = 0.50
-				t = 0.96
+		var t := 0.36
+		if total > 1:
+			t = lerpf(0.10, 0.96, float(i) / float(total - 1))
+		var taper := 0.70
+		if i < TAPER.size():
+			taper = float(TAPER[i])
 		var centre := _sample(_path, t)
 		var tangent := _facing(_path, t)
 		var phase := (wave / PERIOD) * TAU - float(i) * (TAU / 6.5)
@@ -457,7 +456,7 @@ func _path_length() -> float:
 	var total := 0.0
 	for i in range(1, _path.size()):
 		total += _path[i - 1].distance_to(_path[i])
-	return maxf(total, 0.8)
+	return maxf(total, 0.18)
 
 
 func _sample(path: PackedVector3Array, t: float) -> Vector3:

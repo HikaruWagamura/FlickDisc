@@ -279,13 +279,13 @@ func _apply_direct(screen: Vector2) -> void:
 		direct_aim = Vector3(0.0, 0.0, -1.0)
 		direct_hold = anchor
 		return
-	var travel := clampf(pull_px / 260.0, 0.0, 1.0)
+	var travel := clampf(pull_px / 320.0, 0.0, 1.0)
 	var back := travel * DIRECT_METRES
 	# Finger left sends the bowl out to the right, the same as a world drag.
 	var side := clampf(-side_px / 150.0, -1.0, 1.0) * 1.05
 	var aim_back := maxf(back, 0.28)
 	direct_aim = Vector3(-side, 0.0, -aim_back).normalized()
-	direct_power = pow(travel, 1.05)
+	direct_power = pow(travel, 1.12)
 	direct_hold = anchor + Vector3(clampf(side, -0.55, 0.55) * travel * 0.42, 0.0, back)
 
 

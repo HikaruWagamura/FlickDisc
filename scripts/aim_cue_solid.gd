@@ -1,15 +1,13 @@
 extends Node3D
 
-## Playable clone of the purchased solid / rigged arrow.
-## One shaft on the grass path. It grows with the pull, goes a
-## darker red, and shakes when the weight is piled on.
-## The 5+3 block cue stays in aim_cue.gd so both can be compared.
+## Playable solid arrow. Sits on the bowl's centre line and faces
+## the same way the bowl is aiming. Grows with the pull, runs ice
+## blue → lilac → pink → red → dark red, and shakes at full weight.
 
 const RIGGED := preload("res://assets/arrows/rigged_arrow.glb")
 const SHADER_PATH := "res://shaders/aim_solid_3d.gdshader"
 const REST_LEN := 0.75
-const SEAT := 0.010
-const PERIOD := 0.55
+const SEAT := 0.008
 
 var _rig: Node3D
 var _mesh: MeshInstance3D
@@ -17,6 +15,7 @@ var _mat: ShaderMaterial
 var _showing := false
 var _path := PackedVector3Array()
 var _power := 0.0
+var _facing := Vector3(0.0, 0.0, -1.0)
 
 
 func _ready() -> void:
@@ -43,7 +42,7 @@ func set_style(_which: int) -> void:
 	pass
 
 
-func present(path: PackedVector3Array, power: float) -> void:
+func present(path: PackedVector3Array, power: float, facing: Vector3 = Vector3.ZERO) -> void:
 	if path.size() < 2:
 		clear()
 		return
@@ -51,6 +50,8 @@ func present(path: PackedVector3Array, power: float) -> void:
 	_showing = true
 	_path = path
 	_power = clampf(power, 0.0, 1.0)
+	if facing.length() > 0.001:
+		_facing = Vector3(facing.x, 0.0, facing.z).normalized()
 	_place()
 
 
@@ -72,43 +73,40 @@ func _place() -> void:
 	if _rig == null:
 		return
 	var amount := _power
-	var length := _path_length()
+	var face := _facing
+	if face.length() < 0.001:
+		face = Vector3(0.0, 0.0, -1.0)
+	else:
+		face = Vector3(face.x, 0.0, face.z).normalized()
 	var start := _sample(_path, 0.0)
-	var tan := _tangent(_path, 0.08)
-	var grow := lerpf(0.70, 1.55, amount)
-	var sx := 0.92 * grow
-	var sy := lerpf(0.82, 1.28, amount)
-	var sz := clampf(length / REST_LEN, 1.5, 3.2) * lerpf(0.78, 1.22, amount)
-	var shake := clampf((amount - 0.62) / 0.38, 0.0, 1.0)
+	# Short ends stay small. Full weight stretches the shaft so the
+	# whole power scale is readable, from a yard to a long end.
+	var shaft := lerpf(0.82, 4.15, amount)
+	var sx := lerpf(0.36, 0.82, amount)
+	var sy := lerpf(0.40, 0.90, amount)
+	var sz := shaft / REST_LEN
+	var shake := clampf((amount - 0.72) / 0.28, 0.0, 1.0)
 	shake = shake * shake
 	var wave := float(Time.get_ticks_msec()) * 0.001
 	var hop := 0.0
-	var side := Vector3(-tan.z, 0.0, tan.x)
+	var side := Vector3(-face.z, 0.0, face.x)
 	if shake > 0.01:
-		var amp := shake * 0.046
-		start += side * sin(wave * 48.0) * amp
-		hop = cos(wave * 61.0) * amp * 0.45
-		tan = (tan + side * sin(wave * 38.0) * shake * 0.08).normalized()
-	# Leave from the bowl centre on the grass, a little past the stone
-	# so the shaft doesn't stand out of the top.
-	var origin := start + tan * (0.22 + REST_LEN * sz * 0.12)
-	origin.y = SEAT + hop + 0.006 * grow
+		var amp := shake * 0.028
+		hop = sin(wave * 58.0) * amp
+		face = (face + side * sin(wave * 46.0) * shake * 0.03).normalized()
+	# Mesh origin is the shaft centre. Put the tail on the bowl centre
+	# so the arrow IS the bowl's middle line, facing the same way.
+	var origin := start + face * (shaft * 0.50)
+	origin.y = SEAT + hop
 	_rig.visible = true
 	var xf := Transform3D()
 	xf.origin = origin
-	xf = xf.looking_at(origin + tan * maxf(length, 1.0), Vector3.UP)
+	xf = xf.looking_at(origin + face, Vector3.UP)
 	xf.basis = xf.basis.scaled(Vector3(sx, sy, sz))
 	_rig.global_transform = xf
 	if _mat != null:
 		_mat.set_shader_parameter("power", amount)
 		_mat.set_shader_parameter("shake", shake)
-
-
-func _path_length() -> float:
-	var total := 0.0
-	for i in range(1, _path.size()):
-		total += _path[i - 1].distance_to(_path[i])
-	return maxf(total, 0.8)
 
 
 func _sample(path: PackedVector3Array, t: float) -> Vector3:
@@ -117,16 +115,6 @@ func _sample(path: PackedVector3Array, t: float) -> Vector3:
 	var local := t * float(last) - float(index)
 	var point := path[index].lerp(path[index + 1], local)
 	return Vector3(point.x, 0.0, point.z)
-
-
-func _tangent(path: PackedVector3Array, t: float) -> Vector3:
-	var last := path.size() - 1
-	var index := clampi(int(t * float(last)), 0, last - 1)
-	var dir := path[index + 1] - path[index]
-	dir.y = 0.0
-	if dir.length() < 0.001:
-		return Vector3(0.0, 0.0, -1.0)
-	return dir.normalized()
 
 
 func _find_mesh(node: Node) -> MeshInstance3D:

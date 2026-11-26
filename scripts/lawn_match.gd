@@ -199,6 +199,8 @@ func _wire_shot() -> void:
 	add_child(cue_solid)
 	cue = cue_blocks
 	cue_kind = 0
+	if ui != null:
+		ui.show_cue_kind(0)
 
 
 func _begin_ready() -> void:
@@ -386,7 +388,7 @@ func _sync_direct(cam: Camera3D, placed: Vector3) -> void:
 	fan.present(bowl_px, power, 0.0, false, -PI * 0.5, 120.0)
 	if pulling:
 		if cue != null:
-			cue.present(disc.grass_cue(power), power)
+			cue.present(disc.grass_cue(power), power, disc.aim_direction)
 	elif cue != null:
 		cue.clear()
 	fan.set_cue(PackedVector2Array(), PackedFloat32Array(), false)
@@ -1142,7 +1144,7 @@ func _sync_compare_cue() -> void:
 		return
 	disc.global_position = Vector3(place_x, 0.0, line_z)
 	disc.preview_take(_compare_aim, _compare_power)
-	cue.present(disc.grass_cue(_compare_power), _compare_power)
+	cue.present(disc.grass_cue(_compare_power), _compare_power, disc.aim_direction)
 	ui.set_power_ratio(_compare_power)
 	if fan != null:
 		fan.present(Vector2.ZERO, 0.0, 0.0, false)
@@ -1211,13 +1213,12 @@ func _cuetest() -> void:
 	if cue_blocks != null and cue_blocks.has_method("set_style"):
 		cue_blocks.set_style(0)
 	var steps := [
-		{"power": 0.90, "bias": 1, "hand": -1.0, "aim": Vector3(0.0, 0.0, -1.0), "file": "cue_ahead_5", "title": "5 + 3  •  STRAIGHT AHEAD", "kind": 0},
-		{"power": 0.90, "bias": 3, "hand": -1.0, "aim": Vector3(0.22, 0.0, -1.0), "file": "cue_hook_5", "title": "5 + 3  •  AIM RIGHT", "kind": 0},
-		{"power": 0.90, "bias": 3, "hand": 1.0, "aim": Vector3(-0.22, 0.0, -1.0), "file": "cue_backhand_5", "title": "5 + 3  •  AIM LEFT", "kind": 0},
-		{"power": 0.28, "bias": 3, "hand": -1.0, "aim": Vector3(0.22, 0.0, -1.0), "file": "solid_light", "title": "SOLID  •  LIGHT PULL", "kind": 1},
-		{"power": 0.62, "bias": 3, "hand": -1.0, "aim": Vector3(0.22, 0.0, -1.0), "file": "solid_mid", "title": "SOLID  •  MID WEIGHT", "kind": 1},
+		{"power": 0.30, "bias": 3, "hand": -1.0, "aim": Vector3(0.22, 0.0, -1.0), "file": "blocks_light", "title": "5 + 3  •  LIGHT  •  100 100 100 95", "kind": 0},
+		{"power": 0.62, "bias": 3, "hand": -1.0, "aim": Vector3(0.22, 0.0, -1.0), "file": "blocks_mid", "title": "5 + 3  •  MID  •  TAPER TO 80", "kind": 0},
+		{"power": 0.90, "bias": 3, "hand": -1.0, "aim": Vector3(0.22, 0.0, -1.0), "file": "blocks_heavy", "title": "5 + 3  •  FULL  •  TAPER TO 70", "kind": 0},
+		{"power": 0.90, "bias": 3, "hand": 1.0, "aim": Vector3(-0.22, 0.0, -1.0), "file": "blocks_left", "title": "5 + 3  •  AIM LEFT", "kind": 0},
+		{"power": 0.90, "bias": 1, "hand": -1.0, "aim": Vector3(0.0, 0.0, -1.0), "file": "blocks_ahead", "title": "5 + 3  •  STRAIGHT AHEAD", "kind": 0},
 		{"power": 0.96, "bias": 3, "hand": -1.0, "aim": Vector3(0.22, 0.0, -1.0), "file": "solid_heavy", "title": "SOLID  •  FULL WEIGHT", "kind": 1},
-		{"power": 0.96, "bias": 3, "hand": 1.0, "aim": Vector3(-0.22, 0.0, -1.0), "file": "solid_left", "title": "SOLID  •  AIM LEFT", "kind": 1},
 	]
 	for step in steps:
 		_use_cue_kind(int(step["kind"]))
@@ -1232,13 +1233,13 @@ func _cuetest() -> void:
 		await _dump_compare_shot(str(step["file"]))
 		await get_tree().create_timer(2.2).timeout
 	print("CUETEST done")
-	_use_cue_kind(1)
-	_compare_power = 0.96
+	_use_cue_kind(0)
+	_compare_power = 0.90
 	_compare_aim = Vector3(0.22, 0.0, -1.0).normalized()
 	disc.configure_bowl(3, -1.0)
-	_set_compare_banner("SOLID  •  FULL WEIGHT")
+	_set_compare_banner("5 + 3  •  FULL  •  TAPER TO 70")
 	_sync_compare_cue()
-	await get_tree().create_timer(6.0).timeout
+	await get_tree().create_timer(2.0).timeout
 	get_tree().quit(0)
 
 
