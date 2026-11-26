@@ -309,7 +309,6 @@ func _hide_rigged() -> void:
 
 func _place_blocks() -> void:
 	var amount := _power
-	var wave := float(Time.get_ticks_msec()) * 0.001
 	var length := _path_length()
 	var total := head_count
 	var start_t := path_start
@@ -336,14 +335,10 @@ func _place_blocks() -> void:
 			taper = float(TAPER[i])
 		var centre := _sample(_path, t)
 		var tangent := _facing(_path, t)
-		var phase := (wave / PERIOD) * TAU - float(i) * (TAU / 6.5)
-		var pulse := 0.5 + 0.5 * sin(phase)
-		var squash := lerpf(1.0, 0.90, pulse)
-		var hop := pulse * 0.007 * scale_h * taper
 		var sl := scale_l * taper
-		var sw := scale_w * taper * squash
+		var sw := scale_w * taper
 		var sh := scale_h * lerpf(1.0, taper, 0.35)
-		var origin := Vector3(centre.x, SEAT_BLOCK + hop + _local_size.y * 0.42 * sh, centre.z)
+		var origin := Vector3(centre.x, SEAT_BLOCK + _local_size.y * 0.42 * sh, centre.z)
 		var xf := Transform3D()
 		xf.origin = origin
 		xf = xf.looking_at(origin + tangent, Vector3.UP)

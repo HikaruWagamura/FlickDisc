@@ -11,22 +11,25 @@ signal impacted(speed: float, hit_jack: bool, hit_bank: bool)
 
 const DISC_RADIUS := 0.20
 const MAX_DRAG_PIXELS := 210.0
-const MAX_SPEED := 15.2
+## Draw weight lives on most of the bar. The last 14% is extra fire.
 const MIN_SPEED := 6.0
-const AIM_RESPONSE := 16.0
+const CRUISE_SPEED := 11.0
+const FIRE_SPEED := 13.7
+const MAX_SPEED := FIRE_SPEED
+const AIM_RESPONSE := 5.2
 const DIAL_POWER_PIXELS := 148.0
 const DIAL_SIDE_PIXELS := 132.0
 const LINE_LOCK_PIXELS := 36.0
 const MAX_LINE := 0.16
 ## Constant slowdown, so a draw takes about five seconds and can be watched.
-const DECEL := 1.65
+const DECEL := 2.32
 const STOP_SPEED := 0.15
 const STOP_GRACE_SECONDS := 0.15
 const BANK_KEEP := 0.40
 ## Radians of turn per metre at bias 1. The hand tightens as the bowl slows,
 ## and a straight delivery still finishes wide of the line.
-const CURL_PER_METRE := 0.0052
-const CURL_DRAW := 1.55
+const CURL_PER_METRE := 0.0036
+const CURL_DRAW := 1.22
 const DITCH_FLOOR_Y := -0.23
 const RUNUP_MAX := 1.8
 const PICK_RADIUS_PX := 88.0
@@ -262,16 +265,16 @@ func preview_take(aim: Vector3, power: float) -> void:
 	else:
 		direction = direction.normalized()
 	_aim_target = direction
-	aim_direction = direction
 	var shown := clampf(power, 0.0, 1.0)
 	_power_target = shown
-	power_ratio = shown
 	shot_bias = 0.0 if delivering_jack else bias_ratio
 	is_aiming = shown >= 0.08
 	if not is_aiming:
+		aim_direction = direction
+		power_ratio = 0.0
 		_hide_guide()
-	_apply_visual(0.0)
-	aim_changed.emit(Vector2(aim_direction.x, aim_direction.z), shown)
+		_apply_visual(0.0)
+	aim_changed.emit(Vector2(aim_direction.x, aim_direction.z), power_ratio if is_aiming else 0.0)
 
 
 func fire_taken(aim: Vector3, power: float) -> void:
@@ -317,12 +320,19 @@ func set_pace(scale: float, slowdown: float) -> void:
 
 
 func reach_for(power: float) -> float:
-	var speed := lerpf(MIN_SPEED, MAX_SPEED, clampf(power, 0.0, 1.0)) * pace_scale
+	var speed := _launch_speed(power) * pace_scale
 	return speed * speed / (2.0 * drag)
 
 
+func _launch_speed(power: float) -> float:
+	var p := clampf(power, 0.0, 1.0)
+	if p <= 0.86:
+		return lerpf(MIN_SPEED, CRUISE_SPEED, p / 0.86)
+	return lerpf(CRUISE_SPEED, FIRE_SPEED, (p - 0.86) / 0.14)
+
+
 func _delivery_velocity(aim: Vector3, power: float) -> Vector3:
-	var speed := lerpf(MIN_SPEED, MAX_SPEED, power) * pace_scale
+	var speed := _launch_speed(power) * pace_scale
 	var planar := Vector2(aim.x, aim.z)
 	if planar.length() < 0.001:
 		planar = Vector2(0.0, -1.0)
@@ -637,10 +647,8 @@ func _lean_angle(speed: float) -> float:
 		return rest_lean
 	var slow := clampf(1.0 - speed / MAX_SPEED, 0.0, 1.0)
 	var into := clampf(absf(shot_bias) / 1.45, 0.0, 1.0)
-	var wobble := sin(spin_angle * 2.0) * 0.02 * clampf(speed / 8.0, 0.0, 1.0)
-	# Fast, it stands on the wide running surface. As it slows it tips
-	# onto the thin bias side. That tip is what draws the bowl.
-	var lean := -signf(shot_bias) * into * lerpf(0.0, 0.14, slow * slow) + wobble
+	# A quiet tip onto the bias, no rock. The path already draws.
+	var lean := -signf(shot_bias) * into * lerpf(0.0, 0.045, slow * slow)
 	rest_lean = lean
 	return lean
 
@@ -683,23 +691,23 @@ func _line_yaw() -> float:
 		face = Vector3(0.0, 0.0, -1.0)
 	else:
 		face = face.normalized()
-	return -atan2(face.x, -face.z) * 1.35
+	return -atan2(face.x, -face.z)
 
 
 func _aim_basis(speed: float) -> Basis:
-	var face := _aim_face()
-	var yaw := Basis(Vector3.UP, _line_yaw())
 	if is_aiming:
-		return yaw
-	return Basis(face, _lean_angle(speed)) * yaw
+		return Basis(Vector3.UP, _line_yaw())
+	var face := _aim_face()
+	var yaw := -atan2(face.x, -face.z)
+	return Basis(face, _lean_angle(speed)) * Basis(Vector3.UP, yaw)
 
 
-func _apply_visual(speed: float) -> void:
+func _apply_visual(_speed: float) -> void:
 	if _visual == null:
 		return
 	punch = move_toward(punch, 0.0, 0.08)
-	var lift := clampf(speed / MAX_SPEED, 0.0, 1.0)
-	var hop := lift * 0.016 + punch * 0.05
+	if velocity.length() > 0.2:
+		travel_facing = velocity
 	if delivering_jack:
 		if _visual != null:
 			_visual.visible = false
@@ -711,28 +719,23 @@ func _apply_visual(speed: float) -> void:
 			_jack_visual.position = Vector3(0.0, _jack_sit, 0.0)
 			_jack_visual.basis = Basis.IDENTITY
 			if _jack_spin != null:
-				_jack_spin.basis = _aim_basis(speed) * roll_basis
+				_jack_spin.basis = roll_basis
 			_seat_shadow(BowlScript.JACK_RADIUS)
 	else:
 		if _visual != null:
 			_visual.visible = true
 		if _jack_visual != null:
 			_jack_visual.visible = false
-		if velocity.length() > 0.2:
-			travel_facing = velocity
 		var sit := BowlScript.DISC_RADIUS - BowlScript.SIT_NEST + BowlScript.GROUND_CLEAR
-		_visual.position = Vector3(0.0, sit + hop, 0.0)
-		if is_aiming:
-			# Grip stays toward the mat; extra yaw turns the stone with the line.
-			_visual.basis = Basis.IDENTITY
-		else:
-			_visual.basis = _aim_basis(speed)
+		_visual.position = Vector3(0.0, sit, 0.0)
+		# Keep the parent still. Roll lives only on _spin, so the painted
+		# centre line turns like a wheel instead of wandering.
+		_visual.basis = Basis.IDENTITY
 		if _spin != null:
 			_spin.position = Vector3.ZERO
 			_spin.transform.basis = roll_basis
 		if _bias_pip != null:
-			var extra := _line_yaw() if is_aiming else 0.0
-			_bias_pip.rotation = Vector3(0.0, BowlScript.hand_yaw(hand_sign) + extra, 0.0)
+			_bias_pip.rotation = Vector3(0.0, BowlScript.hand_yaw(hand_sign), 0.0)
 	_seat_shadow(radius)
 
 

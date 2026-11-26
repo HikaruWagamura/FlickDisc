@@ -18,7 +18,16 @@ var direct_aim := Vector3(0.0, 0.0, -1.0)
 var direct_power := 0.0
 var direct_hold := Vector3.ZERO
 var finger := Vector2.ZERO
-const DIRECT_METRES := 0.62
+var _raw_aim := Vector3(0.0, 0.0, -1.0)
+var _raw_power := 0.0
+var _raw_hold := Vector3.ZERO
+const DIRECT_METRES := 0.88
+const DIRECT_PULL_PX := 540.0
+const DIRECT_SIDE_PX := 310.0
+const DIRECT_AIM_X := 0.24
+const AIM_SMOOTH := 9.0
+const POWER_SMOOTH := 11.0
+const HOLD_SMOOTH := 10.0
 
 const TakeScript := preload("res://scripts/shot_take.gd")
 
@@ -59,6 +68,19 @@ func busy() -> void:
 func advance(delta: float) -> void:
 	if take != null:
 		take.advance(delta)
+	if not direct or phase != "pull":
+		return
+	var dt := maxf(delta, 0.0001)
+	var aim_blend := 1.0 - exp(-AIM_SMOOTH * dt)
+	var pow_blend := 1.0 - exp(-POWER_SMOOTH * dt)
+	var hold_blend := 1.0 - exp(-HOLD_SMOOTH * dt)
+	direct_aim = direct_aim.lerp(_raw_aim, aim_blend)
+	if direct_aim.length() > 0.001:
+		direct_aim = direct_aim.normalized()
+	else:
+		direct_aim = Vector3(0.0, 0.0, -1.0)
+	direct_power = lerpf(direct_power, _raw_power, pow_blend)
+	direct_hold = direct_hold.lerp(_raw_hold, hold_blend)
 
 
 func read_power() -> float:
@@ -231,6 +253,12 @@ func _direct_input(event: InputEvent) -> void:
 		phase = "pull"
 		_from = screen
 		_travel = 0.0
+		direct_aim = Vector3(0.0, 0.0, -1.0)
+		direct_power = 0.0
+		direct_hold = anchor
+		_raw_aim = direct_aim
+		_raw_power = 0.0
+		_raw_hold = anchor
 		_apply_direct(screen)
 		get_viewport().set_input_as_handled()
 		return
@@ -252,6 +280,9 @@ func _direct_input(event: InputEvent) -> void:
 			phase = "idle"
 			direct_power = 0.0
 			direct_hold = anchor
+			_raw_power = 0.0
+			_raw_hold = anchor
+			_raw_aim = Vector3(0.0, 0.0, -1.0)
 			cancelled_pull.emit()
 		get_viewport().set_input_as_handled()
 
@@ -271,22 +302,24 @@ func _apply_direct(screen: Vector2) -> void:
 	finger = screen
 	_travel = maxf(_travel, _from.distance_to(screen))
 	# The green in front of the camera never reaches behind the mat, so the
-	# pull is the finger's own travel. A full draw is a short drag.
+	# pull is the finger's own travel. A full draw is a long, fine drag.
 	var pull_px := maxf(_pull_pixels(_from, screen), 0.0)
 	var side_px := _side_pixels(_from, screen)
-	if pull_px < 10.0 and absf(side_px) < 8.0:
-		direct_power = 0.0
-		direct_aim = Vector3(0.0, 0.0, -1.0)
-		direct_hold = anchor
+	if pull_px < 10.0 and absf(side_px) < 6.0:
+		_raw_power = 0.0
+		_raw_aim = Vector3(0.0, 0.0, -1.0)
+		_raw_hold = anchor
 		return
-	var travel := clampf(pull_px / 320.0, 0.0, 1.0)
+	var travel := clampf(pull_px / DIRECT_PULL_PX, 0.0, 1.0)
 	var back := travel * DIRECT_METRES
-	# Finger left sends the bowl out to the right, the same as a world drag.
-	var side := clampf(-side_px / 150.0, -1.0, 1.0) * 1.05
-	var aim_back := maxf(back, 0.28)
-	direct_aim = Vector3(-side, 0.0, -aim_back).normalized()
-	direct_power = pow(travel, 1.12)
-	direct_hold = anchor + Vector3(clampf(side, -0.55, 0.55) * travel * 0.42, 0.0, back)
+	# Aim is only the sideways finger. Coupling it to pull distance made the
+	# line jump as weight changed, so micro-adjusts felt jolty.
+	var side := 0.0
+	if absf(side_px) > 4.0:
+		side = clampf(-side_px / DIRECT_SIDE_PX, -1.0, 1.0)
+	_raw_aim = Vector3(side * DIRECT_AIM_X, 0.0, -1.0).normalized()
+	_raw_power = pow(travel, 0.92)
+	_raw_hold = anchor + Vector3(side * travel * 0.06, 0.0, back)
 
 
 func _is_mouse_press(event: InputEvent) -> bool:

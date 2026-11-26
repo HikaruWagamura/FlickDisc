@@ -224,6 +224,10 @@ func _begin_ready() -> void:
 	if gesture != null:
 		gesture.arm()
 		gesture.anchor = disc.start_position
+	ui.show_bowl_controls(not delivering_jack)
+	if not delivering_jack:
+		ui.show_bias(bias_index, _side())
+		ui.show_hand(hand_sign < 0.0, _bowl_name(bias_index))
 	ui.show_place_line(delivering_jack)
 
 
@@ -671,6 +675,8 @@ func _finish_shot(token: int) -> void:
 		hand_sign = disc.hand_sign
 		ui.show_bias(bias_index, _side())
 		ui.show_hand(hand_sign < 0.0, _bowl_name(bias_index))
+		if not _computer_turn():
+			ui.show_bowl_controls(true)
 	_place_rack()
 	disc.obstacles = _table()
 	var jack_pos: Vector3 = jack.global_position
@@ -1190,12 +1196,15 @@ func _set_compare_banner(title: String) -> void:
 
 
 func _dump_compare_shot(name: String) -> void:
+	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
 	var tex: Texture2D = get_viewport().get_texture()
 	if tex == null:
+		print("CUE_SHOT skip %s" % name)
 		return
 	var img := tex.get_image()
 	if img == null:
+		print("CUE_SHOT skip %s" % name)
 		return
 	DirAccess.make_dir_recursive_absolute("/tmp/cue_compare")
 	DirAccess.make_dir_recursive_absolute("/opt/cursor/artifacts")
@@ -1274,6 +1283,8 @@ func _cuetest() -> void:
 
 
 func _fixtest() -> void:
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+	Engine.max_fps = 30
 	await get_tree().process_frame
 	await get_tree().process_frame
 	if gesture != null:
@@ -1312,11 +1323,57 @@ func _fixtest() -> void:
 			var rest: Vector3 = disc.predict_rest(from, aim, power, bias)
 			best = minf(best, Vector2(rest.x, rest.z).distance_to(Vector2(jack_at.x, jack_at.z)))
 	print("FIXTEST ai_draw=%.2f chase=%s cam=%s" % [best, rink.chase, ui.camera_button.text])
+	for bias in [0.0, 0.85, 1.45]:
+		for power in [0.55, 0.70, 0.85, 1.0]:
+			var rest: Vector3 = disc.predict_rest(from, Vector3(0.0, 0.0, -1.0), power, bias)
+			var along_m := from.z - rest.z
+			print("FIXTEST reach bias=%.2f power=%.2f along=%.1f x=%.2f" % [bias, power, along_m, rest.x])
+	print("FIXTEST weight23 medium=%.2f hook=%.2f" % [disc.weight_for_length(23.0, 0.85), disc.weight_for_length(23.0, 1.45)])
+	var peak := 0.0
+	var pos := from
+	var vel: Vector3 = disc._delivery_velocity(Vector3(0.0, 0.0, -1.0), 1.0)
+	for _s in 400:
+		var moved: Array = disc._move_planar(pos, vel, disc.radius, 1.45, true, 0.05, 1.0)
+		pos = moved[0]
+		vel = moved[1]
+		peak = maxf(peak, absf(pos.x))
+		if bool(moved[3]) or vel.length() < 0.15:
+			break
+	print("FIXTEST hook100 peak_x=%.2f rest_x=%.2f rink_half=%.1f" % [peak, pos.x, rink.HALF_WIDTH])
+	disc.configure_bowl(1, -1.0)
+	disc.set_palette(0)
+	disc.reset_to_start()
+	if gesture != null:
+		gesture.phase = "pull"
+		gesture.direct_hold = disc.start_position + Vector3(0.0, 0.0, 0.42)
+		gesture._raw_hold = gesture.direct_hold
+		gesture.direct_aim = Vector3(0.07, 0.0, -1.0).normalized()
+		gesture._raw_aim = gesture.direct_aim
+		gesture.direct_power = 0.58
+		gesture._raw_power = 0.58
+		gesture.finger = Vector2(270.0, 620.0)
+	for _i in 10:
+		await get_tree().process_frame
+	await _dump_compare_shot("fix_pull_aim")
+	if gesture != null:
+		gesture.busy()
+		gesture.direct_power = 0.0
+	disc.reset_to_start()
+	disc.fire_taken(Vector3(0.0, 0.0, -1.0), 0.70)
+	for _i in 36:
+		await get_tree().process_frame
+		if _i == 6:
+			await _dump_compare_shot("fix_bowl_roll_a")
+		elif _i == 18:
+			await _dump_compare_shot("fix_bowl_roll")
+		elif _i == 30:
+			await _dump_compare_shot("fix_bowl_roll_b")
 	ui.show_bowl_controls(true)
-	ui.show_hand(true, "HOOK")
+	ui.show_bias(1, 0)
+	ui.show_hand(true, "MEDIUM")
 	await _dump_compare_shot("fix_hand_fore")
 	disc.set_hand(1.0)
-	ui.show_hand(false, "HOOK")
+	ui.show_hand(false, "MEDIUM")
 	await _dump_compare_shot("fix_hand_back")
 	print("FIXTEST done")
 	get_tree().quit(0)

@@ -53,7 +53,9 @@ var current_bias := 0.0
 var menu_button: Button
 var cue_button: Button
 var pause_layer: Control
-var _power_home := Vector2(506.0, 172.0)
+var _power_home := Vector2(504.0, 108.0)
+var _power_paint := -1.0
+var _power_cap_box: StyleBoxFlat
 
 const POWER_WIDTH := 250.0
 
@@ -132,18 +134,21 @@ func set_power_ratio(power_ratio: float) -> void:
 	var tall := maxf(inner * ratio, 4.0)
 	power_fill.size = Vector2(12.0, tall)
 	power_fill.position = Vector2(7.0, 10.0 + inner - tall)
-	_paint_power_fill(ratio)
+	if absf(ratio - _power_paint) > 0.006 or ratio >= 0.90:
+		_paint_power_fill(ratio)
+		_power_paint = ratio
 	if power_cap != null:
 		power_cap.visible = true
 		var heat := Color(0.36, 1.0, 0.95).lerp(Color(1.0, 0.12, 0.18), smoothstep(0.35, 1.0, ratio))
-		var cap := StyleBoxFlat.new()
-		cap.bg_color = heat.lerp(Color(1.0, 0.96, 0.94), 0.35)
-		cap.border_color = heat
-		cap.set_border_width_all(3)
-		cap.set_corner_radius_all(14)
-		cap.shadow_color = Color(heat.r, heat.g, heat.b, 0.45)
-		cap.shadow_size = 8
-		power_cap.add_theme_stylebox_override("panel", cap)
+		if _power_cap_box == null:
+			_power_cap_box = StyleBoxFlat.new()
+			_power_cap_box.set_border_width_all(3)
+			_power_cap_box.set_corner_radius_all(14)
+			_power_cap_box.shadow_size = 8
+			power_cap.add_theme_stylebox_override("panel", _power_cap_box)
+		_power_cap_box.bg_color = heat.lerp(Color(1.0, 0.96, 0.94), 0.35)
+		_power_cap_box.border_color = heat
+		_power_cap_box.shadow_color = Color(heat.r, heat.g, heat.b, 0.45)
 		power_cap.position = Vector2(1.0, power_fill.position.y - 6.0)
 	if power_max != null:
 		power_max.visible = ratio >= 0.94
@@ -330,6 +335,7 @@ func show_in_motion(side_name: String, bowl_name: String, forehand: bool, score_
 	throws_label.text = score_line
 	status_label.text = "%s  •  %s  •  %s" % [side_name, bowl_name, "FOREHAND" if forehand else "BACKHAND"]
 	score_label.text = "FOLLOWING THE BOWL" if camera_chase else "DOWN THE LINE"
+	show_bowl_controls(false)
 
 
 func show_computer(side_name: String, left: int) -> void:
@@ -425,8 +431,8 @@ func _hand_name() -> String:
 
 func _build_power_meter() -> void:
 	power_track = Panel.new()
-	power_track.position = Vector2(506.0, 172.0)
-	power_track.size = Vector2(26.0, 168.0)
+	power_track.position = Vector2(504.0, 108.0)
+	power_track.size = Vector2(32.0, 300.0)
 	power_track.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var track := StyleBoxFlat.new()
 	track.bg_color = Color(0.05, 0.03, 0.12, 0.88)
@@ -438,12 +444,12 @@ func _build_power_meter() -> void:
 	power_track.add_theme_stylebox_override("panel", track)
 	power_track.clip_contents = false
 	add_child(power_track)
-	for tick in 4:
+	for tick in 5:
 		var mark := ColorRect.new()
 		mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		mark.color = Color(1.0, 1.0, 1.0, 0.18)
-		mark.size = Vector2(10.0, 2.0)
-		mark.position = Vector2(8.0, 16.0 + float(tick) * 44.0)
+		mark.size = Vector2(12.0, 2.0)
+		mark.position = Vector2(10.0, 18.0 + float(tick) * 56.0)
 		power_track.add_child(mark)
 	power_fill = TextureRect.new()
 	power_fill.position = Vector2(8.0, 10.0)
@@ -467,7 +473,7 @@ func _build_power_meter() -> void:
 	power_track.add_child(power_cap)
 	power_label = Label.new()
 	power_label.text = "POWER"
-	power_label.position = Vector2(468.0, 344.0)
+	power_label.position = Vector2(466.0, 414.0)
 	power_label.size = Vector2(90.0, 16.0)
 	power_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	power_label.add_theme_font_override("font", HUD_FONT)
@@ -553,12 +559,12 @@ func _layout_hud() -> void:
 	if score_label != null:
 		score_label.position = Vector2(18.0, 150.0 + top)
 	if power_track != null:
-		_power_home = Vector2(506.0, 172.0 + top)
+		_power_home = Vector2(504.0, 108.0 + top)
 		power_track.position = _power_home
 	if power_label != null:
-		power_label.position = Vector2(468.0, 344.0 + top)
+		power_label.position = Vector2(466.0, 414.0 + top)
 	if bias_rail != null:
-		bias_rail.position = Vector2(468.0, 360.0 + top)
+		bias_rail.position = Vector2(468.0, 430.0 + top)
 	if hand_switch != null:
 		hand_switch.position = Vector2(372.0, 742.0 - bottom)
 	if next_button != null:

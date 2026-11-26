@@ -1,7 +1,7 @@
 class_name RinkView
 extends Node3D
 
-## Long lawn-bowls rink. The playing surface is 68 m by 11 m.
+## Long lawn-bowls rink. The playing surface is 68 m by 12 m.
 ## Banks rebound unless ditch mode is on. Then a narrow ditch at each side
 ## and at the far end can take a bowl, and two spare jacks sit on the back bank.
 
@@ -12,9 +12,9 @@ const LONG_MIN := 44.0
 const NEAR_Z := 0.0
 const DISC_Z := -1.65
 const SURFACE_Y := 0.0
-## A match rink is 68 m by 11 m. The long green stretches both.
+## A match rink is 68 m by 12 m. The long green stretches both.
 var LENGTH := 68.0
-var HALF_WIDTH := 5.5
+var HALF_WIDTH := 6.0
 var FAR_Z := -68.0
 
 
@@ -259,11 +259,12 @@ func _process(delta: float) -> void:
 			goal_fov = 36.0
 		response = 2.7
 	elif _aiming and not _shot_live:
-		# Stay behind the bowl as it draws back so the block on the grass stays in frame.
-		goal_pos = Vector3(clampf(_shot_pos.x * 0.35, -1.2, 1.2), 0.96, _shot_pos.z + 2.55)
-		goal_look = Vector3(_shot_pos.x * 0.12, 0.08, _shot_pos.z - 12.5)
+		# Stay on the centre line while the bowl draws back. Following the
+		# stone's tiny sideways hold made the whole green jitter on aim.
+		goal_pos = Vector3(0.0, 0.96, _shot_pos.z + 2.55)
+		goal_look = Vector3(0.0, 0.08, _shot_pos.z - 12.5)
 		goal_fov = 42.0
-		response = 11.0
+		response = 3.4
 	elif _shot_live and chase:
 		# Trail toward the mat. A wide or ditched bowl lifts the lens so we
 		# look down into the trench instead of skimming the grass into the trees.
@@ -280,7 +281,7 @@ func _process(delta: float) -> void:
 		goal_pos = Vector3(clampf(_shot_pos.x * x_follow, -x_cap, x_cap), height, _shot_pos.z + trail)
 		goal_look = Vector3(_shot_pos.x * 0.72, 0.2, _shot_pos.z)
 		goal_fov = lerpf(40.0, 56.0, pace) if long_green else lerpf(44.0, 50.0, widen * 0.5)
-		response = 8.0 if long_green else (11.0 if widen > 0.45 else lerpf(7.5, 5.0, pace))
+		response = 6.5 if long_green else (7.2 if widen > 0.45 else lerpf(5.4, 4.2, pace))
 	elif _shot_live:
 		# Stay behind the mat and watch the bowl run away down the line.
 		goal_pos = Vector3(0.0, 0.62, _mat.z + 2.1)
