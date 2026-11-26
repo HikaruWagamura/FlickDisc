@@ -265,7 +265,7 @@ static func preview(kit: Dictionary, for_disc: bool) -> Texture2D:
 						col = color_b.lerp(sample, (1.0 - side) * sample.a)
 					else:
 						col = sample if sample.a > 0.12 else color_a
-			if for_disc and r2 < 0.18:
+			if for_disc and r2 < 0.08:
 				col = color_a
 			var light := clampf(0.42 + nz * 0.7 + nx * 0.12 - ny * 0.08, 0.22, 1.2)
 			var alpha := 1.0 if r2 < 0.9 else clampf((1.0 - r2) / 0.1, 0.0, 1.0)

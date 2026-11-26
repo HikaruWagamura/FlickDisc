@@ -104,6 +104,8 @@ var kit_preview_bowl: TextureRect
 var kit_preview_disc: TextureRect
 var kit_skin_row: GridContainer
 var kit_caption: Label
+var kit_bowl_tab: Button
+var kit_disc_tab: Button
 
 
 func setup(player_profile) -> void:
@@ -665,22 +667,22 @@ func _build_customise() -> void:
 	var tabs := HBoxContainer.new()
 	tabs.add_theme_constant_override("separation", 8)
 	box.add_child(tabs)
-	var bowl_tab := _button("BOWLS", 14)
-	bowl_tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	bowl_tab.custom_minimum_size = Vector2(0, 44)
-	bowl_tab.pressed.connect(func() -> void:
+	kit_bowl_tab = _button("BOWLS", 14)
+	kit_bowl_tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	kit_bowl_tab.custom_minimum_size = Vector2(0, 44)
+	kit_bowl_tab.pressed.connect(func() -> void:
 		kit_tab = "bowl"
 		_paint_kit()
 	)
-	tabs.add_child(bowl_tab)
-	var disc_tab := _button("DISCS", 14)
-	disc_tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	disc_tab.custom_minimum_size = Vector2(0, 44)
-	disc_tab.pressed.connect(func() -> void:
+	tabs.add_child(kit_bowl_tab)
+	kit_disc_tab = _button("DISCS", 14)
+	kit_disc_tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	kit_disc_tab.custom_minimum_size = Vector2(0, 44)
+	kit_disc_tab.pressed.connect(func() -> void:
 		kit_tab = "disc"
 		_paint_kit()
 	)
-	tabs.add_child(disc_tab)
+	tabs.add_child(kit_disc_tab)
 	var previews := HBoxContainer.new()
 	previews.alignment = BoxContainer.ALIGNMENT_CENTER
 	previews.add_theme_constant_override("separation", 28)
@@ -1304,6 +1306,10 @@ func _paint_kit() -> void:
 	var look: Dictionary = Kit.skin(skin_id)
 	if kit_caption != null:
 		kit_caption.text = "%s  ·  %s" % [look["name"], pal["name"]]
+	if kit_bowl_tab != null:
+		_paint_button(kit_bowl_tab, PINK if kit_tab == "bowl" else PLUM, Color("#ffe4f4") if kit_tab == "bowl" else Color(1, 1, 1, 0.18), CREAM, 14, 8, 2 if kit_tab == "bowl" else 1)
+	if kit_disc_tab != null:
+		_paint_button(kit_disc_tab, PINK if kit_tab == "disc" else PLUM, Color("#ffe4f4") if kit_tab == "disc" else Color(1, 1, 1, 0.18), CREAM, 14, 8, 2 if kit_tab == "disc" else 1)
 	if kit_skin_row != null:
 		for i in kit_skin_row.get_child_count():
 			var chip := kit_skin_row.get_child(i) as Button
