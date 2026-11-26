@@ -22,6 +22,7 @@ const WIDE_BIAS := 2
 const SIT_NEST := 0.0
 const GROUND_CLEAR := 0.002
 const CLUB_SCENE := preload("res://assets/bowls/modern_lawn_bowls.fbx")
+const Kit := preload("res://scripts/kit.gd")
 const CLUB_NAMES := ["ball_1", "ball_2", "ball_3", "ball_4"]
 const JACK_NAME := "ball_1_1"
 
@@ -342,12 +343,20 @@ func paint(index: int, hand: float = -1.0, bias: int = -1) -> void:
 		_cap_mat = dressed["cap"]
 		_mark_mat = dressed["mark"]
 		_pip = dressed["weight"]
+		if index % 2 == 0:
+			var holder := _spin.get_node_or_null("ClubBowl")
+			if holder is Node3D:
+				Kit.paint_holder(holder, Kit.from_meta(Engine.get_main_loop() as SceneTree), false)
 		set_hand(hand)
 		return
 	apply_team(_body_mat, index, false)
 	tint_band(_rim_mat, index)
 	tint_band(_cap_mat, index)
 	tint_band(_mark_mat, index)
+	if index % 2 == 0:
+		var holder := _spin.get_node_or_null("ClubBowl") if _spin != null else null
+		if holder is Node3D:
+			Kit.paint_holder(holder, Kit.from_meta(Engine.get_main_loop() as SceneTree), false)
 	set_hand(hand)
 
 
@@ -427,6 +436,10 @@ func _build_disc(index: int, hand: float) -> void:
 	_cap_mat = dressed["cap"]
 	_mark_mat = dressed["mark"]
 	_pip = dressed["weight"]
+	if index % 2 == 0:
+		var holder := _spin.get_node_or_null("ClubBowl")
+		if holder is Node3D:
+			Kit.paint_holder(holder, Kit.from_meta(Engine.get_main_loop() as SceneTree), false)
 	set_hand(hand)
 	_score_ring = MeshInstance3D.new()
 	_score_ring.mesh = _annulus(0.2, 0.26, 28)

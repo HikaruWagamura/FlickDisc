@@ -93,6 +93,7 @@ func _play(setup: Dictionary) -> void:
 		current.match_target = int(setup.get("target", 100))
 		current.start_level = int(setup.get("level", 0))
 		current.player_tint = profile.disc_color()
+		current.set_meta("flickdisc_kit", profile.kit())
 	else:
 		current.match_index = int(setup.get("match_index", 1))
 		current.opponent = str(setup.get("opponent", "local"))
@@ -102,6 +103,7 @@ func _play(setup: Dictionary) -> void:
 		current.solo_play = bool(setup.get("solo", false))
 	get_tree().root.set_meta("flickdisc_sound", profile.sound)
 	get_tree().root.set_meta("flickdisc_haptics", profile.haptics)
+	get_tree().root.set_meta("flickdisc_kit", profile.kit())
 	menu.set_open(false)
 	add_child(current)
 	if current.has_signal("goal_cleared"):
@@ -134,6 +136,29 @@ func _menutest() -> void:
 	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
 	_dump_menu("menu_shop")
+	menu.open_screen("customise")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	_dump_menu("menu_kit")
+	menu._pick_skin("camo")
+	menu._pick_swatch(6)
+	await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	_dump_menu("menu_kit_camo")
+	menu._pick_skin("arctic")
+	await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	_dump_menu("menu_kit_arctic")
+	menu._pick_skin("photo")
+	await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	_dump_menu("menu_kit_photo")
+	menu._pick_skin("split")
+	menu._pick_swatch(1)
+	await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	_dump_menu("menu_kit_split")
 	menu.open_screen("setup")
 	await get_tree().process_frame
 	await RenderingServer.frame_post_draw

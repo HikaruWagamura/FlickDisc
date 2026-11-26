@@ -78,6 +78,7 @@ var place_x := 0.0
 var aim_lock := 0.0
 var line_z := 0.0
 var _return_token := 0
+var _freeze_cam := false
 const PLACE_HALF := 1.65
 const PULL_BACK := 0.62
 const AIM_CONE := 0.26
@@ -88,6 +89,13 @@ const MIN_LIVE_JACK := 20.0
 
 
 func _ready() -> void:
+	if OS.get_cmdline_user_args().has("--kitshot"):
+		get_tree().root.set_meta("flickdisc_kit", {
+			"bowl_skin": "camo",
+			"bowl_color": 6,
+			"disc_skin": "camo",
+			"disc_color": 0,
+		})
 	ui = get_node("UI")
 	level_manager = LevelScript.new()
 	score_manager = ScoreScript.new()
@@ -159,6 +167,8 @@ func _ready() -> void:
 		call_deferred("_drawtest")
 	elif OS.get_cmdline_user_args().has("--endtest"):
 		call_deferred("_endtest")
+	elif OS.get_cmdline_user_args().has("--kitshot"):
+		call_deferred("_kitshot")
 
 
 func _process(delta: float) -> void:
@@ -172,7 +182,7 @@ func _process(delta: float) -> void:
 			fastest = maxf(fastest, body.velocity.length())
 	if feel != null:
 		feel.set_roll(fastest / DiscScript.MAX_SPEED)
-	if rink != null and disc != null:
+	if rink != null and disc != null and not _freeze_cam:
 		var mat := Vector3(place_x, 0.0, line_z)
 		var head_at: Vector3 = jack.global_position if jack != null and jack.visible else disc.global_position
 		rink.note_delivery(disc.global_position, disc.velocity, disc.shot_in_progress, mat, head_at, disc.is_aiming)
@@ -1901,6 +1911,65 @@ func _handtest() -> void:
 	await _dump_compare_shot("hand_back")
 	print("HANDTEST done")
 	get_tree().quit(0)
+
+
+func _kitshot() -> void:
+	_freeze_cam = true
+	if rink != null:
+		rink.pose_lock = true
+	await get_tree().process_frame
+	await get_tree().process_frame
+	delivering_jack = false
+	if disc != null:
+		disc.configure_bowl(3, -1.0)
+		disc.set_palette(0)
+		disc.global_position = Vector3(0.0, 0.0, line_z)
+		disc.start_position = disc.global_position
+		if disc._spin != null:
+			disc._spin.rotation = Vector3(0.0, 0.85, 0.0)
+	if ui != null:
+		ui.visible = false
+	if gesture != null:
+		gesture.busy()
+	var cam: Camera3D = rink.view_camera() if rink != null else null
+	if cam != null and disc != null:
+		var at: Vector3 = disc.global_position + Vector3(0.0, 0.08, 0.0)
+		cam.fov = 34.0
+		cam.position = at + Vector3(0.62, 0.38, 0.95)
+		cam.look_at(at, Vector3.UP)
+	var looks := [
+		{"file": "kit_bowl_split", "skin": "split", "color": 1},
+		{"file": "kit_bowl_both", "skin": "both", "color": 0},
+		{"file": "kit_bowl_camo", "skin": "camo", "color": 6},
+		{"file": "kit_bowl_arctic", "skin": "arctic", "color": 8},
+		{"file": "kit_bowl_carbon", "skin": "carbon", "color": 21},
+		{"file": "kit_bowl_sunset", "skin": "sunset", "color": 0},
+		{"file": "kit_bowl_photo", "skin": "photo", "color": 1},
+	]
+	for look in looks:
+		_apply_test_kit(str(look["skin"]), int(look["color"]))
+		await get_tree().process_frame
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		await _dump_compare_shot(str(look["file"]))
+	print("KITSHOT done")
+	get_tree().quit(0)
+
+
+func _apply_test_kit(skin_id: String, color: int) -> void:
+	var kit := {
+		"bowl_skin": skin_id,
+		"bowl_color": color,
+		"disc_skin": skin_id,
+		"disc_color": color,
+	}
+	get_tree().root.set_meta("flickdisc_kit", kit)
+	if disc != null:
+		disc.set_palette(0)
+		if disc._spin != null:
+			disc._spin.rotation = Vector3(0.0, 0.85, 0.0)
+	for bowl in rack:
+		bowl.paint(0, hand_sign)
 
 
 func _wants_cuetest() -> bool:

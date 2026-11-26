@@ -32,6 +32,7 @@ func tee_z() -> float:
 
 var head: Node3D
 var _camera: Camera3D
+var pose_lock := false
 ## Chase rides behind the running bowl. Behind stays on the mat and looks up the green.
 var chase := true
 var _aiming := false
@@ -251,7 +252,7 @@ func note_delivery(pos: Vector3, vel: Vector3, live: bool, mat: Vector3, head_at
 
 
 func _process(delta: float) -> void:
-	if _camera == null:
+	if _camera == null or pose_lock:
 		return
 	var goal_pos := Vector3.ZERO
 	var goal_look := Vector3.ZERO

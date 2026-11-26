@@ -81,6 +81,13 @@ func _ready() -> void:
 	ui.next_level_requested.connect(_on_next_level_requested)
 	ui.bias_cycle_requested.connect(_on_bias_cycle_requested)
 	_wire_shot()
+	if OS.get_cmdline_user_args().has("--crokshot") or OS.get_cmdline_user_args().has("--kitshot"):
+		get_tree().root.set_meta("flickdisc_kit", {
+			"bowl_skin": "camo",
+			"bowl_color": 6,
+			"disc_skin": "camo",
+			"disc_color": 0,
+		})
 	_load_level(start_level)
 	if OS.get_cmdline_user_args().has("--cuetest"):
 		call_deferred("_cuetest")
@@ -115,14 +122,14 @@ func _setup_view() -> void:
 
 	camera = Camera3D.new()
 	camera.name = "Camera3D"
-	camera.fov = 44.0
+	camera.fov = 50.0
 	camera.near = 0.04
 	camera.far = 24.0
 	camera.current = true
 	add_child(camera)
-	# Sit behind the shooting disc and look down the line to the hole.
-	camera.position = Vector3(0.0, 1.46, 2.02)
-	camera.look_at(Vector3(0.0, 0.02, 0.28), Vector3.UP)
+	# Sit behind the shooting disc with room under it to pull back.
+	camera.position = Vector3(0.0, 1.88, 2.58)
+	camera.look_at(Vector3(0.0, 0.02, 0.10), Vector3.UP)
 
 	var key := DirectionalLight3D.new()
 	key.rotation_degrees = Vector3(-52.0, -28.0, 0.0)
@@ -356,7 +363,7 @@ func _wire_shot() -> void:
 	add_child(shot)
 	gesture = shot
 	gesture.direct = true
-	gesture.direct_runup = 0.22
+	gesture.direct_runup = 0.34
 	fan = preload("res://scripts/shot_fan.gd").new()
 	fan.name = "ShotFan"
 	ui.add_child(fan)
@@ -919,26 +926,43 @@ func _crokshot() -> void:
 	if active_puck == null:
 		_arm_next_disc()
 	_snap_disc()
+	await RenderingServer.frame_post_draw
+	await _dump_cue_shot("crok_hole_open")
 	if gesture != null and active_puck != null:
 		gesture.direct = true
 		gesture.anchor = active_puck.global_position
 		gesture.direct_aim = Vector3(0.0, 0.0, -1.0)
-		gesture.direct_power = 0.78
-		gesture.direct_hold = active_puck.global_position + Vector3(0.0, 0.0, 0.16)
+		gesture.direct_power = 0.92
+		gesture.direct_hold = active_puck.global_position + Vector3(0.0, 0.0, 0.30)
 		gesture._raw_aim = Vector3(0.0, 0.0, -1.0)
-		gesture._raw_power = 0.78
+		gesture._raw_power = 0.92
 		gesture._raw_hold = gesture.direct_hold
 		gesture.phase = "pull"
-	disc.preview_take(Vector3(0.0, 0.0, -1.0), 0.78)
+	disc.preview_take(Vector3(0.0, 0.0, -1.0), 0.92)
 	if cue != null:
 		cue.set_heads(5)
-		cue.present(disc.cue_points(0.78), 0.78)
-	ui.show_power(0.78)
-	ui.show_aiming(0.78)
+		cue.present(disc.cue_points(0.92), 0.92)
+	ui.show_power(0.92)
+	ui.show_aiming(0.92)
 	await get_tree().process_frame
 	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
-	await _dump_cue_shot("crok_five_straight")
+	await _dump_cue_shot("crok_pull_room")
+	_test_hold_turns = true
+	if gesture != null:
+		gesture.busy()
+	_snap_disc()
+	disc.fire_at(Vector3(0.0, 0.0, -1.0), 0.78)
+	var waited := 0.0
+	while waited < 2.4:
+		await get_tree().process_frame
+		waited += get_process_delta_time()
+		if shooting_puck != null and bool(shooting_puck.sunk):
+			break
+	await RenderingServer.frame_post_draw
+	await _dump_cue_shot("crok_hole_drop")
+	var dropped: bool = shooting_puck != null and bool(shooting_puck.sunk)
+	print("CROKSHOT hole_drop=%s" % dropped)
 	print("CROKSHOT done")
 	get_tree().quit(0)
 

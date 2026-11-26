@@ -99,6 +99,11 @@ var toast_label: Label
 var splash_bar: ColorRect
 var challenge_trails := {}
 var swatch_buttons: Array = []
+var kit_tab := "bowl"
+var kit_preview_bowl: TextureRect
+var kit_preview_disc: TextureRect
+var kit_skin_row: GridContainer
+var kit_caption: Label
 
 
 func setup(player_profile) -> void:
@@ -182,6 +187,7 @@ func _prepare_fonts() -> void:
 
 
 const LOGO := preload("res://assets/flick_disc_logo.png")
+const Kit := preload("res://scripts/kit.gd")
 
 
 func _logo_texture() -> Texture2D:
@@ -204,6 +210,8 @@ func _show(next: String) -> void:
 		_arm_splash()
 	if next == "setup":
 		_sync_setup()
+	if next == "customise":
+		_paint_kit()
 	_sync_identity()
 
 
@@ -331,7 +339,7 @@ func _build_home() -> void:
 	home_play = play
 	play.pressed.connect(func() -> void:
 		_tap()
-		_open_setup("classic")
+		_open_kit("classic")
 	)
 
 	_home_card(page, Rect2(28, 488, 236, 124), "LONG GREEN", "A full match rink.", "green", "🌿", "drive")
@@ -652,24 +660,80 @@ func _build_customise() -> void:
 	var box := built["box"] as VBoxContainer
 	pages["customise"] = page
 	root.add_child(page)
-	box.add_child(_title("CUSTOMISE"))
-	box.add_child(_wrapped("The top of every FlickDisc button. Club pink is the house colour. Pick another for the centre pip on the round board."))
+	box.add_child(_title("YOUR KIT"))
+	box.add_child(_wrapped("Bowls first, then discs. Half / half, both sides, or a graphic wrap. Unlocked for testing."))
+	var tabs := HBoxContainer.new()
+	tabs.add_theme_constant_override("separation", 8)
+	box.add_child(tabs)
+	var bowl_tab := _button("BOWLS", 14)
+	bowl_tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bowl_tab.custom_minimum_size = Vector2(0, 44)
+	bowl_tab.pressed.connect(func() -> void:
+		kit_tab = "bowl"
+		_paint_kit()
+	)
+	tabs.add_child(bowl_tab)
+	var disc_tab := _button("DISCS", 14)
+	disc_tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	disc_tab.custom_minimum_size = Vector2(0, 44)
+	disc_tab.pressed.connect(func() -> void:
+		kit_tab = "disc"
+		_paint_kit()
+	)
+	tabs.add_child(disc_tab)
+	var previews := HBoxContainer.new()
+	previews.alignment = BoxContainer.ALIGNMENT_CENTER
+	previews.add_theme_constant_override("separation", 28)
+	box.add_child(previews)
+	kit_preview_bowl = TextureRect.new()
+	kit_preview_bowl.custom_minimum_size = Vector2(120, 120)
+	kit_preview_bowl.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	kit_preview_bowl.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	previews.add_child(kit_preview_bowl)
+	kit_preview_disc = TextureRect.new()
+	kit_preview_disc.custom_minimum_size = Vector2(120, 120)
+	kit_preview_disc.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	kit_preview_disc.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	previews.add_child(kit_preview_disc)
+	kit_caption = _wrapped("HALF / HALF  ·  Match red")
+	box.add_child(kit_caption)
+	box.add_child(_kicker("COLOUR"))
 	var grid := GridContainer.new()
-	grid.columns = 3
-	grid.add_theme_constant_override("h_separation", 14)
-	grid.add_theme_constant_override("v_separation", 14)
+	grid.columns = 8
+	grid.add_theme_constant_override("h_separation", 6)
+	grid.add_theme_constant_override("v_separation", 6)
 	grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	for i in profile.COLORS.size():
+	for i in Kit.PALETTES.size():
 		var swatch := Button.new()
 		swatch.text = ""
-		swatch.custom_minimum_size = Vector2(86, 86)
+		swatch.custom_minimum_size = Vector2(48, 48)
 		swatch.pressed.connect(_pick_swatch.bind(i))
 		swatch_buttons.append(swatch)
 		grid.add_child(swatch)
 	var center := CenterContainer.new()
 	center.add_child(grid)
 	box.add_child(center)
-	_paint_swatches()
+	box.add_child(_kicker("LOOK"))
+	kit_skin_row = GridContainer.new()
+	kit_skin_row.columns = 3
+	kit_skin_row.add_theme_constant_override("h_separation", 8)
+	kit_skin_row.add_theme_constant_override("v_separation", 8)
+	kit_skin_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_child(kit_skin_row)
+	for item in Kit.SKINS:
+		var chip := _button(str(item["name"]), 11)
+		chip.custom_minimum_size = Vector2(0, 36)
+		chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		chip.pressed.connect(_pick_skin.bind(str(item["id"])))
+		kit_skin_row.add_child(chip)
+	var play_kit := _button("PLAY THIS KIT", 16)
+	play_kit.custom_minimum_size = Vector2(0, 52)
+	_paint_button(play_kit, PINK, Color("#ffd0e8"), Color("#1a0a12"), 16, 12)
+	play_kit.pressed.connect(func() -> void:
+		_open_setup(kind if kind != "" else "classic")
+	)
+	box.add_child(play_kit)
+	_paint_kit()
 
 
 func _build_shop() -> void:
@@ -847,6 +911,12 @@ func _build_toast() -> void:
 	toast_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	toast_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	toast.add_child(toast_label)
+
+
+func _open_kit(next_kind: String) -> void:
+	kind = next_kind
+	kit_tab = "bowl"
+	_show("customise")
 
 
 func _open_setup(next_kind: String) -> void:
@@ -1197,20 +1267,56 @@ func _toggle_haptics() -> void:
 
 
 func _pick_swatch(index: int) -> void:
-	profile.disc_index = index
+	if kit_tab == "bowl":
+		profile.bowl_color = index
+	else:
+		profile.disc_index = index
 	profile.save_profile()
-	_paint_swatches()
+	_paint_kit()
+	_sync_identity()
+
+
+func _pick_skin(skin_id: String) -> void:
+	if kit_tab == "bowl":
+		profile.bowl_skin = skin_id
+	else:
+		profile.disc_skin = skin_id
+	profile.save_profile()
+	_paint_kit()
 	_sync_identity()
 
 
 func _paint_swatches() -> void:
+	_paint_kit()
+
+
+func _paint_kit() -> void:
 	if profile == null:
 		return
+	var kit: Dictionary = profile.kit()
+	if kit_preview_bowl != null:
+		kit_preview_bowl.texture = Kit.preview(kit, false)
+	if kit_preview_disc != null:
+		kit_preview_disc.texture = Kit.preview(kit, true)
+	var color_index: int = profile.bowl_color if kit_tab == "bowl" else profile.disc_index
+	var pal: Dictionary = Kit.palette(color_index)
+	var skin_id: String = profile.bowl_skin if kit_tab == "bowl" else profile.disc_skin
+	var look: Dictionary = Kit.skin(skin_id)
+	if kit_caption != null:
+		kit_caption.text = "%s  ·  %s" % [look["name"], pal["name"]]
+	if kit_skin_row != null:
+		for i in kit_skin_row.get_child_count():
+			var chip := kit_skin_row.get_child(i) as Button
+			var item: Dictionary = Kit.SKINS[i]
+			var on: bool = str(item["id"]) == skin_id
+			_paint_button(chip, PINK if on else PLUM, Color("#ffe4f4") if on else Color(1, 1, 1, 0.18), CREAM if on else MUTED, 12, 8, 2 if on else 1)
+	var selected: int = color_index
 	for i in swatch_buttons.size():
 		var swatch := swatch_buttons[i] as Button
-		var selected: bool = int(profile.disc_index) == i
-		var border := Color("#ffe4f4") if selected else Color(1, 1, 1, 0.18)
-		_paint_button(swatch, profile.COLORS[i], border, CREAM, 40, 0, 3 if selected else 1)
+		var border := Color("#ffe4f4") if i == selected else Color(1, 1, 1, 0.18)
+		var swatch_pal: Dictionary = Kit.palette(i)
+		var swatch_color: Color = swatch_pal["a"]
+		_paint_button(swatch, swatch_color, border, CREAM, 32, 0, 3 if i == selected else 1)
 
 
 func _paint_challenges() -> void:

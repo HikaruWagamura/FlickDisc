@@ -2,15 +2,17 @@ extends RefCounted
 
 ## Local FlickDisc profile. Wins, challenges, and the disc colour stay on this device.
 
+const Kit := preload("res://scripts/kit.gd")
+
 const COLORS: Array[Color] = [
 	Color("#ff3d9a"),
-	Color("#ff4b5c"),
-	Color("#7af0ff"),
-	Color("#ffe27a"),
-	Color("#c9a4ff"),
+	Color("#c41018"),
+	Color("#5ad4ea"),
+	Color("#d4a017"),
+	Color("#7a3dff"),
 	Color("#f4f4f6"),
 ]
-const COLOR_NAMES: PackedStringArray = ["Club pink", "Hot red", "Ice", "Gold", "Violet", "Chalk"]
+const COLOR_NAMES: PackedStringArray = ["Club pink", "Match red", "Ice", "Gold", "Violet", "Chalk"]
 const CHALLENGE_XP := {"hole": 25, "fifteen": 15, "draw": 20}
 
 var player_name := "Flicker"
@@ -19,6 +21,9 @@ var losses := 0
 var xp := 0
 var rounds := 0
 var disc_index := 0
+var bowl_color := 1
+var bowl_skin := "split"
+var disc_skin := "both"
 var sound := true
 var haptics := true
 var cleared: PackedStringArray = PackedStringArray()
@@ -38,11 +43,20 @@ func xp_ratio() -> float:
 
 
 func disc_color() -> Color:
-	return COLORS[clampi(disc_index, 0, COLORS.size() - 1)]
+	return Kit.palette(disc_index)["a"]
+
+
+func kit() -> Dictionary:
+	return {
+		"bowl_skin": bowl_skin,
+		"bowl_color": bowl_color,
+		"disc_skin": disc_skin,
+		"disc_color": disc_index,
+	}
 
 
 func disc_name() -> String:
-	return COLOR_NAMES[clampi(disc_index, 0, COLOR_NAMES.size() - 1)]
+	return str(Kit.palette(disc_index)["name"])
 
 
 func record_text() -> String:
@@ -65,6 +79,9 @@ func load_profile() -> void:
 	xp = int(cfg.get_value("player", "xp", 0))
 	rounds = int(cfg.get_value("player", "rounds", 0))
 	disc_index = int(cfg.get_value("player", "disc", 0))
+	bowl_color = int(cfg.get_value("player", "bowl_color", 1))
+	bowl_skin = str(cfg.get_value("player", "bowl_skin", "split"))
+	disc_skin = str(cfg.get_value("player", "disc_skin", "both"))
 	sound = bool(cfg.get_value("player", "sound", true))
 	haptics = bool(cfg.get_value("player", "haptics", true))
 	best_drive = float(cfg.get_value("player", "best_drive", 0.0))
@@ -95,6 +112,9 @@ func save_profile() -> void:
 	cfg.set_value("player", "xp", xp)
 	cfg.set_value("player", "rounds", rounds)
 	cfg.set_value("player", "disc", disc_index)
+	cfg.set_value("player", "bowl_color", bowl_color)
+	cfg.set_value("player", "bowl_skin", bowl_skin)
+	cfg.set_value("player", "disc_skin", disc_skin)
 	cfg.set_value("player", "sound", sound)
 	cfg.set_value("player", "haptics", haptics)
 	cfg.set_value("player", "cleared", ",".join(cleared))

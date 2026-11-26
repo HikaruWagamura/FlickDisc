@@ -5,6 +5,7 @@ extends Node3D
 ## other buttons can carom them.
 
 const Metrics = preload("res://scripts/table_metrics.gd")
+const Kit := preload("res://scripts/kit.gd")
 
 var velocity := Vector3.ZERO
 var moving := false
@@ -109,12 +110,19 @@ func sink_into_hole() -> void:
 func _build_visual() -> void:
 	_visual = Node3D.new()
 	add_child(_visual)
+	if is_player:
+		var kit: Dictionary = Kit.from_meta(Engine.get_main_loop() as SceneTree)
+		var kit_look: Dictionary = Kit.disc_colors(kit)
+		var center: Color = kit_look["center"]
+		tint = center
+		_build_kit_disc(kit)
+		return
 	if _wear_club():
 		return
-	var body_color := Color("#141414") if is_player else Color("#f3e6cf")
-	var rim_color := Color("#2a2a2e") if is_player else Color("#c4a574")
-	var center_color := tint if is_player else Color("#3d5cff")
-	var ring_color := tint if is_player else Color("#f0d48a")
+	var body_color := Color("#f3e6cf")
+	var rim_color := Color("#c4a574")
+	var center_color := Color("#3d5cff")
+	var ring_color := Color("#f0d48a")
 
 	var body := CylinderMesh.new()
 	body.top_radius = Metrics.DISC_RADIUS
@@ -134,7 +142,7 @@ func _build_visual() -> void:
 	Metrics.add_mesh(_visual, groove, Metrics.plastic(body_color, 0.3, 0.0), Vector3(0.0, Metrics.DISC_HEIGHT * 0.56, 0.0))
 
 	var cap := Metrics.cylinder(Metrics.DISC_RADIUS * 0.3, 0.005, 40)
-	Metrics.add_mesh(_visual, cap, Metrics.plastic(center_color, 0.22, 0.05 if is_player else 0.0), Vector3(0.0, Metrics.DISC_HEIGHT * 0.6, 0.0))
+	Metrics.add_mesh(_visual, cap, Metrics.plastic(center_color, 0.22, 0.0), Vector3(0.0, Metrics.DISC_HEIGHT * 0.6, 0.0))
 
 	var shadow := Metrics.cylinder(Metrics.DISC_RADIUS * 1.15, 0.003, 28)
 	var shadow_material := StandardMaterial3D.new()
@@ -142,6 +150,29 @@ func _build_visual() -> void:
 	shadow_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	shadow_material.albedo_color = Color(0.0, 0.0, 0.0, 0.32)
 	var shadow_mesh := Metrics.add_mesh(self, shadow, shadow_material, Vector3(0.02, -Metrics.sit_y(false) + 0.003, 0.02))
+	shadow_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+func _build_kit_disc(kit: Dictionary) -> void:
+	var body := CylinderMesh.new()
+	body.top_radius = Metrics.DISC_RADIUS
+	body.bottom_radius = Metrics.DISC_RADIUS * 0.96
+	body.height = Metrics.DISC_HEIGHT
+	body.radial_segments = 72
+	var mi := MeshInstance3D.new()
+	mi.mesh = body
+	Kit.paint_disc(mi, kit)
+	_visual.add_child(mi)
+	_add_disc_shadow()
+
+
+func _add_disc_shadow() -> void:
+	var shadow := Metrics.cylinder(Metrics.DISC_RADIUS * 1.12, 0.003, 28)
+	var shadow_material := StandardMaterial3D.new()
+	shadow_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	shadow_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	shadow_material.albedo_color = Color(0.0, 0.0, 0.0, 0.28)
+	var shadow_mesh := Metrics.add_mesh(self, shadow, shadow_material, Vector3(0.018, -Metrics.sit_y(false) + 0.002, 0.018))
 	shadow_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 
@@ -155,15 +186,5 @@ func _wear_club() -> bool:
 	if Metrics.club_figures_mat != null:
 		mi.material_override = Metrics.club_figures_mat
 	_visual.add_child(mi)
-	if is_player:
-		var cap := Metrics.cylinder(Metrics.DISC_RADIUS * 0.32, 0.004, 32)
-		var cap_y := Metrics.club_center_y + 0.008
-		Metrics.add_mesh(_visual, cap, Metrics.plastic(tint, 0.22, 0.22), Vector3(0.0, cap_y, 0.0))
-	var shadow := Metrics.cylinder(Metrics.DISC_RADIUS * 1.12, 0.003, 28)
-	var shadow_material := StandardMaterial3D.new()
-	shadow_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	shadow_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	shadow_material.albedo_color = Color(0.0, 0.0, 0.0, 0.28)
-	var shadow_mesh := Metrics.add_mesh(self, shadow, shadow_material, Vector3(0.018, -Metrics.sit_y(false) + 0.002, 0.018))
-	shadow_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_add_disc_shadow()
 	return true

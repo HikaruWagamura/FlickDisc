@@ -7,6 +7,7 @@ const Metrics = preload("res://scripts/table_metrics.gd")
 const CLUB_BOARD := preload("res://assets/board/crokinole.fbx")
 
 const LOGO_PATH := "res://assets/flick_disc_logo.png"
+const MARK_PATH := "res://assets/flickdisc_mark.png"
 const COURSE_PATH := "res://assets/course_background.png"
 
 func _ready() -> void:
@@ -346,22 +347,30 @@ func _res_image(path: String) -> Image:
 func _dress_table() -> void:
 	_paint_hole()
 	_paint_ditch()
-	_paint_side_logos()
+	_place_board_logos()
 
 
 func _paint_hole() -> void:
-	var well := Metrics.plastic(Color("#050308"), 0.92, 0.0)
-	Metrics.add_mesh(self, Metrics.cylinder(Metrics.HOLE_RADIUS * 0.98, 0.07, 36), well, Vector3(0.0, -0.034, 0.0))
-	var mouth := Metrics.plastic(Color("#09060A"), 0.88, 0.0)
-	Metrics.add_mesh(self, Metrics.cylinder(Metrics.HOLE_RADIUS * 1.02, 0.004, 36), mouth, Vector3(0.0, 0.001, 0.0))
+	# Keep the pack's painted 20-hole open. A filled black disc on the
+	# mouth made it look plugged. Only the rim is darker, like the hole
+	# was stained into the wood.
+	var rim := MeshInstance3D.new()
+	rim.mesh = _annulus(Metrics.HOLE_RADIUS * 0.92, Metrics.HOLE_RADIUS * 1.14, 0.0016, 64)
+	var stain := StandardMaterial3D.new()
+	stain.albedo_color = Color("#2A1812")
+	stain.roughness = 0.72
+	stain.metallic = 0.08
+	rim.material_override = stain
+	rim.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(rim)
 	var lip := TorusMesh.new()
-	lip.inner_radius = Metrics.HOLE_RADIUS * 0.96
-	lip.outer_radius = Metrics.HOLE_RADIUS * 1.16
+	lip.inner_radius = Metrics.HOLE_RADIUS * 0.94
+	lip.outer_radius = Metrics.HOLE_RADIUS * 1.08
 	lip.rings = 36
 	lip.ring_segments = 10
-	var ring := Metrics.plastic(Color("#1A1014"), 0.4, 0.0)
-	ring.metallic = 0.18
-	Metrics.add_mesh(self, lip, ring, Vector3(0.0, 0.003, 0.0))
+	var ring := Metrics.plastic(Color("#241410"), 0.42, 0.0)
+	ring.metallic = 0.12
+	Metrics.add_mesh(self, lip, ring, Vector3(0.0, 0.002, 0.0))
 
 
 func _paint_ditch() -> void:
@@ -381,28 +390,68 @@ func _paint_ditch() -> void:
 	add_child(wall)
 
 
-func _paint_side_logos() -> void:
+func _place_board_logos() -> void:
+	var tex := _logo_decal()
+	if tex == null:
+		return
+	# Same 10-ring seats as before, left and right, plus the shooting
+	# sides. Yaw 0 so every mark reads from the player's seat.
 	var radius := (Metrics.RING_15 + Metrics.RING_10) * 0.5
-	var span := Metrics.RING_10 - Metrics.RING_15
-	_add_board_logo(Vector3(-radius, 0.004, 0.0), span * 0.82)
-	_add_board_logo(Vector3(radius, 0.004, 0.0), span * 0.82)
+	_logo_plate(Vector3(-radius, 0.0028, 0.0), 0.0, tex)
+	_logo_plate(Vector3(radius, 0.0028, 0.0), 0.0, tex)
+	_logo_plate(Vector3(0.0, 0.0028, radius), 0.0, tex)
+	_logo_plate(Vector3(0.0, 0.0028, -radius), 0.0, tex)
 
 
-func _add_board_logo(at: Vector3, width: float) -> void:
-	var side := 256
-	var image := Image.create(side, side, false, Image.FORMAT_RGBA8)
-	image.fill(Color(0.0, 0.0, 0.0, 0.0))
-	_stamp_logo(image, Vector2(side * 0.5, side * 0.5), float(side) * 0.92, 0.92, true)
-	var material := StandardMaterial3D.new()
-	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.albedo_texture = ImageTexture.create_from_image(image)
-	material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
-	material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	var plane := PlaneMesh.new()
-	plane.size = Vector2(width, width)
-	var mesh := Metrics.add_mesh(self, plane, material, at)
-	mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+func _logo_plate(at: Vector3, yaw: float, tex: Texture2D) -> void:
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.30, 0.30)
+	var mi := MeshInstance3D.new()
+	mi.mesh = quad
+	mi.position = at
+	mi.rotation_degrees = Vector3(-90.0, yaw, 0.0)
+	var mat := StandardMaterial3D.new()
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_texture = tex
+	mat.albedo_color = Color(1, 1, 1, 0.94)
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	mi.material_override = mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+
+
+func _logo_decal() -> Texture2D:
+	var image: Image = _res_image(MARK_PATH)
+	if image == null or image.is_empty():
+		image = _res_image(LOGO_PATH)
+	if image == null or image.is_empty():
+		return null
+	if image.is_compressed():
+		image.decompress()
+	if image.get_width() > 512 or image.get_height() > 512:
+		image.resize(512, 512, Image.INTERPOLATE_LANCZOS)
+	image.convert(Image.FORMAT_RGBA8)
+	var width := image.get_width()
+	var height := image.get_height()
+	var cx := float(width) * 0.5
+	var cy := float(height) * 0.5
+	var radius := minf(cx, cy) * 0.98
+	for y in height:
+		for x in width:
+			var pixel: Color = image.get_pixel(x, y)
+			var dx := (float(x) + 0.5 - cx) / radius
+			var dy := (float(y) + 0.5 - cy) / radius
+			var radial := sqrt(dx * dx + dy * dy)
+			var luma := pixel.r * 0.3 + pixel.g * 0.59 + pixel.b * 0.11
+			var chroma := maxf(pixel.r, maxf(pixel.g, pixel.b)) - minf(pixel.r, minf(pixel.g, pixel.b))
+			if radial > 1.0 or (luma < 0.08 and chroma < 0.07):
+				pixel.a = 0.0
+			else:
+				pixel.a = 1.0 if radial < 0.92 else clampf((1.0 - radial) / 0.08, 0.0, 1.0)
+			image.set_pixel(x, y, pixel)
+	return ImageTexture.create_from_image(image)
 
 func _build_body() -> void:
 	var body := StandardMaterial3D.new()
@@ -822,8 +871,8 @@ func _paint_play_lines(albedo: Image) -> void:
 	var surface := Metrics.SURFACE_RADIUS
 	var hole := Metrics.HOLE_RADIUS / surface * center
 	var lip := hole * 1.45
-	_fill_disc(albedo, center, lip, Color("#f0c56a"))
-	_fill_disc(albedo, center, hole, Color("#12080c"))
+	_fill_disc(albedo, center, lip, Color("#c4a46a"))
+	_stroke_circle(albedo, center, hole, center * 0.011, Color("#2A1812"))
 	for ring in [Metrics.RING_15, Metrics.RING_10, Metrics.RING_5]:
 		_stroke_circle(albedo, center, ring / surface * center, center * 0.007, Color("#fff6fc"))
 	_stroke_cross(albedo, center, Color(1.0, 0.92, 0.96))

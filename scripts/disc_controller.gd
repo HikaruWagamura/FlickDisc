@@ -2,6 +2,7 @@ class_name DiscController
 extends Node3D
 
 const BowlScript := preload("res://scripts/bowl.gd")
+const Kit := preload("res://scripts/kit.gd")
 
 signal aim_changed(direction: Vector2, power_ratio: float)
 signal bias_changed(bias_ratio: float)
@@ -391,6 +392,7 @@ func set_palette(index: int) -> void:
 	BowlScript.tint_band(_rim_mat, palette_index)
 	BowlScript.tint_band(_cap_mat, palette_index)
 	BowlScript.tint_band(_mark_mat, palette_index)
+	_paint_club_bowl()
 
 
 func set_green(bounds_min: Vector2, bounds_max: Vector2) -> void:
@@ -951,6 +953,7 @@ func _build_visual() -> void:
 	_mark_mat = dressed["mark"]
 	_bias_pip = dressed["weight"]
 	_stone = dressed["weight"]
+	_paint_club_bowl()
 	_place_pip()
 
 	_jack_visual = Node3D.new()
@@ -1004,6 +1007,15 @@ func _redress_bowl(index: int) -> void:
 	_mark_mat = dressed["mark"]
 	_bias_pip = dressed["weight"]
 	_stone = dressed["weight"]
+	_paint_club_bowl()
+
+
+func _paint_club_bowl() -> void:
+	if palette_index % 2 != 0:
+		return
+	var holder := _spin.get_node_or_null("ClubBowl") if _spin != null else null
+	if holder is Node3D:
+		Kit.paint_holder(holder, Kit.from_meta(get_tree()), false)
 
 
 func _place_pip() -> void:
