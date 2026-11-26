@@ -566,7 +566,7 @@ func _layout_hud() -> void:
 	if bias_rail != null:
 		bias_rail.position = Vector2(468.0, 430.0 + top)
 	if hand_switch != null:
-		hand_switch.position = Vector2(372.0, 742.0 - bottom)
+		hand_switch.position = Vector2(458.0, 868.0 - bottom)
 	if next_button != null:
 		next_button.position = Vector2(150.0, 888.0 - bottom)
 
@@ -606,8 +606,8 @@ func _emit_bias(index: int) -> void:
 
 func _build_hand_bar() -> void:
 	hand_switch = HandSwitchScript.new()
-	hand_switch.position = Vector2(372.0, 742.0)
-	hand_switch.size = Vector2(152.0, 168.0)
+	hand_switch.position = Vector2(458.0, 868.0)
+	hand_switch.size = Vector2(70.0, 78.0)
 	hand_switch.visible = false
 	hand_switch.z_index = 8
 	hand_switch.chosen.connect(func(fore: bool) -> void: hand_selected.emit(fore))

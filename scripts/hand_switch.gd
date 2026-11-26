@@ -1,8 +1,8 @@
 class_name HandSwitch
 extends Control
 
-## Forehand / backhand. A curved pack arrow shows which way the bowl
-## will run. Tap to flip the hand.
+## Forehand / backhand. A small curved pack arrow in the corner shows
+## which way the bowl will run toward the jack. Tap to flip the hand.
 
 signal chosen(forehand: bool)
 
@@ -12,6 +12,7 @@ const MESH_NAME := "arrow_13"
 
 var forehand := true
 var _mesh: MeshInstance3D
+var _holder: Node3D
 var _pivot: Node3D
 var _caption: Label
 
@@ -23,11 +24,11 @@ func _ready() -> void:
 	_mount_arrow()
 	_caption = Label.new()
 	_caption.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	_caption.offset_top = -28.0
-	_caption.offset_bottom = -4.0
+	_caption.offset_top = -16.0
+	_caption.offset_bottom = -1.0
 	_caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_caption.add_theme_font_override("font", FONT)
-	_caption.add_theme_font_size_override("font_size", 13)
+	_caption.add_theme_font_size_override("font_size", 9)
 	_caption.add_theme_color_override("font_color", Color("#fff6ff"))
 	_caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_caption)
@@ -59,10 +60,10 @@ func _draw_plate() -> void:
 	plate.set_anchors_preset(Control.PRESET_FULL_RECT)
 	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var box := StyleBoxFlat.new()
-	box.bg_color = Color(0.10, 0.05, 0.18, 0.88)
+	box.bg_color = Color(0.10, 0.05, 0.18, 0.90)
 	box.border_color = Color("#ff2e8a")
-	box.set_border_width_all(2)
-	box.set_corner_radius_all(18)
+	box.set_border_width_all(1)
+	box.set_corner_radius_all(12)
 	plate.add_theme_stylebox_override("panel", box)
 	add_child(plate)
 
@@ -70,17 +71,17 @@ func _draw_plate() -> void:
 func _mount_arrow() -> void:
 	var wrap := SubViewportContainer.new()
 	wrap.set_anchors_preset(Control.PRESET_FULL_RECT)
-	wrap.offset_left = 8.0
-	wrap.offset_top = 4.0
-	wrap.offset_right = -8.0
-	wrap.offset_bottom = -30.0
+	wrap.offset_left = 4.0
+	wrap.offset_top = 2.0
+	wrap.offset_right = -4.0
+	wrap.offset_bottom = -16.0
 	wrap.stretch = true
 	wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(wrap)
 	var view := SubViewport.new()
 	view.transparent_bg = true
 	view.own_world_3d = true
-	view.size = Vector2i(256, 256)
+	view.size = Vector2i(128, 128)
 	view.msaa_3d = Viewport.MSAA_2X
 	view.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	wrap.add_child(view)
@@ -103,8 +104,10 @@ func _mount_arrow() -> void:
 
 	var packed: Node = PACK.instantiate()
 	var source := _named_mesh(packed, MESH_NAME)
+	_holder = Node3D.new()
+	world.add_child(_holder)
 	_pivot = Node3D.new()
-	world.add_child(_pivot)
+	_holder.add_child(_pivot)
 	_mesh = MeshInstance3D.new()
 	if source != null and source.mesh != null:
 		_mesh.mesh = source.mesh
@@ -113,16 +116,17 @@ func _mount_arrow() -> void:
 	_mesh.material_override = _arrow_mat()
 	_mesh.extra_cull_margin = 4.0
 	_pivot.add_child(_mesh)
-	# Rotate around the mesh centre so a hand flip stays on the plate.
-	_pivot.rotation_degrees = Vector3(0.0, 55.0, 0.0)
+	# Pack shaft is +Z. Turn it to world -Z so the jack sits at the top.
+	_pivot.rotation_degrees = Vector3(0.0, 180.0, 0.0)
 	packed.free()
 
 	var cam := Camera3D.new()
 	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
-	cam.size = 1.55
+	cam.size = 1.35
 	cam.position = Vector3(0.0, 2.2, 0.0)
 	cam.current = true
 	world.add_child(cam)
+	# Screen up is world -Z, the same way the rink looks toward the head.
 	cam.look_at(Vector3.ZERO, Vector3(0.0, 0.0, -1.0))
 
 
@@ -149,8 +153,9 @@ func _arrow_mat() -> StandardMaterial3D:
 
 
 func _apply_hand() -> void:
-	if _pivot != null:
-		# Forehand (negative bias) bends to the player's left on the green.
-		_pivot.scale = Vector3(-1.0 if forehand else 1.0, 1.0, 1.0)
+	if _holder != null:
+		# Rest pose runs right to left toward the jack (forehand).
+		# Backhand is the left-to-right mirror, flipped in screen space.
+		_holder.scale = Vector3(1.0 if forehand else -1.0, 1.0, 1.0)
 	if _caption != null:
-		_caption.text = "FOREHAND" if forehand else "BACKHAND"
+		_caption.text = "FORE" if forehand else "BACK"

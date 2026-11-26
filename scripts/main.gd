@@ -126,6 +126,10 @@ func _menutest() -> void:
 	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
 	_dump_menu("menu_home")
+	menu.open_screen("setup")
+	await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	_dump_menu("menu_setup")
 	print("MENUTEST done")
 	get_tree().quit(0)
 
