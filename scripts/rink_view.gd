@@ -156,15 +156,18 @@ func _build_environment() -> void:
 	sky_mat.sun_curve = 0.07
 	sky.sky_material = sky_mat
 	env.sky = sky
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_energy = 0.42
+	# A fixed fill, not the sky. Sky ambient darkens when the lens looks
+	# down at the head, and that dim stayed into the next end.
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = Color(0.82, 0.90, 0.98)
+	env.ambient_light_energy = 0.62
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.glow_enabled = true
-	env.glow_intensity = 0.22
-	env.glow_strength = 0.4
-	env.glow_bloom = 0.04
-	env.glow_hdr_threshold = 1.0
+	env.glow_intensity = 0.10
+	env.glow_strength = 0.28
+	env.glow_bloom = 0.015
+	env.glow_hdr_threshold = 1.35
 	env.fog_enabled = true
 	env.fog_mode = Environment.FOG_MODE_EXPONENTIAL
 	env.fog_density = 0.00048 if LENGTH > 200.0 else 0.0026
@@ -201,21 +204,21 @@ func _build_lights() -> void:
 	var sun := DirectionalLight3D.new()
 	sun.name = "Sun"
 	sun.light_color = Color(1.0, 0.96, 0.88)
-	sun.light_energy = 1.16
+	sun.light_energy = 1.22
 	sun.shadow_enabled = true
-	sun.shadow_bias = 0.012
-	sun.shadow_normal_bias = 0.05
-	sun.shadow_blur = 0.55
-	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
-	sun.directional_shadow_max_distance = 260.0 if LENGTH > 200.0 else 150.0
-	sun.directional_shadow_blend_splits = true
-	sun.look_at_from_position(Vector3.ZERO, Vector3(0.42, -1.05, 0.48), Vector3.UP)
+	sun.shadow_opacity = 0.28
+	sun.shadow_bias = 0.02
+	sun.shadow_normal_bias = 0.8
+	sun.shadow_blur = 1.2
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
+	sun.directional_shadow_max_distance = 18.0
+	sun.look_at_from_position(Vector3.ZERO, Vector3(0.28, -1.2, -0.18), Vector3.UP)
 	add_child(sun)
 
 	var fill := DirectionalLight3D.new()
 	fill.name = "Fill"
 	fill.light_color = Color(0.70, 0.80, 1.0)
-	fill.light_energy = 0.32
+	fill.light_energy = 0.48
 	fill.shadow_enabled = false
 	fill.look_at_from_position(Vector3.ZERO, Vector3(-0.35, -0.9, -0.25), Vector3.UP)
 	add_child(fill)
@@ -273,22 +276,23 @@ func _process(delta: float) -> void:
 		goal_fov = 42.0
 		response = 3.4
 	elif _shot_live and chase:
-		# Trail toward the mat. A wide or ditched bowl lifts the lens so we
-		# look down into the trench instead of skimming the grass into the trees.
+		# Trail the bowl from behind. Look a little ahead so the lens does
+		# not shiver on the stone, and keep FOV still so it does not smear.
 		var flat := Vector3(_shot_vel.x, 0.0, _shot_vel.z)
 		var long_green := LENGTH > 200.0
 		var pace := clampf(flat.length() / (22.0 if long_green else 12.0), 0.0, 1.0)
 		var side := clampf(absf(_shot_pos.x) / (8.0 if long_green else 2.8), 0.0, 1.0)
 		var sunk := clampf(-_shot_pos.y / 0.16, 0.0, 1.0)
 		var widen := maxf(side, sunk)
-		var trail := lerpf(3.4, 16.0, maxf(widen, pace)) if long_green else lerpf(2.7, 7.2, widen)
-		var height := lerpf(2.6, 10.5, maxf(widen, pace)) if long_green else lerpf(1.95, 6.2, widen)
-		var x_follow := 0.35 if long_green else 0.12
-		var x_cap := HALF_WIDTH * 0.55 if long_green else 1.2
+		var trail := lerpf(3.6, 16.0, maxf(widen, pace)) if long_green else lerpf(3.1, 6.4, widen)
+		var height := lerpf(2.8, 10.5, maxf(widen, pace)) if long_green else lerpf(2.15, 5.4, widen)
+		var x_follow := 0.22 if long_green else 0.08
+		var x_cap := HALF_WIDTH * 0.45 if long_green else 0.85
+		var ahead := lerpf(4.2, 7.5, pace) if long_green else 3.4
 		goal_pos = Vector3(clampf(_shot_pos.x * x_follow, -x_cap, x_cap), height, _shot_pos.z + trail)
-		goal_look = Vector3(_shot_pos.x * 0.72, 0.2, _shot_pos.z)
-		goal_fov = lerpf(40.0, 56.0, pace) if long_green else lerpf(44.0, 50.0, widen * 0.5)
-		response = 6.5 if long_green else (7.2 if widen > 0.45 else lerpf(5.4, 4.2, pace))
+		goal_look = Vector3(_shot_pos.x * 0.28, 0.16, _shot_pos.z - ahead)
+		goal_fov = 42.0
+		response = 3.4 if long_green else 3.1
 	elif _shot_live:
 		# Stay behind the mat and watch the bowl run away down the line.
 		goal_pos = Vector3(0.0, 0.62, _mat.z + 2.1)
@@ -317,11 +321,6 @@ func _process(delta: float) -> void:
 	_cam_pos = _cam_pos.lerp(goal_pos, blend)
 	_cam_look = _cam_look.lerp(goal_look, blend)
 	_cam_fov = lerpf(_cam_fov, goal_fov, blend)
-	# A wide bowl used to drag the lens along the grass for a frame. Stay above it.
-	if chase and LENGTH < 120.0 and _shot_live and absf(_shot_pos.x) > 2.0:
-		_cam_pos.y = maxf(_cam_pos.y, 4.4)
-		_cam_pos.x = clampf(_cam_pos.x, -1.4, 1.4)
-		_cam_look.y = maxf(_cam_look.y, 0.2)
 	_cam_pos.y = maxf(_cam_pos.y, 0.42)
 	_camera.position = _cam_pos
 	_camera.fov = _cam_fov
@@ -350,6 +349,16 @@ func focus_pair(a: Vector3, b: Vector3) -> void:
 func release_head() -> void:
 	_head_hold = false
 	_head_gap = 0.0
+
+
+func reset_view() -> void:
+	# New end, same light as the first. Do not ease back from the head
+	# shot — that high look made the green read as a dark shadow.
+	_head_hold = false
+	_head_gap = 0.0
+	_shot_live = false
+	_aiming = false
+	_cam_ready = false
 
 
 func _build_grounds() -> void:
@@ -799,7 +808,7 @@ func _lit(color: Color, roughness: float, metallic: float = 0.0, emission: Color
 	return mat
 
 
-func _box(parent: Node3D, pos: Vector3, size: Vector3, mat: Material, rot: Vector3 = Vector3.ZERO, shadows: bool = true) -> MeshInstance3D:
+func _box(parent: Node3D, pos: Vector3, size: Vector3, mat: Material, rot: Vector3 = Vector3.ZERO, shadows: bool = false) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	var mesh := BoxMesh.new()
 	mesh.size = size
@@ -813,7 +822,7 @@ func _box(parent: Node3D, pos: Vector3, size: Vector3, mat: Material, rot: Vecto
 	return mi
 
 
-func _cylinder(parent: Node3D, pos: Vector3, radius: float, height: float, mat: Material, rot: Vector3 = Vector3.ZERO, segments: int = 16, shadows: bool = true) -> MeshInstance3D:
+func _cylinder(parent: Node3D, pos: Vector3, radius: float, height: float, mat: Material, rot: Vector3 = Vector3.ZERO, segments: int = 16, shadows: bool = false) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	var mesh := CylinderMesh.new()
 	mesh.top_radius = radius
@@ -830,7 +839,7 @@ func _cylinder(parent: Node3D, pos: Vector3, radius: float, height: float, mat: 
 	return mi
 
 
-func _sphere(parent: Node3D, pos: Vector3, radius: float, mat: Material, segments: int = 12, shadows: bool = true) -> MeshInstance3D:
+func _sphere(parent: Node3D, pos: Vector3, radius: float, mat: Material, segments: int = 12, shadows: bool = false) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	var mesh := SphereMesh.new()
 	mesh.radius = radius

@@ -117,6 +117,10 @@ func _wear_club() -> bool:
 	if Metrics.club_figures_mat != null:
 		mi.material_override = Metrics.club_figures_mat
 	_visual.add_child(mi)
+	if is_player:
+		var cap := Metrics.cylinder(Metrics.DISC_RADIUS * 0.32, 0.004, 32)
+		var cap_y := Metrics.club_center_y + 0.008
+		Metrics.add_mesh(_visual, cap, Metrics.plastic(tint, 0.22, 0.22), Vector3(0.0, cap_y, 0.0))
 	var shadow := Metrics.cylinder(Metrics.DISC_RADIUS * 1.12, 0.003, 28)
 	var shadow_material := StandardMaterial3D.new()
 	shadow_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA

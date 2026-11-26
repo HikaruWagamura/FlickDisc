@@ -90,9 +90,9 @@ static func apply_team(mat: StandardMaterial3D, index: int, _wide: bool = false)
 	else:
 		mat.albedo_texture = null
 		mat.albedo_color = team_color(index)
-	mat.roughness = 0.36
+	mat.roughness = 0.5
 	if maps["normal"] != null:
-		mat.normal_scale = 0.9
+		mat.normal_scale = 0.22
 
 
 static func tint_band(mat: StandardMaterial3D, index: int) -> void:
@@ -189,13 +189,14 @@ static func _classify_tex(path: String) -> String:
 
 
 static func _apply_pbr(mat: StandardMaterial3D, maps: Dictionary) -> void:
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 	if maps["normal"] != null:
 		mat.normal_enabled = true
-		mat.normal_scale = 0.55
+		mat.normal_scale = 0.22
 		mat.normal_texture = maps["normal"]
-	if maps["roughness"] != null:
-		mat.roughness_texture = maps["roughness"]
-		mat.roughness = 0.42
+	# Scratch/rough maps shimmer while the bowl rolls. Keep the body smooth.
+	mat.roughness_texture = null
+	mat.roughness = 0.5
 	if maps["metallic"] != null:
 		mat.metallic_texture = maps["metallic"]
 		mat.metallic = 1.0
@@ -358,7 +359,8 @@ static func roll_basis_by(current: Basis, travel: Vector3, body_radius: float) -
 	var axis := Vector3.UP.cross(flat / dist)
 	if axis.length() < 0.001:
 		return current
-	return Basis(axis.normalized(), dist / body_radius) * current
+	# A full roll strobes the terrazzo. Keep the spin readable.
+	return Basis(axis.normalized(), dist / body_radius * 0.58) * current
 
 
 func setup_jack() -> void:
@@ -614,6 +616,9 @@ static func apply_jack(mat: StandardMaterial3D) -> void:
 		return
 	var maps := _club_maps()
 	_apply_pbr(mat, maps)
+	mat.normal_enabled = false
+	mat.normal_texture = null
+	mat.roughness = 0.56
 	if maps["jack"] != null:
 		mat.albedo_texture = maps["jack"]
 		mat.albedo_color = Color(1.0, 1.0, 1.0)

@@ -618,8 +618,8 @@ func predict_rest(from: Vector3, aim: Vector3, power: float, bias: float) -> Vec
 		axis = Vector2(0.0, -1.0)
 	else:
 		axis = axis.normalized()
-	var step := 0.05 if pace_scale < 1.2 else 0.08
-	var limit := 480 if pace_scale < 1.2 else 800
+	var step := 0.016 if pace_scale < 1.2 else 0.04
+	var limit := 1100 if pace_scale < 1.2 else 900
 	for _i in limit:
 		var moved := _move_planar(pos, vel, radius, bias, true, step, power, axis)
 		pos = moved[0]
@@ -641,8 +641,8 @@ func will_ditch(from: Vector3, aim: Vector3, power: float, bias: float) -> bool:
 		axis = Vector2(0.0, -1.0)
 	else:
 		axis = axis.normalized()
-	var step := 0.05
-	for _i in 480:
+	var step := 0.016
+	for _i in 1100:
 		var moved := _move_planar(pos, vel, radius, bias, true, step, power, axis)
 		pos = moved[0]
 		vel = moved[1]

@@ -154,8 +154,8 @@ func _arrow_mat() -> StandardMaterial3D:
 
 func _apply_hand() -> void:
 	if _holder != null:
-		# Rest pose runs right to left toward the jack (forehand).
-		# Backhand is the left-to-right mirror, flipped in screen space.
-		_holder.scale = Vector3(1.0 if forehand else -1.0, 1.0, 1.0)
+		# Forehand draws right to left toward the jack. The pack arrow's
+		# rest pose leans the other way, so flip it for FORE.
+		_holder.scale = Vector3(-1.0 if forehand else 1.0, 1.0, 1.0)
 	if _caption != null:
 		_caption.text = "FORE" if forehand else "BACK"

@@ -1,5 +1,5 @@
 shader_type spatial;
-render_mode cull_back, diffuse_burley, specular_schlick_ggx;
+render_mode cull_back, diffuse_burley, specular_schlick_ggx, shadows_disabled;
 
 uniform vec3 stripe_a : source_color = vec3(0.486, 0.690, 0.251);
 uniform vec3 stripe_b : source_color = vec3(0.345, 0.545, 0.176);

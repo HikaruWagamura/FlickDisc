@@ -35,6 +35,7 @@ var script_font: Font
 var body_font: Font
 var bold_font: Font
 var logo_tex: Texture2D
+var bowl_tex: Texture2D
 
 var home_name: Label
 var home_level: Label
@@ -652,7 +653,7 @@ func _build_customise() -> void:
 	pages["customise"] = page
 	root.add_child(page)
 	box.add_child(_title("CUSTOMISE"))
-	box.add_child(_wrapped("Your disc colour is the centre of every button you flick on the round board."))
+	box.add_child(_wrapped("The top of every FlickDisc button. Club pink is the house colour. Pick another for the centre pip on the round board."))
 	var grid := GridContainer.new()
 	grid.columns = 3
 	grid.add_theme_constant_override("h_separation", 14)
@@ -1339,12 +1340,14 @@ func _rink_card(title: String, body: String, stamp_kind: String, show_logo: bool
 		mark.size = Vector2(116, 96)
 		button.add_child(mark)
 	else:
-		var art := Stamp.new()
-		art.kind = stamp_kind
-		art.lit = true
-		art.position = Vector2(132, 78)
-		art.size = Vector2(96, 86)
+		var art := TextureRect.new()
+		art.texture = _bowl_portrait()
+		art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		art.position = Vector2(118, 58)
+		art.size = Vector2(118, 110)
 		art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		art.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 		button.add_child(art)
 	return button
 
@@ -1553,6 +1556,53 @@ func _mark_rect() -> TextureRect:
 	mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	mark.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	return mark
+
+
+func _bowl_portrait() -> Texture2D:
+	if bowl_tex != null:
+		return bowl_tex
+	var src: Image = null
+	var packed: Texture2D = load("res://assets/bowls/textures/bowl_color_1.jpg")
+	if packed != null:
+		src = packed.get_image()
+		if src != null and src.is_compressed():
+			src.decompress()
+	var size := 256
+	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var light := Vector3(-0.32, 0.78, 0.54).normalized()
+	var spec_dir := Vector3(-0.12, 0.62, 0.78).normalized()
+	for y in size:
+		for x in size:
+			var nx := (float(x) + 0.5) / float(size) * 2.0 - 1.0
+			var ny := (float(y) + 0.5) / float(size) * 2.0 - 1.0
+			var sy := ny * 1.06
+			var r2 := nx * nx + sy * sy
+			if r2 > 1.0:
+				continue
+			var nz := sqrt(maxf(0.0, 1.0 - r2))
+			var n := Vector3(nx, -sy, nz).normalized()
+			var wrap := 0.16 + 0.84 * clampf(n.dot(light), 0.0, 1.0)
+			var spec := pow(clampf(n.dot(spec_dir), 0.0, 1.0), 32.0)
+			var u := 0.5 + atan2(n.x, n.z) / TAU
+			var v := 0.5 - asin(clampf(n.y, -1.0, 1.0)) / PI
+			var col := Color("#1A3A88")
+			if src != null and not src.is_empty():
+				var px := Vector2i(
+					posmod(int(u * float(src.get_width())), src.get_width()),
+					posmod(int(v * float(src.get_height())), src.get_height())
+				)
+				col = src.get_pixelv(px)
+			col = Color(col.r * wrap, col.g * wrap, col.b * wrap, 1.0)
+			col = col.lerp(Color(0.95, 0.97, 1.0), spec * 0.58)
+			var ring := absf(fmod(v * 7.0, 1.0) - 0.5)
+			if ring < 0.055 and absf(n.y) < 0.62:
+				col = col.lerp(Color(0.92, 0.94, 0.98), 0.28)
+			var a := clampf((1.0 - r2) / 0.07, 0.0, 1.0)
+			col.a = a
+			img.set_pixel(x, y, col)
+	bowl_tex = ImageTexture.create_from_image(img)
+	return bowl_tex
 
 
 func _place(parent: Control, node: Control, pos: Vector2, box: Vector2) -> void:

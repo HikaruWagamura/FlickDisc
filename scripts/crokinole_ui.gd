@@ -18,6 +18,11 @@ var stop_button: Button
 var power_fill: TextureRect
 var power_track: Panel
 var power_cap: Panel
+var power_max: Label
+var _power_home := Vector2(486.0, 128.0)
+var _power_paint := -1.0
+var _power_cap_box: StyleBoxFlat
+var _power_ratio := 0.0
 var current_bias := 0.0
 var overview: Control
 var overview_panel: ColorRect
@@ -116,14 +121,57 @@ func show_match_status(level_number: int, discs_left: int, you_board: int = 0, f
 func show_aiming(_power_ratio: float) -> void:
 	status_label.text = "RELEASE TO FLICK"
 
+func _process(_delta: float) -> void:
+	if power_track == null:
+		return
+	var shake := Vector2.ZERO
+	if _power_ratio >= 0.90:
+		var amp := ((_power_ratio - 0.90) / 0.10) * 1.6
+		var wave := Time.get_ticks_msec() * 0.001
+		shake = Vector2(sin(wave * 54.0) * amp, cos(wave * 61.0) * amp)
+	power_track.position = _power_home + shake
+	if power_max != null:
+		power_max.visible = _power_ratio >= 0.94
+		if power_max.visible:
+			var pulse := 0.72 + 0.28 * sin(Time.get_ticks_msec() * 0.012)
+			power_max.self_modulate = Color(1.0, 0.22, 0.28, pulse)
+
+
 func show_power(ratio: float) -> void:
 	if power_fill == null or power_track == null:
 		return
 	var amount := clampf(ratio, 0.0, 1.0)
-	var inner := power_track.size.y - 10.0
-	var tall := maxf(8.0, inner * amount)
-	power_fill.size = Vector2(power_track.size.x - 10.0, tall)
-	power_fill.position = Vector2(5.0, 5.0 + inner - tall)
+	_power_ratio = amount
+	var inset := 5.0
+	var inner := maxf(power_track.size.y - inset * 2.0, 8.0)
+	var fill_w := maxf(power_track.size.x - inset * 2.0, 8.0)
+	var tall := maxf(inner * amount, 6.0 if amount > 0.0 else 6.0)
+	power_fill.size = Vector2(fill_w, tall)
+	power_fill.position = Vector2(inset, inset + inner - tall)
+	if absf(amount - _power_paint) > 0.006 or amount >= 0.90:
+		_paint_power_fill(amount)
+		_power_paint = amount
+	if power_cap != null:
+		power_cap.visible = amount > 0.03
+		var heat := Color(0.75, 0.95, 1.0).lerp(Color(1.0, 0.12, 0.18), smoothstep(0.35, 1.0, amount))
+		if _power_cap_box == null:
+			_power_cap_box = StyleBoxFlat.new()
+			_power_cap_box.set_border_width_all(2)
+			_power_cap_box.set_corner_radius_all(11)
+			_power_cap_box.shadow_size = 6
+			power_cap.add_theme_stylebox_override("panel", _power_cap_box)
+		_power_cap_box.bg_color = heat.lerp(Color(1.0, 0.96, 0.94), 0.35)
+		_power_cap_box.border_color = heat
+		_power_cap_box.shadow_color = Color(heat.r, heat.g, heat.b, 0.45)
+		var cap_w := minf(fill_w + 2.0, power_track.size.x - 4.0)
+		power_cap.size = Vector2(cap_w, 18.0)
+		power_cap.position = Vector2((power_track.size.x - cap_w) * 0.5, power_fill.position.y - 5.0)
+		power_cap.position.y = clampf(power_cap.position.y, 2.0, maxf(inner - 8.0, 2.0))
+	if power_max != null:
+		power_max.visible = amount >= 0.94
+
+
+func _paint_power_fill(amount: float) -> void:
 	var gradient := Gradient.new()
 	var ice := Color(0.75, 0.95, 1.0)
 	var lilac := Color(0.78, 0.55, 1.0)
@@ -141,14 +189,11 @@ func show_power(ratio: float) -> void:
 		gradient.set_color(gradient.get_point_count() - 1, pink.lerp(red, clampf((amount - 0.82) / 0.18, 0.0, 1.0)))
 	var texture := GradientTexture2D.new()
 	texture.gradient = gradient
-	texture.width = 20
+	texture.width = 24
 	texture.height = 256
 	texture.fill_from = Vector2(0.5, 1.0)
 	texture.fill_to = Vector2(0.5, 0.0)
 	power_fill.texture = texture
-	if power_cap != null:
-		power_cap.position = Vector2((power_track.size.x - power_cap.size.x) * 0.5, power_fill.position.y - 6.0)
-		power_cap.visible = amount > 0.04
 
 func show_in_motion() -> void:
 	_show_stop(false)
@@ -394,42 +439,55 @@ func _make_label(label_position: Vector2, label_size: Vector2, font_size: int, c
 
 func _build_power() -> void:
 	power_track = Panel.new()
-	power_track.position = Vector2(478.0, 108.0)
-	power_track.size = Vector2(46.0, 400.0)
+	power_track.position = _power_home
+	power_track.size = Vector2(36.0, 320.0)
 	power_track.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	power_track.clip_contents = true
 	var track := StyleBoxFlat.new()
 	track.bg_color = Color(0.07, 0.02, 0.10, 0.94)
 	track.border_color = Color(1.0, 0.32, 0.62, 0.95)
 	track.set_border_width_all(2)
-	track.set_corner_radius_all(16)
-	track.shadow_color = Color(1.0, 0.18, 0.55, 0.32)
-	track.shadow_size = 10
+	track.set_corner_radius_all(14)
+	track.shadow_color = Color(1.0, 0.18, 0.55, 0.28)
+	track.shadow_size = 8
 	power_track.add_theme_stylebox_override("panel", track)
 	add_child(power_track)
 	power_fill = TextureRect.new()
 	power_fill.position = Vector2(5.0, 5.0)
-	power_fill.size = Vector2(36.0, 8.0)
+	power_fill.size = Vector2(26.0, 6.0)
 	power_fill.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	power_fill.stretch_mode = TextureRect.STRETCH_SCALE
 	power_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	power_track.add_child(power_fill)
+	for tick in 5:
+		var mark := ColorRect.new()
+		mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		mark.color = Color(1.0, 1.0, 1.0, 0.16)
+		mark.size = Vector2(14.0, 2.0)
+		mark.position = Vector2(11.0, 18.0 + float(tick) * 58.0)
+		power_track.add_child(mark)
 	power_cap = Panel.new()
-	power_cap.size = Vector2(32.0, 22.0)
-	power_cap.position = Vector2(7.0, 360.0)
+	power_cap.size = Vector2(26.0, 18.0)
+	power_cap.position = Vector2(5.0, 286.0)
 	power_cap.visible = false
 	power_cap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var cap := StyleBoxFlat.new()
-	cap.bg_color = Color(0.95, 1.0, 1.0)
-	cap.border_color = Color(1.0, 0.45, 0.75)
-	cap.set_border_width_all(2)
-	cap.set_corner_radius_all(10)
-	power_cap.add_theme_stylebox_override("panel", cap)
 	power_track.add_child(power_cap)
+	power_max = Label.new()
+	power_max.text = "MAX"
+	power_max.position = Vector2(2.0, 4.0)
+	power_max.size = Vector2(32.0, 16.0)
+	power_max.visible = false
+	power_max.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	power_max.add_theme_font_size_override("font_size", 11)
+	power_max.add_theme_color_override("font_color", Color(1.0, 0.22, 0.32))
+	power_max.add_theme_color_override("font_outline_color", Color(0.18, 0.02, 0.06, 0.85))
+	power_max.add_theme_constant_override("outline_size", 4)
+	power_max.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	power_track.add_child(power_max)
 	var label := Label.new()
 	label.text = "POWER"
-	label.position = Vector2(466.0, 514.0)
-	label.size = Vector2(72.0, 16.0)
+	label.position = Vector2(472.0, 454.0)
+	label.size = Vector2(64.0, 16.0)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.add_theme_font_size_override("font_size", 11)
 	label.add_theme_color_override("font_color", Color(1.0, 0.72, 0.88, 0.95))

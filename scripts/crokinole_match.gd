@@ -87,10 +87,10 @@ func _process(delta: float) -> void:
 func _setup_view() -> void:
 	var environment := Environment.new()
 	environment.background_mode = Environment.BG_COLOR
-	environment.background_color = Color("#6EB4E8")
+	environment.background_color = Color("#1A0C12")
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.ambient_light_color = Color("#F0E2C8")
-	environment.ambient_light_energy = 0.58
+	environment.ambient_light_color = Color("#E8C8B0")
+	environment.ambient_light_energy = 0.42
 	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	environment.tonemap_exposure = 0.96
 	environment.glow_enabled = true
@@ -104,14 +104,14 @@ func _setup_view() -> void:
 
 	camera = Camera3D.new()
 	camera.name = "Camera3D"
-	camera.fov = 52.0
+	camera.fov = 44.0
 	camera.near = 0.04
-	camera.far = 40.0
+	camera.far = 24.0
 	camera.current = true
 	add_child(camera)
-	# A little pull-back so the garden and trees frame the board.
-	camera.position = Vector3(0.0, 2.58, 3.05)
-	camera.look_at(Vector3(0.0, 0.02, 0.10), Vector3.UP)
+	# Sit behind the shooting disc and look down the line to the hole.
+	camera.position = Vector3(0.0, 1.46, 2.02)
+	camera.look_at(Vector3(0.0, 0.02, 0.28), Vector3.UP)
 
 	var key := DirectionalLight3D.new()
 	key.rotation_degrees = Vector3(-52.0, -28.0, 0.0)

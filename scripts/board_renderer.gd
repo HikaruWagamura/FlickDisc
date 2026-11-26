@@ -17,6 +17,7 @@ func _ready() -> void:
 		_build_surface()
 		_build_rail()
 		_build_pegs()
+	_dress_table()
 	_build_lane()
 
 
@@ -76,6 +77,7 @@ func _dress_club(node: Node) -> void:
 		"res://assets/board/textures/crokinole_figures_Mat_Metallic.jpg"
 	)
 	Metrics.club_figures_mat = figures
+	playfield.albedo_color = Color(1.06, 0.94, 0.84)
 	_apply_mats(node, playfield, figures)
 
 
@@ -237,176 +239,170 @@ func _world_aabb(node: Node) -> AABB:
 	return box
 
 func _build_room() -> void:
-	# Garden pavilion around the paid board. Scoring rings stay on the table.
+	# Indoor games room. Scoring rings stay on the table.
 	_build_grounds()
-	_build_lounge()
+	_build_games_room()
 
 
 func _build_grounds() -> void:
-	var grass := StandardMaterial3D.new()
-	grass.albedo_color = Color("#2F7A3E")
-	grass.roughness = 0.92
-	# Grass only on the camera side. The garden photo covers the far side.
-	Metrics.add_mesh(self, _box(Vector3(30.0, 0.06, 8.0)), grass, Vector3(0.0, -0.70, 3.8))
-	var stripe := StandardMaterial3D.new()
-	stripe.albedo_color = Color("#348646")
-	stripe.roughness = 0.9
-	for i in 4:
-		var z := 1.6 + float(i) * 1.6
-		Metrics.add_mesh(self, _box(Vector3(30.0, 0.008, 0.7)), stripe, Vector3(0.0, -0.668, z))
-	var deck := StandardMaterial3D.new()
-	deck.albedo_color = Color("#6B3E22")
-	deck.roughness = 0.62
-	Metrics.add_mesh(self, _box(Vector3(4.8, 0.08, 4.8)), deck, Vector3(0.0, -0.62, 0.0))
+	var floor := StandardMaterial3D.new()
+	floor.albedo_color = Color("#2A1810")
+	floor.roughness = 0.82
+	Metrics.add_mesh(self, _box(Vector3(18.0, 0.06, 16.0)), floor, Vector3(0.0, -0.70, 0.4))
 	var plank := StandardMaterial3D.new()
-	plank.albedo_color = Color("#5A341C")
-	plank.roughness = 0.7
-	for i in 12:
-		var x := -2.2 + float(i) * 0.4
-		Metrics.add_mesh(self, _box(Vector3(0.04, 0.006, 4.7)), plank, Vector3(x, -0.576, 0.0))
-	var rim := StandardMaterial3D.new()
-	rim.albedo_color = Color("#3A2416")
-	rim.roughness = 0.55
-	rim.metallic = 0.08
-	Metrics.add_mesh(self, _box(Vector3(4.92, 0.10, 0.12)), rim, Vector3(0.0, -0.56, 2.38))
-	Metrics.add_mesh(self, _box(Vector3(4.92, 0.10, 0.12)), rim, Vector3(0.0, -0.56, -2.38))
+	plank.albedo_color = Color("#3A2416")
+	plank.roughness = 0.74
+	for i in 14:
+		var x := -3.6 + float(i) * 0.55
+		Metrics.add_mesh(self, _box(Vector3(0.04, 0.006, 12.0)), plank, Vector3(x, -0.668, 0.2))
+	var deck := StandardMaterial3D.new()
+	deck.albedo_color = Color("#5A341C")
+	deck.roughness = 0.58
+	Metrics.add_mesh(self, _box(Vector3(4.4, 0.08, 4.4)), deck, Vector3(0.0, -0.62, 0.0))
+	var seam := StandardMaterial3D.new()
+	seam.albedo_color = Color("#4A2A16")
+	seam.roughness = 0.68
+	for i in 11:
+		var sx := -2.0 + float(i) * 0.4
+		Metrics.add_mesh(self, _box(Vector3(0.03, 0.006, 4.3)), seam, Vector3(sx, -0.576, 0.0))
+
+
+func _build_games_room() -> void:
+	var wall := StandardMaterial3D.new()
+	wall.albedo_color = Color("#2A1018")
+	wall.roughness = 0.86
+	var trim := StandardMaterial3D.new()
+	trim.albedo_color = Color("#5A3A22")
+	trim.roughness = 0.48
+	trim.metallic = 0.12
+	Metrics.add_mesh(self, _box(Vector3(8.6, 3.6, 0.16)), wall, Vector3(0.0, 1.05, -2.72))
+	Metrics.add_mesh(self, _box(Vector3(8.8, 0.14, 0.22)), trim, Vector3(0.0, -0.52, -2.62))
+	Metrics.add_mesh(self, _box(Vector3(8.8, 0.12, 0.18)), trim, Vector3(0.0, 2.78, -2.62))
 	for side in [-1.0, 1.0]:
-		Metrics.add_mesh(self, _box(Vector3(0.12, 0.10, 4.76)), rim, Vector3(side * 2.40, -0.56, 0.0))
+		Metrics.add_mesh(self, _box(Vector3(0.16, 3.6, 7.2)), wall, Vector3(side * 4.25, 1.05, 0.2))
+		Metrics.add_mesh(self, _box(Vector3(0.18, 0.14, 7.2)), trim, Vector3(side * 4.14, -0.52, 0.2))
+	_build_shelves()
+	_build_sconces()
+	var rug := StandardMaterial3D.new()
+	rug.albedo_color = Color("#3A1020")
+	rug.roughness = 0.9
+	Metrics.add_mesh(self, _box(Vector3(3.2, 0.02, 3.2)), rug, Vector3(0.0, -0.575, 0.0))
 
 
-func _build_lounge() -> void:
-	_garden_backdrop()
-	_lounge_trees()
-	_lounge_hedge()
-	_lounge_lamps()
-	_lounge_plants()
+func _build_shelves() -> void:
+	var wood := StandardMaterial3D.new()
+	wood.albedo_color = Color("#4A2E18")
+	wood.roughness = 0.62
+	var spines: Array[Color] = [
+		Color("#6B1C28"), Color("#1C3A5A"), Color("#C4A46A"), Color("#2A6B3A"),
+		Color("#FF3D9A"), Color("#3A2450"), Color("#8A3A18"), Color("#F0E2C8"),
+	]
+	for bay in 3:
+		var x := -2.2 + float(bay) * 2.2
+		Metrics.add_mesh(self, _box(Vector3(1.9, 2.55, 0.22)), wood, Vector3(x, 0.78, -2.58))
+		for shelf in 5:
+			var y := -0.28 + float(shelf) * 0.46
+			Metrics.add_mesh(self, _box(Vector3(1.78, 0.04, 0.26)), wood, Vector3(x, y, -2.52))
+			var books := 7 + (bay + shelf) % 3
+			var cursor := x - 0.78
+			for b in books:
+				var w := 0.09 + float((bay * 5 + shelf + b) % 4) * 0.02
+				var h := 0.28 + float((shelf + b) % 3) * 0.05
+				var spine := spines[(bay * 7 + shelf * 3 + b) % spines.size()]
+				var paper := StandardMaterial3D.new()
+				paper.albedo_color = spine
+				paper.roughness = 0.78
+				Metrics.add_mesh(self, _box(Vector3(w, h, 0.16)), paper, Vector3(cursor + w * 0.5, y + 0.02 + h * 0.5, -2.48))
+				cursor += w + 0.02
 
 
-func _garden_backdrop() -> void:
-	# Tilted vista behind the far rail so the clubhouse and trees read
-	# on a phone looking down at the table. Rings stay on the board.
-	var pane := PlaneMesh.new()
-	pane.size = Vector2(8.8, 5.8)
-	var glass := StandardMaterial3D.new()
-	glass.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	glass.cull_mode = BaseMaterial3D.CULL_DISABLED
-	var course := _res_image(COURSE_PATH)
-	if course != null and not course.is_empty():
-		var crop_h := int(course.get_height() * 0.40)
-		var crop := course.get_region(Rect2i(0, 0, course.get_width(), crop_h))
-		crop.flip_y()
-		glass.albedo_texture = ImageTexture.create_from_image(crop)
-	else:
-		glass.albedo_color = Color("#6FA8C0")
-	glass.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
-	var mesh := MeshInstance3D.new()
-	mesh.mesh = pane
-	mesh.material_override = glass
-	mesh.position = Vector3(0.0, 1.08, -2.18)
-	mesh.rotation_degrees = Vector3(-62.0, 0.0, 0.0)
-	mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(mesh)
+func _build_sconces() -> void:
+	var brass := Metrics.plastic(Color("#C4A46A"), 0.32, 0.0)
+	brass.metallic = 0.55
+	var glow := Metrics.plastic(Color("#FFE6B0"), 0.22, 1.8)
+	for side in [-1.0, 1.0]:
+		for lamp_z in [-1.55, 0.35, 1.85]:
+			Metrics.add_mesh(self, _box(Vector3(0.08, 0.22, 0.08)), brass, Vector3(side * 2.35, 1.15, lamp_z))
+			Metrics.add_mesh(self, Metrics.cylinder(0.07, 0.10, 12), glow, Vector3(side * 2.28, 1.02, lamp_z))
+			var lamp := OmniLight3D.new()
+			lamp.position = Vector3(side * 2.15, 1.08, lamp_z)
+			lamp.light_color = Color("#FFE4C4")
+			lamp.light_energy = 0.42
+			lamp.omni_range = 3.2
+			lamp.shadow_enabled = false
+			add_child(lamp)
 
 
 func _res_image(path: String) -> Image:
 	var tex: Texture2D = load(path) as Texture2D
 	if tex == null:
 		return null
-	return tex.get_image()
+	var image := tex.get_image()
+	if image != null and image.is_compressed():
+		image.decompress()
+	return image
 
 
-func _lounge_trees() -> void:
-	var trunk := StandardMaterial3D.new()
-	trunk.albedo_color = Color("#4A2E18")
-	trunk.roughness = 0.86
-	var leaf := StandardMaterial3D.new()
-	leaf.albedo_color = Color("#1F7A38")
-	leaf.roughness = 0.72
-	var shade := StandardMaterial3D.new()
-	shade.albedo_color = Color("#145828")
-	shade.roughness = 0.78
-	var bright := StandardMaterial3D.new()
-	bright.albedo_color = Color("#2E9A48")
-	bright.roughness = 0.7
-	var spots := [
-		Vector3(-2.22, 0.0, 1.42),
-		Vector3(2.28, 0.0, 1.52),
-		Vector3(-2.35, 0.0, 0.35),
-		Vector3(2.40, 0.0, 0.48),
-	]
-	var scales := [0.82, 0.88, 0.72, 0.76]
-	for i in spots.size():
-		_lounge_tree(spots[i], scales[i], trunk, leaf, shade, bright)
+func _dress_table() -> void:
+	_paint_hole()
+	_paint_ditch()
+	_paint_side_logos()
 
 
-func _lounge_tree(at: Vector3, scale: float, trunk: Material, leaf: Material, shade: Material, bright: Material) -> void:
-	var h := 1.05 * scale
-	Metrics.add_mesh(self, Metrics.cylinder(0.07 * scale, h, 8), trunk, at + Vector3(0.0, h * 0.5 - 0.64, 0.0))
-	for layer in 3:
-		var cone := CylinderMesh.new()
-		var t := float(layer) / 2.0
-		cone.top_radius = 0.04 * scale
-		cone.bottom_radius = lerpf(0.58, 0.28, t) * scale
-		cone.height = 0.72 * scale
-		cone.radial_segments = 12
-		var mat: Material = leaf
-		if layer == 1:
-			mat = shade
-		elif layer == 2:
-			mat = bright
-		Metrics.add_mesh(self, cone, mat, at + Vector3(0.0, 0.22 + float(layer) * 0.38 * scale, 0.0))
+func _paint_hole() -> void:
+	var well := Metrics.plastic(Color("#050308"), 0.92, 0.0)
+	Metrics.add_mesh(self, Metrics.cylinder(Metrics.HOLE_RADIUS * 0.98, 0.07, 36), well, Vector3(0.0, -0.034, 0.0))
+	var mouth := Metrics.plastic(Color("#09060A"), 0.88, 0.0)
+	Metrics.add_mesh(self, Metrics.cylinder(Metrics.HOLE_RADIUS * 1.02, 0.004, 36), mouth, Vector3(0.0, 0.001, 0.0))
+	var lip := TorusMesh.new()
+	lip.inner_radius = Metrics.HOLE_RADIUS * 0.96
+	lip.outer_radius = Metrics.HOLE_RADIUS * 1.16
+	lip.rings = 36
+	lip.ring_segments = 10
+	var ring := Metrics.plastic(Color("#1A1014"), 0.4, 0.0)
+	ring.metallic = 0.18
+	Metrics.add_mesh(self, lip, ring, Vector3(0.0, 0.003, 0.0))
 
 
-func _lounge_hedge() -> void:
-	var hedge := StandardMaterial3D.new()
-	hedge.albedo_color = Color("#184A28")
-	hedge.roughness = 0.8
-	# Wood terrace behind the far rail so the mint grass does not seam.
-	var lip := StandardMaterial3D.new()
-	lip.albedo_color = Color("#4A2E1A")
-	lip.roughness = 0.7
-	Metrics.add_mesh(self, _box(Vector3(4.6, 0.10, 0.62)), lip, Vector3(0.0, -0.50, -1.78))
-	for side in [-1.0, 1.0]:
-		Metrics.add_mesh(self, _box(Vector3(0.28, 0.22, 2.8)), hedge, Vector3(side * 2.48, -0.46, 0.35))
+func _paint_ditch() -> void:
+	var ditch := StandardMaterial3D.new()
+	ditch.albedo_color = Color("#14100E")
+	ditch.roughness = 0.88
+	var ring := MeshInstance3D.new()
+	ring.mesh = _annulus(Metrics.SURFACE_RADIUS + 0.004, Metrics.DITCH_OUTER - 0.01, 0.001, 96)
+	ring.material_override = ditch
+	add_child(ring)
+	var drop := StandardMaterial3D.new()
+	drop.albedo_color = Color("#0E0A0A")
+	drop.roughness = 0.9
+	var wall := MeshInstance3D.new()
+	wall.mesh = _wall(Metrics.SURFACE_RADIUS, 0.0, -0.016, 96)
+	wall.material_override = drop
+	add_child(wall)
 
 
-func _lounge_lamps() -> void:
-	var metal := Metrics.plastic(Color("#2A2430"), 0.32, 0.0)
-	metal.metallic = 0.55
-	var glow := Metrics.plastic(Color("#FFE6B0"), 0.22, 2.2)
-	for side in [-1.0, 1.0]:
-		for lamp_z in [-2.28, 0.22, 1.92]:
-			Metrics.add_mesh(self, Metrics.cylinder(0.032, 1.85, 10), metal, Vector3(side * 2.52, 0.28, lamp_z))
-			Metrics.add_mesh(self, Metrics.cylinder(0.10, 0.09, 12), glow, Vector3(side * 2.52, 1.18, lamp_z))
-			var lamp := OmniLight3D.new()
-			lamp.position = Vector3(side * 2.52, 1.22, lamp_z)
-			lamp.light_color = Color("#FFE8C8")
-			lamp.light_energy = 0.48
-			lamp.omni_range = 3.6
-			lamp.shadow_enabled = false
-			add_child(lamp)
+func _paint_side_logos() -> void:
+	var radius := (Metrics.RING_15 + Metrics.RING_10) * 0.5
+	var span := Metrics.RING_10 - Metrics.RING_15
+	_add_board_logo(Vector3(-radius, 0.004, 0.0), span * 0.82)
+	_add_board_logo(Vector3(radius, 0.004, 0.0), span * 0.82)
 
 
-func _lounge_plants() -> void:
-	var pot := Metrics.plastic(Color("#6A2830"), 0.45, 0.0)
-	var leaf := StandardMaterial3D.new()
-	leaf.albedo_color = Color("#2E8A4A")
-	leaf.roughness = 0.7
-	var flower := Metrics.plastic(Color("#FF3D9A"), 0.4, 0.6)
-	var gold := Metrics.plastic(Color("#F3BD56"), 0.35, 0.35)
-	for side in [-1.0, 1.0]:
-		for z in [-1.95, 1.95]:
-			var at := Vector3(side * 2.05, -0.52, z)
-			Metrics.add_mesh(self, Metrics.cylinder(0.14, 0.20, 12), pot, at)
-			var bush := SphereMesh.new()
-			bush.radius = 0.24
-			bush.height = 0.42
-			bush.radial_segments = 10
-			bush.rings = 7
-			Metrics.add_mesh(self, bush, leaf, at + Vector3(0.0, 0.30, 0.0))
-			var bloom: Material = flower if z > 0.0 else gold
-			Metrics.add_mesh(self, Metrics.cylinder(0.03, 0.05, 8), bloom, at + Vector3(0.08, 0.46, 0.04))
-			Metrics.add_mesh(self, Metrics.cylinder(0.03, 0.05, 8), bloom, at + Vector3(-0.06, 0.44, -0.05))
+func _add_board_logo(at: Vector3, width: float) -> void:
+	var side := 256
+	var image := Image.create(side, side, false, Image.FORMAT_RGBA8)
+	image.fill(Color(0.0, 0.0, 0.0, 0.0))
+	_stamp_logo(image, Vector2(side * 0.5, side * 0.5), float(side) * 0.92, 0.92, true)
+	var material := StandardMaterial3D.new()
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.albedo_texture = ImageTexture.create_from_image(image)
+	material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(width, width)
+	var mesh := Metrics.add_mesh(self, plane, material, at)
+	mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 func _build_body() -> void:
 	var body := StandardMaterial3D.new()
@@ -738,9 +734,11 @@ func _add_lawn_mark(at: Vector3, width: float, strength: float) -> void:
 	mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 func _stamp_logo(image: Image, center: Vector2, diameter: float, strength: float, cutout: bool) -> void:
-	var logo: Image = Image.load_from_file(LOGO_PATH)
+	var logo: Image = _res_image(LOGO_PATH)
 	if logo == null or logo.is_empty():
 		return
+	if logo.is_compressed():
+		logo.decompress()
 	var copy: Image = logo.duplicate()
 	copy.convert(Image.FORMAT_RGBA8)
 	var side := maxi(int(diameter), 8)
