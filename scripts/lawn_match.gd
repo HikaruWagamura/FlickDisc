@@ -169,6 +169,8 @@ func _ready() -> void:
 		call_deferred("_endtest")
 	elif OS.get_cmdline_user_args().has("--kitshot"):
 		call_deferred("_kitshot")
+	elif OS.get_cmdline_user_args().has("--rollshot"):
+		call_deferred("_rollshot")
 
 
 func _process(delta: float) -> void:
@@ -1949,6 +1951,56 @@ func _kitshot() -> void:
 		await get_tree().create_timer(0.45).timeout
 		await _dump_compare_shot(str(look["file"]))
 	print("KITSHOT done")
+	get_tree().quit(0)
+
+
+func _rollshot() -> void:
+	# Dump the first second of a live delivery so the chase sit can be
+	# checked for smear without a phone in hand.
+	await get_tree().process_frame
+	await get_tree().process_frame
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+	delivering_jack = false
+	if ui != null:
+		ui.visible = true
+	if gesture != null:
+		gesture.busy()
+	if disc == null or rink == null:
+		print("ROLLSHOT skip")
+		get_tree().quit(2)
+		return
+	disc.configure_bowl(1, -1.0)
+	disc.set_palette(0)
+	disc.start_position = Vector3(0.0, 0.0, line_z)
+	disc.reset_to_start()
+	if jack != null:
+		jack.rest_at(Vector3(0.0, 0.0, line_z - 23.0))
+		jack.visible = true
+	if ui != null:
+		ui.show_bowl_controls(true)
+	disc.is_aiming = true
+	rink.chase = true
+	rink.note_delivery(disc.global_position, Vector3.ZERO, false, Vector3(0.0, 0.0, line_z), disc.global_position, true)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	await _dump_compare_shot("roll_aim")
+	disc.is_aiming = false
+	var power: float = disc.weight_for_length(23.0, disc.bias_ratio)
+	disc.fire_taken(Vector3(0.10, 0.0, -1.0).normalized(), power)
+	DirAccess.make_dir_recursive_absolute("/tmp/roll_anim")
+	var frames := 0
+	for i in 36:
+		await get_tree().create_timer(0.04).timeout
+		await RenderingServer.frame_post_draw
+		var tex: Texture2D = get_viewport().get_texture()
+		if tex != null:
+			var img := tex.get_image()
+			if img != null:
+				img.save_png("/tmp/roll_anim/%03d.png" % frames)
+				if i == 0 or i == 4 or i == 10 or i == 20:
+					img.save_png("/opt/cursor/artifacts/roll_%02d.png" % i)
+				frames += 1
+	print("ROLLSHOT frames=%d pos=%.2f,%.2f" % [frames, disc.global_position.x, disc.global_position.z])
 	get_tree().quit(0)
 
 

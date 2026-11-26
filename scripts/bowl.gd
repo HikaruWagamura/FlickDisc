@@ -93,8 +93,6 @@ static func apply_team(mat: StandardMaterial3D, index: int, _wide: bool = false)
 		mat.albedo_texture = null
 		mat.albedo_color = team_color(index)
 	mat.roughness = 0.5
-	if maps["normal"] != null:
-		mat.normal_scale = 0.22
 
 
 static func tint_band(mat: StandardMaterial3D, index: int) -> void:
@@ -192,10 +190,10 @@ static func _classify_tex(path: String) -> String:
 
 static func _apply_pbr(mat: StandardMaterial3D, maps: Dictionary) -> void:
 	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
-	if maps["normal"] != null:
-		mat.normal_enabled = true
-		mat.normal_scale = 0.22
-		mat.normal_texture = maps["normal"]
+	# Pack albedo keeps the square bite. The baked normal reprints that
+	# grid and shimmers while the bowl rolls, which reads as blur.
+	mat.normal_enabled = false
+	mat.normal_texture = null
 	# Scratch/rough maps shimmer while the bowl rolls. Keep the body smooth.
 	mat.roughness_texture = null
 	mat.roughness = 0.5

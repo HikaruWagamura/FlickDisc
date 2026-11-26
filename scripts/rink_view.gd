@@ -165,10 +165,10 @@ func _build_environment() -> void:
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.glow_enabled = true
-	env.glow_intensity = 0.10
-	env.glow_strength = 0.28
-	env.glow_bloom = 0.015
-	env.glow_hdr_threshold = 1.35
+	env.glow_intensity = 0.06
+	env.glow_strength = 0.22
+	env.glow_bloom = 0.0
+	env.glow_hdr_threshold = 1.45
 	env.fog_enabled = true
 	env.fog_mode = Environment.FOG_MODE_EXPONENTIAL
 	env.fog_density = 0.00048 if LENGTH > 200.0 else 0.0026
@@ -277,23 +277,23 @@ func _process(delta: float) -> void:
 		goal_fov = 42.0
 		response = 3.4
 	elif _shot_live and chase:
-		# Trail the bowl from behind. Look a little ahead so the lens does
-		# not shiver on the stone, and keep FOV still so it does not smear.
-		var flat := Vector3(_shot_vel.x, 0.0, _shot_vel.z)
+		# Stay on the aiming sit at release. Pulling height/look from speed
+		# used to yank the lens the instant the bowl rolled, which smeared
+		# the pack texture. Lift only as the stone actually travels.
 		var long_green := LENGTH > 200.0
-		var pace := clampf(flat.length() / (22.0 if long_green else 12.0), 0.0, 1.0)
 		var side := clampf(absf(_shot_pos.x) / (8.0 if long_green else 2.8), 0.0, 1.0)
 		var sunk := clampf(-_shot_pos.y / 0.16, 0.0, 1.0)
-		var widen := maxf(side, sunk)
-		var trail := lerpf(3.6, 16.0, maxf(widen, pace)) if long_green else lerpf(3.1, 6.4, widen)
-		var height := lerpf(2.8, 10.5, maxf(widen, pace)) if long_green else lerpf(2.15, 5.4, widen)
+		var run := clampf((_mat.z - _shot_pos.z) / (28.0 if long_green else 16.0), 0.0, 1.0)
+		var lift := maxf(maxf(side, sunk), run)
+		var trail := lerpf(2.8, 12.0, lift) if long_green else lerpf(2.55, 5.4, lift)
+		var height := lerpf(1.05, 7.0, lift) if long_green else lerpf(0.98, 3.4, lift)
 		var x_follow := 0.22 if long_green else 0.08
 		var x_cap := HALF_WIDTH * 0.45 if long_green else 0.85
-		var ahead := lerpf(4.2, 7.5, pace) if long_green else 3.4
+		var ahead := lerpf(14.0, 6.0, lift) if long_green else lerpf(12.0, 5.0, lift)
 		goal_pos = Vector3(clampf(_shot_pos.x * x_follow, -x_cap, x_cap), height, _shot_pos.z + trail)
-		goal_look = Vector3(_shot_pos.x * 0.28, 0.16, _shot_pos.z - ahead)
+		goal_look = Vector3(_shot_pos.x * 0.18, 0.10, _shot_pos.z - ahead)
 		goal_fov = 42.0
-		response = 3.4 if long_green else 3.1
+		response = 2.4 if long_green else 2.2
 	elif _shot_live:
 		# Stay behind the mat and watch the bowl run away down the line.
 		goal_pos = Vector3(0.0, 0.62, _mat.z + 2.1)
@@ -311,8 +311,9 @@ func _process(delta: float) -> void:
 	var x_limit := HALF_WIDTH * 0.7 if LENGTH > 200.0 else 4.2
 	goal_pos.x = clampf(goal_pos.x, -x_limit, x_limit)
 	var gap := _cam_pos.distance_to(goal_pos)
-	if _shot_live and gap > 8.0:
-		response = 9.0
+	# Catch a lagging chase without whipping the lens at release.
+	if _shot_live and chase and gap > 10.0:
+		response = 4.6
 	if not _cam_ready:
 		_cam_pos = goal_pos
 		_cam_look = goal_look
