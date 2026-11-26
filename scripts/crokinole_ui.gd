@@ -31,6 +31,14 @@ var overview_rules: Label
 var overview_body: RichTextLabel
 var _count_token := 0
 var pause_layer: Control
+var _callout_root: Control
+var _callout_card: Panel
+var _callout_word: Label
+var _callout_tag: Label
+var _callout_used: Dictionary = {}
+var _callout_tween: Tween
+var you_left := 12
+var them_left := 12
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -40,9 +48,9 @@ func _ready() -> void:
 	menu_button.add_theme_stylebox_override("normal", _button_style(Color("#ff4d9a"), Color("#ffd0e8")))
 	menu_button.add_theme_color_override("font_color", Color("#1a0a12"))
 	menu_button.pressed.connect(_open_pause)
-	level_label = _make_label(Vector2(300.0, 10.0), Vector2(216.0, 22.0), 16, Color("#f7fbff"), "LEVEL 01")
+	level_label = _make_label(Vector2(300.0, 10.0), Vector2(216.0, 22.0), 16, Color("#f7fbff"), "END 01")
 	level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	throws_label = _make_label(Vector2(300.0, 34.0), Vector2(216.0, 18.0), 12, Color("#8fd7ea"), "8 DISCS")
+	throws_label = _make_label(Vector2(300.0, 34.0), Vector2(216.0, 18.0), 12, Color("#8fd7ea"), "YOU 12   THEM 12")
 	throws_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 
 	status_label = _make_label(Vector2(22.0, 58.0), Vector2(496.0, 22.0), 13, Color("#FFF6FF"), "")
@@ -69,11 +77,12 @@ func _ready() -> void:
 	_build_overview()
 	_build_pause()
 	_build_power()
+	_build_callout()
 
-func show_touch(level_number: int, discs_left: int, you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0) -> void:
+func show_touch(level_number: int, discs_left: int, you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0, them_remaining: int = -1, rule: String = "") -> void:
 	hide_overview()
-	status_label.text = "PULL THE DISC  •  FIVE STRAIGHT"
-	show_match_status(level_number, discs_left, you_board, far_board, match_you, match_them)
+	status_label.text = rule if rule != "" else "PULL THE DISC  •  FIVE STRAIGHT"
+	show_match_status(level_number, discs_left, you_board, far_board, match_you, match_them, them_remaining)
 	reset_button.text = "RESET"
 	reset_button.visible = true
 	next_button.visible = false
@@ -104,18 +113,21 @@ func _show_stop(_rolling: bool) -> void:
 func show_ready(level_number: int, discs_left: int, difficulty: String = "", you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0) -> void:
 	hide_overview()
 	var layout := difficulty.to_upper() if difficulty != "" else "CROKINOLE"
-	status_label.text = "LEVEL %02d  •  %s  •  PULL YOUR DISC" % [level_number, layout]
+	status_label.text = "END %02d  •  %s  •  PULL YOUR DISC" % [level_number, layout]
 	show_match_status(level_number, discs_left, you_board, far_board, match_you, match_them)
 	reset_button.text = "RESET"
 	reset_button.visible = true
 	next_button.visible = false
 
-func show_match_status(level_number: int, discs_left: int, you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0) -> void:
-	level_label.text = "LEVEL %02d" % level_number
-	if discs_left <= 0:
+func show_match_status(level_number: int, discs_left: int, you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0, them_remaining: int = -1) -> void:
+	you_left = discs_left
+	if them_remaining >= 0:
+		them_left = them_remaining
+	level_label.text = "END %02d" % level_number
+	if discs_left <= 0 and them_left <= 0:
 		throws_label.text = "END"
 	else:
-		throws_label.text = "%d LEFT" % discs_left
+		throws_label.text = "YOU %d   THEM %d" % [discs_left, them_left]
 	score_label.text = "BOARD %d–%d    MATCH %d–%d" % [you_board, far_board, match_you, match_them]
 
 func show_aiming(_power_ratio: float) -> void:
@@ -199,8 +211,12 @@ func show_in_motion() -> void:
 	_show_stop(false)
 	status_label.text = "IN FLIGHT  •  PEGS AND DISCS ARE LIVE"
 
-func show_landed(shot_points: int, sunk: bool, ditched: bool) -> void:
-	if sunk:
+func show_landed(shot_points: int, sunk: bool, ditched: bool, foul: String = "") -> void:
+	if foul == "no_hit":
+		status_label.text = "NO HIT  •  DISC COMES OFF"
+	elif foul == "not_inner":
+		status_label.text = "NOT IN 15  •  DISC COMES OFF"
+	elif sunk:
 		status_label.text = "20 IN THE HOLE"
 	elif shot_points > 0:
 		status_label.text = "LANDED FOR %d" % shot_points
@@ -221,7 +237,7 @@ func show_end_overview(end_number: int, layout_name: String, you_items: Array, t
 	_show_stop(false)
 	overview.visible = true
 	overview_title.text = "END %d" % end_number
-	overview_rules.text = "%s\n20 IN THE HOLE   •   15   •   10   •   5\nA DISC ON A LINE SCORES THE LOWER RING.\nTHE END SCORES THE DIFFERENCE." % layout_name.to_upper()
+	overview_rules.text = "%s\nHIT THEIR COLOUR OR YOUR SHOT COMES OFF.\nCLEAR BOARD: 15 OR THE 20-HOLE.\n20 IN THE HOLE   •   15   •   10   •   5\nA DISC ON A LINE SCORES THE LOWER RING.\nTHE END SCORES THE DIFFERENCE." % layout_name.to_upper()
 	overview_body.text = ""
 	_set_overview_height(230.0)
 	status_label.text = "END %d  •  COUNTING THE BOARD" % end_number
@@ -518,3 +534,89 @@ func _button_style(fill: Color, border: Color) -> StyleBoxFlat:
 	style.set_border_width_all(1)
 	style.set_corner_radius_all(10)
 	return style
+
+
+func reset_callouts() -> void:
+	_callout_used.clear()
+
+
+func slap(kind: String, speed: float = 0.0) -> void:
+	if _callout_used.get(kind, false):
+		return
+	_callout_used[kind] = true
+	if _callout_root == null:
+		return
+	var line := _callout_line(kind, speed)
+	_callout_word.text = str(line[0])
+	_callout_tag.text = str(line[1])
+	_callout_root.visible = true
+	_callout_root.modulate = Color(1, 1, 1, 1)
+	_callout_root.scale = Vector2(0.42, 0.42)
+	_callout_root.rotation_degrees = randf_range(-8.0, 8.0)
+	_callout_root.pivot_offset = _callout_root.size * 0.5
+	if _callout_tween != null:
+		_callout_tween.kill()
+	_callout_tween = create_tween()
+	_callout_tween.tween_property(_callout_root, "scale", Vector2(1.12, 1.12), 0.12).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_callout_tween.tween_property(_callout_root, "scale", Vector2.ONE, 0.08)
+	_callout_tween.tween_interval(1.12)
+	_callout_tween.tween_property(_callout_root, "modulate:a", 0.0, 0.28)
+	_callout_tween.tween_callback(func() -> void:
+		_callout_root.visible = false
+	)
+
+
+func _callout_line(kind: String, speed: float) -> PackedStringArray:
+	if kind == "disc" and speed >= 1.35:
+		return PackedStringArray(["BIG HIT", "SEND IT"])
+	var bank := {
+		"disc": [["CRACK", "DISC"], ["CLEAN", "CONTACT"], ["POP", "BUTTON"], ["BANG", "ON THEM"]],
+		"peg": [["PEG", "RATTLE"], ["CLACK", "PEG"], ["PIN", "KISS"]],
+		"out": [["DITCH", "GONE"], ["OUT", "NO SCORE"], ["RIM", "OFF"]],
+		"hole": [["TWENTY", "IN THE HOLE"], ["DOWN", "TWENTY"], ["CUP", "YES"]],
+		"foul": [["NO HIT", "COMES OFF"], ["WHIFF", "OFF THE BOARD"], ["FOUL", "TAKE IT OFF"]],
+	}
+	var lines: Array = bank.get(kind, [["NICE", "SHOT"]])
+	var pick: Array = lines[randi() % lines.size()]
+	return PackedStringArray([str(pick[0]), str(pick[1])])
+
+
+func _build_callout() -> void:
+	_callout_root = Control.new()
+	_callout_root.position = Vector2(86.0, 168.0)
+	_callout_root.size = Vector2(368.0, 132.0)
+	_callout_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_callout_root.z_index = 28
+	_callout_root.visible = false
+	add_child(_callout_root)
+	_callout_card = Panel.new()
+	_callout_card.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_callout_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var card := StyleBoxFlat.new()
+	card.bg_color = Color(1.0, 0.96, 0.98, 0.96)
+	card.border_color = Color("#ff2e8a")
+	card.set_border_width_all(5)
+	card.set_corner_radius_all(18)
+	card.shadow_color = Color(1.0, 0.2, 0.55, 0.35)
+	card.shadow_size = 12
+	_callout_card.add_theme_stylebox_override("panel", card)
+	_callout_root.add_child(_callout_card)
+	_callout_word = Label.new()
+	_callout_word.position = Vector2(18.0, 14.0)
+	_callout_word.size = Vector2(332.0, 64.0)
+	_callout_word.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_callout_word.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_callout_word.add_theme_font_size_override("font_size", 42)
+	_callout_word.add_theme_color_override("font_color", Color("#ff2e8a"))
+	_callout_word.add_theme_color_override("font_outline_color", Color("#1a0a12"))
+	_callout_word.add_theme_constant_override("outline_size", 8)
+	_callout_word.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_callout_root.add_child(_callout_word)
+	_callout_tag = Label.new()
+	_callout_tag.position = Vector2(18.0, 82.0)
+	_callout_tag.size = Vector2(332.0, 32.0)
+	_callout_tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_callout_tag.add_theme_font_size_override("font_size", 16)
+	_callout_tag.add_theme_color_override("font_color", Color("#3d5cff"))
+	_callout_tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_callout_root.add_child(_callout_tag)

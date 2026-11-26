@@ -19,7 +19,9 @@ const DISC_CENTER_Y := 0.016
 const DITCH_Y := -0.006
 const PLAYER_START_Z := 12.35 * INCH
 const LANE_HALF := 3.2 * INCH
-const DISCS_PER_ROUND := 8
+const DISCS_PER_PLAYER := 12
+const DISCS_PER_ROUND := 12
+const MOVE_THRESHOLD := DISC_RADIUS * 0.7
 
 const MIN_SPEED := 1.15
 const MAX_SPEED := 3.6
@@ -76,6 +78,9 @@ static func points_for(distance_from_center: float, sunk: bool) -> int:
 	if distance_from_center <= RING_5 - clear:
 		return 5
 	return 0
+
+static func inside_15(distance_from_center: float) -> bool:
+	return distance_from_center + DISC_RADIUS <= RING_15
 
 static func plastic(color: Color, roughness: float, emission: float = 0.0) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()

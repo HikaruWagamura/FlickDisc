@@ -10,10 +10,12 @@ var velocity := Vector3.ZERO
 var moving := false
 var sunk := false
 var in_ditch := false
+var removed := false
 var is_player := true
 var shot_bias := 0.0
 var stop_timer := 0.0
 var played := false
+var start_flat := Vector2.ZERO
 
 var tint := Color("#ff3d9a")
 var _kit_index := 0
@@ -32,6 +34,8 @@ func set_flat(spot: Vector2) -> void:
 	position = Vector3(spot.x, Metrics.sit_y(in_ditch), spot.y)
 
 func ring_points() -> int:
+	if removed:
+		return 0
 	if is_player and not played:
 		return 0
 	if moving and not sunk:
@@ -41,6 +45,40 @@ func ring_points() -> int:
 	if sunk:
 		return 20
 	return Metrics.points_for(flat().length(), false)
+
+func on_playing_surface() -> bool:
+	return not removed and not sunk and not in_ditch
+
+func in_15_or_20() -> bool:
+	if removed or in_ditch:
+		return false
+	if sunk:
+		return true
+	return Metrics.inside_15(flat().length())
+
+func displaced_from_start() -> float:
+	return flat().distance_to(start_flat)
+
+func mark_start() -> void:
+	start_flat = flat()
+
+func take_off() -> void:
+	if removed:
+		return
+	removed = true
+	moving = false
+	played = true
+	sunk = false
+	in_ditch = false
+	velocity = Vector3.ZERO
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(self, "scale", Vector3(0.08, 0.08, 0.08), 0.22)
+	tween.tween_property(self, "position:y", position.y + 0.08, 0.22)
+	tween.finished.connect(func() -> void:
+		visible = false
+		scale = Vector3.ONE
+	)
 
 func points() -> int:
 	if not is_player:
@@ -75,7 +113,7 @@ func _build_visual() -> void:
 		return
 	var body_color := Color("#141414") if is_player else Color("#f3e6cf")
 	var rim_color := Color("#2a2a2e") if is_player else Color("#c4a574")
-	var center_color := tint if is_player else Color("#6b3e28")
+	var center_color := tint if is_player else Color("#3d5cff")
 	var ring_color := tint if is_player else Color("#f0d48a")
 
 	var body := CylinderMesh.new()
