@@ -38,6 +38,7 @@ const PALETTES := [
 ]
 
 const SKINS := [
+	{"id": "club", "name": "CLUB", "look": LOOK_SPLIT},
 	{"id": "split", "name": "HALF / HALF", "look": LOOK_SPLIT},
 	{"id": "both", "name": "SOLID", "look": LOOK_BOTH},
 	{"id": "camo", "name": "WOODLAND", "look": LOOK_GRAPHIC},
@@ -71,11 +72,21 @@ static var _preview_cache := {}
 
 static func default_kit() -> Dictionary:
 	return {
-		"bowl_skin": "split",
+		"bowl_skin": "club",
 		"bowl_color": 1,
-		"disc_skin": "both",
+		"disc_skin": "club",
 		"disc_color": 0,
 	}
+
+
+static func uses_custom_bowl(kit: Dictionary) -> bool:
+	var skin_id := str(kit.get("bowl_skin", "club"))
+	return skin_id != "club" and skin_id != "standard"
+
+
+static func uses_custom_disc(kit: Dictionary) -> bool:
+	var skin_id := str(kit.get("disc_skin", "club"))
+	return skin_id != "club" and skin_id != "standard"
 
 
 static func palette(index: int) -> Dictionary:
@@ -112,7 +123,10 @@ static func pack(skin_id: String, color: int) -> Dictionary:
 static func paint_holder(holder: Node3D, kit: Dictionary, opponent: bool = false) -> void:
 	if holder == null:
 		return
-	_paint_tree(holder, kit, opponent)
+	if opponent or not uses_custom_bowl(kit):
+		_paint_tree(holder, kit, true)
+		return
+	_paint_tree(holder, kit, false)
 
 
 static func _paint_tree(node: Node, kit: Dictionary, opponent: bool) -> void:
@@ -128,6 +142,9 @@ static func _paint_tree(node: Node, kit: Dictionary, opponent: bool) -> void:
 
 static func paint_disc(mi: MeshInstance3D, kit: Dictionary) -> void:
 	if mi == null:
+		return
+	if not uses_custom_disc(kit):
+		mi.material_override = null
 		return
 	_paint_mesh(mi, kit, true)
 
@@ -272,7 +289,9 @@ static func preview(kit: Dictionary, for_disc: bool) -> Texture2D:
 			var side := clampf((nx + 0.08) / 0.16, 0.0, 1.0)
 			var col: Color = color_a
 			var look := int(look_info["look"])
-			if look == LOOK_SPLIT:
+			if skin_id == "club":
+				col = color_a
+			elif look == LOOK_SPLIT:
 				col = color_a.lerp(color_b, side)
 			elif look == LOOK_BOTH:
 				col = color_a

@@ -106,6 +106,7 @@ var kit_skin_row: GridContainer
 var kit_caption: Label
 var kit_bowl_tab: Button
 var kit_disc_tab: Button
+var customize_button: Button
 
 
 func setup(player_profile) -> void:
@@ -341,7 +342,7 @@ func _build_home() -> void:
 	home_play = play
 	play.pressed.connect(func() -> void:
 		_tap()
-		_open_kit("classic")
+		_open_setup("classic")
 	)
 
 	_home_card(page, Rect2(28, 488, 236, 124), "LONG GREEN", "A full match rink.", "green", "🌿", "drive")
@@ -433,31 +434,37 @@ func _build_setup() -> void:
 
 	hint_label = _label("", 13, MUTED, body_font)
 	hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_place(page, hint_label, Vector2(20, 356), Vector2(500, 22))
+	_place(page, hint_label, Vector2(20, 352), Vector2(500, 22))
+
+	customize_button = _row_button("CUSTOMIZE BOWLS", func() -> void:
+		_tap()
+		_open_kit(kind if kind != "" else "classic")
+	)
+	_place(page, customize_button, Vector2(20, 378), Vector2(500, 48))
 
 	match_kicker = _kicker("MATCH")
-	_place(page, match_kicker, Vector2(28, 392), Vector2(200, 18))
-	match_chips = _chip_row(page, Vector2(20, 414), PackedStringArray(["1 END", "4 ENDS", "TO 10", "TO 21"]), func(i: int) -> void:
+	_place(page, match_kicker, Vector2(28, 436), Vector2(200, 18))
+	match_chips = _chip_row(page, Vector2(20, 458), PackedStringArray(["1 END", "4 ENDS", "TO 10", "TO 21"]), func(i: int) -> void:
 		race = i
 		_sync_setup()
 	)
 	skill_kicker = _kicker("AI")
-	_place(page, skill_kicker, Vector2(28, 478), Vector2(200, 18))
-	skill_chips = _chip_row(page, Vector2(20, 500), PackedStringArray(["EASY", "MEDIUM", "HARD"]), func(i: int) -> void:
+	_place(page, skill_kicker, Vector2(28, 522), Vector2(200, 18))
+	skill_chips = _chip_row(page, Vector2(20, 544), PackedStringArray(["EASY", "MEDIUM", "HARD"]), func(i: int) -> void:
 		difficulty = i
 		_sync_setup()
 	)
 
 	big_play = _primary("PLAY VERSUS AI", func() -> void: _launch("ai"))
-	_place(page, big_play, Vector2(20, 572), Vector2(500, 72))
+	_place(page, big_play, Vector2(20, 616), Vector2(500, 72))
 	friend_button = _row_button("PLAY A FRIEND", func() -> void: _launch("local"))
-	_place(page, friend_button, Vector2(20, 656), Vector2(500, 60))
+	_place(page, friend_button, Vector2(20, 700), Vector2(500, 60))
 
 	duo_note = _label("Both teams play on this device. Pass the phone each shot.", 13, MUTED, body_font)
 	duo_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	duo_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	duo_note.visible = false
-	_place(page, duo_note, Vector2(20, 656), Vector2(500, 40))
+	_place(page, duo_note, Vector2(20, 704), Vector2(500, 40))
 
 	difficulty_button = _choice_button()
 	difficulty_button.visible = false
@@ -663,7 +670,7 @@ func _build_customise() -> void:
 	pages["customise"] = page
 	root.add_child(page)
 	box.add_child(_title("YOUR KIT"))
-	box.add_child(_wrapped("Bowls first, then discs. Half / half, both sides, or a graphic wrap. Unlocked for testing."))
+	box.add_child(_wrapped("Optional. Matches use the club bowls unless you pick a wrap here."))
 	var tabs := HBoxContainer.new()
 	tabs.add_theme_constant_override("separation", 8)
 	box.add_child(tabs)
@@ -697,7 +704,7 @@ func _build_customise() -> void:
 	kit_preview_disc.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	kit_preview_disc.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	previews.add_child(kit_preview_disc)
-	kit_caption = _wrapped("HALF / HALF  ·  Match red")
+	kit_caption = _wrapped("CLUB  ·  Match red")
 	box.add_child(kit_caption)
 	box.add_child(_kicker("COLOUR"))
 	var grid := GridContainer.new()
@@ -728,7 +735,7 @@ func _build_customise() -> void:
 		chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		chip.pressed.connect(_pick_skin.bind(str(item["id"])))
 		kit_skin_row.add_child(chip)
-	var play_kit := _button("PLAY THIS KIT", 16)
+	var play_kit := _button("BACK TO PLAY", 16)
 	play_kit.custom_minimum_size = Vector2(0, 52)
 	_paint_button(play_kit, PINK, Color("#ffd0e8"), Color("#1a0a12"), 16, 12)
 	play_kit.pressed.connect(func() -> void:
@@ -947,7 +954,9 @@ func _sync_setup() -> void:
 		race = mini(1, match_captions.size() - 1)
 	if race_button != null:
 		race_button.text = _race_options()[race]
-	_layout_chips(match_chips, match_captions, Vector2(20, 414))
+	if customize_button != null:
+		customize_button.text = "CUSTOMIZE BOWLS" if rink == "lawn" else "CUSTOMIZE DISCS"
+	_layout_chips(match_chips, match_captions, Vector2(20, 458))
 	_paint_chips(match_chips, race)
 	if skill_kicker != null:
 		skill_kicker.visible = classic

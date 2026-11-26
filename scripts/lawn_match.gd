@@ -91,9 +91,9 @@ const MIN_LIVE_JACK := 20.0
 func _ready() -> void:
 	if OS.get_cmdline_user_args().has("--kitshot"):
 		get_tree().root.set_meta("flickdisc_kit", {
-			"bowl_skin": "camo",
-			"bowl_color": 6,
-			"disc_skin": "camo",
+			"bowl_skin": "club",
+			"bowl_color": 1,
+			"disc_skin": "club",
 			"disc_color": 0,
 		})
 	ui = get_node("UI")
@@ -1921,43 +1921,32 @@ func _kitshot() -> void:
 	await get_tree().process_frame
 	delivering_jack = false
 	if disc != null:
-		disc.configure_bowl(3, -1.0)
+		disc.configure_bowl(1, -1.0)
 		disc.set_palette(0)
 		disc.global_position = Vector3(0.0, 0.0, line_z)
 		disc.start_position = disc.global_position
 		disc.seat_visual()
-		if disc._spin != null:
-			disc._spin.rotation = Vector3(0.0, 2.28, 0.0)
 	if ui != null:
-		ui.visible = false
+		ui.visible = true
 	if gesture != null:
 		gesture.busy()
 	var cam: Camera3D = rink.view_camera() if rink != null else null
 	if cam != null and disc != null:
-		var lift := 0.14
-		if disc._visual != null:
-			lift = maxf(disc._visual.position.y, 0.12)
-		var at: Vector3 = disc.global_position + Vector3(0.0, lift * 0.45, 0.0)
-		cam.fov = 38.0
-		cam.position = at + Vector3(0.48, 0.38, 1.18)
-		cam.look_at(at, Vector3.UP)
+		var at: Vector3 = disc.global_position
+		cam.fov = 42.0
+		cam.position = at + Vector3(0.0, 0.72, 1.55)
+		cam.look_at(at + Vector3(0.0, 0.08, -8.0), Vector3.UP)
 	var looks := [
-		{"file": "kit_bowl_red", "skin": "split", "color": 1},
-		{"file": "kit_bowl_blue", "skin": "split", "color": 11},
+		{"file": "kit_bowl_club", "skin": "club", "color": 1},
 		{"file": "kit_bowl_camo", "skin": "camo", "color": 6},
-		{"file": "kit_bowl_arctic", "skin": "arctic", "color": 8},
-		{"file": "kit_bowl_desert", "skin": "desert", "color": 16},
-		{"file": "kit_bowl_digital", "skin": "digital", "color": 6},
-		{"file": "kit_bowl_carbon", "skin": "carbon", "color": 21},
-		{"file": "kit_bowl_marble", "skin": "marble", "color": 17},
-		{"file": "kit_bowl_metal", "skin": "metal", "color": 20},
+		{"file": "kit_bowl_split", "skin": "split", "color": 1},
 	]
 	for look in looks:
 		_apply_test_kit(str(look["skin"]), int(look["color"]))
 		await get_tree().process_frame
 		await get_tree().process_frame
 		await RenderingServer.frame_post_draw
-		await get_tree().create_timer(0.55).timeout
+		await get_tree().create_timer(0.45).timeout
 		await _dump_compare_shot(str(look["file"]))
 	print("KITSHOT done")
 	get_tree().quit(0)
@@ -1974,8 +1963,6 @@ func _apply_test_kit(skin_id: String, color: int) -> void:
 	if disc != null:
 		disc.set_palette(0)
 		disc.seat_visual()
-		if disc._spin != null:
-			disc._spin.rotation = Vector3(0.0, 2.28, 0.0)
 	for bowl in rack:
 		bowl.paint(0, hand_sign)
 

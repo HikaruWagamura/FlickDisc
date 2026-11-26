@@ -112,11 +112,12 @@ func _build_visual() -> void:
 	add_child(_visual)
 	if is_player:
 		var kit: Dictionary = Kit.from_meta(Engine.get_main_loop() as SceneTree)
-		var kit_look: Dictionary = Kit.disc_colors(kit)
-		var center: Color = kit_look["center"]
-		tint = center
-		_build_kit_disc(kit)
-		return
+		if Kit.uses_custom_disc(kit):
+			var kit_look: Dictionary = Kit.disc_colors(kit)
+			var center: Color = kit_look["center"]
+			tint = center
+			_build_kit_disc(kit)
+			return
 	if _wear_club():
 		return
 	var body_color := Color("#f3e6cf")

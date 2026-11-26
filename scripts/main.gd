@@ -154,11 +154,12 @@ func _menutest() -> void:
 	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
 	_dump_menu("menu_kit_photo")
-	menu._pick_skin("split")
+	menu._pick_skin("club")
 	menu._pick_swatch(1)
 	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
-	_dump_menu("menu_kit_split")
+	_dump_menu("menu_kit_club")
+	menu.rink = "lawn"
 	menu.open_screen("setup")
 	await get_tree().process_frame
 	await RenderingServer.frame_post_draw

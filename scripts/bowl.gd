@@ -27,7 +27,6 @@ const CLUB_NAMES := ["ball_1", "ball_2", "ball_3", "ball_4"]
 const JACK_NAME := "ball_1_1"
 
 static var _club_meshes: Array[Mesh] = []
-static var _polished_meshes: Array[Mesh] = []
 static var _jack_mesh: Mesh
 static var _next_club_variant := 0
 static var _maps_cache: Dictionary = {}
@@ -345,23 +344,25 @@ func paint(index: int, hand: float = -1.0, bias: int = -1) -> void:
 		_cap_mat = dressed["cap"]
 		_mark_mat = dressed["mark"]
 		_pip = dressed["weight"]
-		if index % 2 == 0:
-			var holder := _spin.get_node_or_null("ClubBowl")
-			if holder is Node3D:
-				Kit.paint_holder(holder, Kit.from_meta(Engine.get_main_loop() as SceneTree), false)
-		_bowl_sit = sit_from_holder(_pip)
+		_paint_club_if_custom(index)
+		_bowl_sit = DISC_RADIUS - SIT_NEST + GROUND_CLEAR
 		set_hand(hand)
 		return
 	apply_team(_body_mat, index, false)
 	tint_band(_rim_mat, index)
 	tint_band(_cap_mat, index)
 	tint_band(_mark_mat, index)
-	if index % 2 == 0:
-		var holder := _spin.get_node_or_null("ClubBowl") if _spin != null else null
-		if holder is Node3D:
-			Kit.paint_holder(holder, Kit.from_meta(Engine.get_main_loop() as SceneTree), false)
-	_bowl_sit = sit_from_holder(_pip)
+	_paint_club_if_custom(index)
+	_bowl_sit = DISC_RADIUS - SIT_NEST + GROUND_CLEAR
 	set_hand(hand)
+
+
+func _paint_club_if_custom(index: int) -> void:
+	if index % 2 != 0:
+		return
+	var holder := _spin.get_node_or_null("ClubBowl") if _spin != null else null
+	if holder is Node3D:
+		Kit.paint_holder(holder, Kit.from_meta(Engine.get_main_loop() as SceneTree), false)
 
 
 static func roll_basis_by(current: Basis, travel: Vector3, body_radius: float) -> Basis:
@@ -440,11 +441,8 @@ func _build_disc(index: int, hand: float) -> void:
 	_cap_mat = dressed["cap"]
 	_mark_mat = dressed["mark"]
 	_pip = dressed["weight"]
-	if index % 2 == 0:
-		var holder := _spin.get_node_or_null("ClubBowl")
-		if holder is Node3D:
-			Kit.paint_holder(holder, Kit.from_meta(Engine.get_main_loop() as SceneTree), false)
-	_bowl_sit = sit_from_holder(_pip)
+	_paint_club_if_custom(index)
+	_bowl_sit = DISC_RADIUS - SIT_NEST + GROUND_CLEAR
 	set_hand(hand)
 	_score_ring = MeshInstance3D.new()
 	_score_ring.mesh = _annulus(0.2, 0.26, 28)
@@ -534,16 +532,6 @@ static func _dress_club(parent: Node3D, index: int, hand: float, variant: int = 
 		mi.mesh = sphere
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	holder.add_child(mi)
-	var core := MeshInstance3D.new()
-	core.name = "Core"
-	var core_mesh := SphereMesh.new()
-	core_mesh.radius = DISC_RADIUS * 0.91
-	core_mesh.height = DISC_RADIUS * 1.82
-	core_mesh.radial_segments = 24
-	core_mesh.rings = 12
-	core.mesh = core_mesh
-	core.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	holder.add_child(core)
 	holder.rotation = Vector3(0.0, hand_yaw(hand), 0.0)
 	var body := StandardMaterial3D.new()
 	body.roughness = 0.38
@@ -566,15 +554,14 @@ static func _dress_club(parent: Node3D, index: int, hand: float, variant: int = 
 			mi.set_surface_override_material(2, mark)
 	else:
 		mi.material_override = body
-	core.material_override = body
 	return {"rim": ring, "body": body, "cap": mark, "mark": mark, "weight": holder}
 
 
 static func club_mesh(variant: int = 0) -> Mesh:
 	_ensure_club_meshes()
-	if _polished_meshes.is_empty():
+	if _club_meshes.is_empty():
 		return null
-	return _polished_meshes[variant % _polished_meshes.size()]
+	return _club_meshes[variant % _club_meshes.size()]
 
 
 static func jack_mesh() -> Mesh:
@@ -584,9 +571,6 @@ static func jack_mesh() -> Mesh:
 
 static func _ensure_club_meshes() -> void:
 	if not _club_meshes.is_empty():
-		if _polished_meshes.is_empty():
-			for mesh in _club_meshes:
-				_polished_meshes.append(_polish_shell(mesh))
 		return
 	if CLUB_SCENE == null:
 		return
@@ -600,9 +584,6 @@ static func _ensure_club_meshes() -> void:
 		_jack_mesh = jack_mi.mesh
 	if _club_meshes.is_empty():
 		_collect_club_meshes(root, jack_mi)
-	_polished_meshes.clear()
-	for mesh in _club_meshes:
-		_polished_meshes.append(_polish_shell(mesh))
 	root.free()
 
 
@@ -649,76 +630,7 @@ static func sit_from_holder(holder: Node3D) -> float:
 		bottom = minf(bottom, (xf * corner).y)
 	if bottom == INF or is_nan(bottom):
 		return DISC_RADIUS + GROUND_CLEAR
-	return -bottom + GROUND_CLEAR - 0.012
-
-
-## Keep the grip dimples. Round the outer shell and share normals so
-## the playing surface reads as a polished bowl, not a grid of squares.
-static func _polish_shell(src: Mesh) -> Mesh:
-	if src == null:
-		return src
-	var out := ArrayMesh.new()
-	for s in src.get_surface_count():
-		var arrays := src.surface_get_arrays(s)
-		if arrays.is_empty() or arrays[Mesh.ARRAY_VERTEX] == null:
-			continue
-		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-		if verts.is_empty():
-			continue
-		var idx: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
-		if idx.is_empty():
-			idx = PackedInt32Array()
-			for i in verts.size():
-				idx.append(i)
-		var snap := 0.0003
-		var key_to_new := {}
-		var welded := PackedVector3Array()
-		var remap := PackedInt32Array()
-		remap.resize(verts.size())
-		for i in verts.size():
-			var v: Vector3 = verts[i]
-			var key := "%d_%d_%d" % [roundi(v.x / snap), roundi(v.y / snap), roundi(v.z / snap)]
-			if key_to_new.has(key):
-				remap[i] = int(key_to_new[key])
-			else:
-				var ni := welded.size()
-				key_to_new[key] = ni
-				remap[i] = ni
-				welded.append(v)
-		var new_idx := PackedInt32Array()
-		new_idx.resize(idx.size())
-		for i in idx.size():
-			new_idx[i] = remap[idx[i]]
-		var center := Vector3.ZERO
-		for v in welded:
-			center += v
-		center /= float(maxi(welded.size(), 1))
-		var radii: Array = []
-		for v in welded:
-			radii.append(v.distance_to(center))
-		radii.sort()
-		var shell_r: float = float(radii[clampi(int(float(radii.size()) * 0.92), 0, radii.size() - 1)])
-		var polished := PackedVector3Array()
-		polished.resize(welded.size())
-		for i in welded.size():
-			var v: Vector3 = welded[i]
-			var d := v.distance_to(center)
-			if d > shell_r * 0.91 and d > 0.0001:
-				var target := center + (v - center).normalized() * shell_r
-				polished[i] = v.lerp(target, 0.8)
-			else:
-				polished[i] = v
-		var packed: Array = []
-		packed.resize(Mesh.ARRAY_MAX)
-		packed[Mesh.ARRAY_VERTEX] = polished
-		packed[Mesh.ARRAY_INDEX] = new_idx
-		var piece := ArrayMesh.new()
-		piece.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, packed)
-		var st := SurfaceTool.new()
-		st.create_from(piece, 0)
-		st.generate_normals()
-		st.commit(out)
-	return out if out.get_surface_count() > 0 else src
+	return -bottom + GROUND_CLEAR
 
 
 static func _fit_mesh(mi: MeshInstance3D, target_span: float, keep_bias: bool = false) -> void:

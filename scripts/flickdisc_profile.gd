@@ -22,8 +22,8 @@ var xp := 0
 var rounds := 0
 var disc_index := 0
 var bowl_color := 1
-var bowl_skin := "split"
-var disc_skin := "both"
+var bowl_skin := "club"
+var disc_skin := "club"
 var sound := true
 var haptics := true
 var cleared: PackedStringArray = PackedStringArray()
@@ -80,8 +80,12 @@ func load_profile() -> void:
 	rounds = int(cfg.get_value("player", "rounds", 0))
 	disc_index = int(cfg.get_value("player", "disc", 0))
 	bowl_color = int(cfg.get_value("player", "bowl_color", 1))
-	bowl_skin = str(cfg.get_value("player", "bowl_skin", "split"))
-	disc_skin = str(cfg.get_value("player", "disc_skin", "both"))
+	bowl_skin = str(cfg.get_value("player", "bowl_skin", "club"))
+	disc_skin = str(cfg.get_value("player", "disc_skin", "club"))
+	if bowl_skin == "split":
+		bowl_skin = "club"
+	if disc_skin == "both":
+		disc_skin = "club"
 	sound = bool(cfg.get_value("player", "sound", true))
 	haptics = bool(cfg.get_value("player", "haptics", true))
 	best_drive = float(cfg.get_value("player", "best_drive", 0.0))

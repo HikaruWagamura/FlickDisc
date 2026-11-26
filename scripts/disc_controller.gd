@@ -217,16 +217,8 @@ func configure_bowl(index: int, hand: float) -> void:
 
 
 func seat_visual() -> void:
-	_refresh_sit()
+	_bowl_sit = BowlScript.DISC_RADIUS - BowlScript.SIT_NEST + BowlScript.GROUND_CLEAR
 	_apply_visual(0.0)
-	if not is_inside_tree() or _visual == null:
-		return
-	var bottom := visual_bottom()
-	# Nest a few millimetres so a round bowl reads as planted, not hovering.
-	var ground := global_position.y - 0.022
-	if is_finite(bottom) and absf(bottom - ground) > 0.003:
-		_bowl_sit += ground - bottom
-		_apply_visual(0.0)
 
 
 func set_hand(hand: float) -> void:
@@ -817,7 +809,7 @@ func _apply_visual(_speed: float) -> void:
 			_visual.visible = true
 		if _jack_visual != null:
 			_jack_visual.visible = false
-		_visual.position = Vector3(0.0, _bowl_sit, 0.0)
+		_visual.position = Vector3(0.0, BowlScript.DISC_RADIUS - BowlScript.SIT_NEST + BowlScript.GROUND_CLEAR, 0.0)
 		# Keep the parent still. Roll lives only on _spin, so the painted
 		# centre line turns like a wheel instead of wandering.
 		_visual.basis = Basis.IDENTITY
@@ -1028,7 +1020,7 @@ func _redress_bowl(index: int) -> void:
 
 
 func _refresh_sit() -> void:
-	_bowl_sit = BowlScript.sit_from_holder(_stone)
+	_bowl_sit = BowlScript.DISC_RADIUS - BowlScript.SIT_NEST + BowlScript.GROUND_CLEAR
 
 
 func _paint_club_bowl() -> void:
@@ -1037,7 +1029,6 @@ func _paint_club_bowl() -> void:
 	var holder := _spin.get_node_or_null("ClubBowl") if _spin != null else null
 	if holder is Node3D:
 		Kit.paint_holder(holder, Kit.from_meta(get_tree()), false)
-		_refresh_sit()
 
 
 func _place_pip() -> void:
