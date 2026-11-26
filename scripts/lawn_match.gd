@@ -1178,10 +1178,10 @@ func _cuetest() -> void:
 	ui.show_match("AIM CUE")
 	cue.set_style(0)
 	var steps := [
-		{"power": 0.90, "bias": 1, "hand": -1.0, "aim": Vector3(0.0, 0.0, -1.0), "file": "cue_ahead_5", "title": "5 ARROWS  •  STRAIGHT AHEAD"},
-		{"power": 0.90, "bias": 3, "hand": -1.0, "aim": Vector3(0.16, 0.0, -1.0), "file": "cue_hook_5", "title": "5 ARROWS  •  HOOK"},
-		{"power": 0.22, "bias": 3, "hand": -1.0, "aim": Vector3(0.16, 0.0, -1.0), "file": "cue_hook_3", "title": "3 ARROWS  •  HOOK"},
-		{"power": 0.90, "bias": 3, "hand": 1.0, "aim": Vector3(-0.16, 0.0, -1.0), "file": "cue_backhand_5", "title": "5 ARROWS  •  BACKHAND"},
+		{"power": 0.90, "bias": 1, "hand": -1.0, "aim": Vector3(0.0, 0.0, -1.0), "file": "cue_ahead_5", "title": "5 + 3  •  STRAIGHT AHEAD"},
+		{"power": 0.90, "bias": 3, "hand": -1.0, "aim": Vector3(0.22, 0.0, -1.0), "file": "cue_hook_5", "title": "5 + 3  •  AIM RIGHT"},
+		{"power": 0.90, "bias": 3, "hand": 1.0, "aim": Vector3(-0.22, 0.0, -1.0), "file": "cue_backhand_5", "title": "5 + 3  •  AIM LEFT"},
+		{"power": 0.22, "bias": 3, "hand": -1.0, "aim": Vector3(0.22, 0.0, -1.0), "file": "cue_hook_3", "title": "3 + 3  •  LIGHT PULL"},
 	]
 	for step in steps:
 		_compare_power = float(step["power"])
@@ -1196,9 +1196,9 @@ func _cuetest() -> void:
 		await get_tree().create_timer(2.2).timeout
 	print("CUETEST done")
 	_compare_power = 0.90
-	_compare_aim = Vector3(0.16, 0.0, -1.0).normalized()
-	disc.configure_bowl(3, -1.0)
-	_set_compare_banner("5 ARROWS  •  HOOK")
+	_compare_aim = Vector3(-0.22, 0.0, -1.0).normalized()
+	disc.configure_bowl(3, 1.0)
+	_set_compare_banner("5 + 3  •  AIM LEFT")
 	_sync_compare_cue()
 	await get_tree().create_timer(6.0).timeout
 	get_tree().quit(0)

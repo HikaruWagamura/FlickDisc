@@ -103,6 +103,7 @@ func _process(delta: float) -> void:
 	power_ratio = lerpf(power_ratio, _power_target, blend)
 	aim_changed.emit(Vector2(aim_direction.x, aim_direction.z), power_ratio)
 	_update_guide()
+	_apply_visual(0.0)
 
 
 func _physics_process(delta: float) -> void:
@@ -246,6 +247,7 @@ func preview_take(aim: Vector3, power: float) -> void:
 	is_aiming = shown >= 0.08
 	if not is_aiming:
 		_hide_guide()
+	_apply_visual(0.0)
 	aim_changed.emit(Vector2(aim_direction.x, aim_direction.z), shown)
 
 
@@ -620,6 +622,49 @@ func _lean_angle(speed: float) -> float:
 	return lean
 
 
+func _aim_face() -> Vector3:
+	var face := Vector3(0.0, 0.0, -1.0)
+	if is_aiming:
+		face = _cue_face()
+	elif velocity.length() > 0.2:
+		face = Vector3(velocity.x, 0.0, velocity.z)
+		travel_facing = velocity
+	else:
+		face = Vector3(travel_facing.x, 0.0, travel_facing.z)
+	if face.length() < 0.001:
+		return Vector3(0.0, 0.0, -1.0)
+	return face.normalized()
+
+
+func _cue_face() -> Vector3:
+	# Look a metre down the grass cue so the stone turns with the hook,
+	# not only with the small aim offset.
+	var path := grass_cue(maxf(power_ratio, 0.4))
+	if path.size() >= 8:
+		var start := path[0]
+		var ahead := path[mini(22, path.size() - 1)]
+		var dir := Vector3(ahead.x - start.x, 0.0, ahead.z - start.z)
+		if dir.length() > 0.04:
+			return dir.normalized()
+	var flat := Vector3(aim_direction.x, 0.0, aim_direction.z)
+	if flat.length() < 0.001:
+		return Vector3(0.0, 0.0, -1.0)
+	return flat.normalized()
+
+
+func _line_yaw() -> float:
+	var face := _aim_face()
+	return atan2(face.x, -face.z) * 1.35
+
+
+func _aim_basis(speed: float) -> Basis:
+	var face := _aim_face()
+	var yaw := Basis(Vector3.UP, _line_yaw())
+	if is_aiming:
+		return yaw
+	return Basis(face, _lean_angle(speed)) * yaw
+
+
 func _apply_visual(speed: float) -> void:
 	if _visual == null:
 		return
@@ -630,16 +675,23 @@ func _apply_visual(speed: float) -> void:
 		_visual.position = Vector3.ZERO
 		_visual.basis = Basis.IDENTITY
 		_jack_visual.position = Vector3(0.0, BowlScript.JACK_RADIUS + BowlScript.GROUND_CLEAR + hop, 0.0)
-		_jack_visual.transform.basis = roll_basis
+		_jack_visual.transform.basis = _aim_basis(speed) * roll_basis
 	else:
 		if velocity.length() > 0.2:
 			travel_facing = velocity
 		var sit := BowlScript.DISC_RADIUS - BowlScript.SIT_NEST + BowlScript.GROUND_CLEAR
 		_visual.position = Vector3(0.0, sit + hop, 0.0)
-		_visual.basis = Basis(Vector3(0.0, 0.0, 1.0), _lean_angle(speed))
+		if is_aiming:
+			# Grip stays toward the mat; extra yaw turns the stone with the line.
+			_visual.basis = Basis.IDENTITY
+		else:
+			_visual.basis = _aim_basis(speed)
 		if _spin != null:
 			_spin.position = Vector3.ZERO
 			_spin.transform.basis = roll_basis
+		if _bias_pip != null:
+			var extra := _line_yaw() if is_aiming else 0.0
+			_bias_pip.rotation = Vector3(0.0, BowlScript.hand_yaw(hand_sign) + extra, 0.0)
 	_seat_shadow(radius)
 
 
@@ -670,7 +722,7 @@ func grass_cue(power: float) -> PackedVector3Array:
 	flat = flat.normalized()
 	# From the bowl centre, on the grass, toward where the bowl will run.
 	var start := Vector3(global_position.x, 0.0, global_position.z)
-	var want := lerpf(2.35, 3.15, clampf(power, 0.0, 1.0))
+	var want := lerpf(2.55, 3.45, clampf(power, 0.0, 1.0))
 	var out := PackedVector3Array()
 	var use_bias := (not delivering_jack) and absf(bias_ratio) > 0.04
 	if not use_bias:

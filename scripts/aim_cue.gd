@@ -9,9 +9,11 @@ const PACK := preload("res://assets/arrows/arrow.fbx")
 const RIGGED := preload("res://assets/arrows/rigged_arrow.glb")
 const SHADER_PATH := "res://shaders/aim_guide_3d.gdshader"
 const MESH_NAME := "arrow_15"
-const MAX_ARROWS := 5
+const MAIN_ARROWS := 5
+const TAIL_ARROWS := 3
+const MAX_ARROWS := 8
 const PERIOD := 0.67
-const SEAT_BLOCK := 0.018
+const SEAT_BLOCK := 0.006
 const SEAT_RIG := 0.052
 const STYLE_BLOCKS := 0
 const STYLE_RIGGED := 1
@@ -289,41 +291,57 @@ func _place_blocks() -> void:
 	var amount := _power
 	var wave := float(Time.get_ticks_msec()) * 0.001
 	var length := _path_length()
+	var main_n := _count
+	var total := main_n + TAIL_ARROWS
 	var body := maxf(_local_size.z, 0.18)
-	var fit := (length * 0.82) / maxf(float(_count), 1.0)
-	var scale_l := clampf(fit / body, 0.32, 0.78)
-	var scale_w := scale_l * 0.70
-	var scale_h := lerpf(0.85, 1.15, amount)
+	var fit := (length * 0.88) / maxf(float(total), 1.0)
+	var scale_l := clampf(fit / body, 0.26, 0.60)
+	var scale_w := scale_l * 0.62
+	var scale_h := lerpf(0.62, 0.82, amount)
 	if style == STYLE_BOTH:
 		scale_l *= 0.90
 		scale_w *= 0.90
 	for i in MAX_ARROWS:
 		var mi := _nodes[i]
-		if i >= _count:
+		if i >= total:
 			mi.visible = false
 			continue
 		mi.visible = true
 		var t := 0.18
-		if _count == 1:
-			t = 0.45
+		var taper := 1.0
+		if i < main_n:
+			if main_n == 1:
+				t = 0.36
+			else:
+				t = lerpf(0.12, 0.66, float(i) / float(main_n - 1))
 		else:
-			# Start just ahead of the stone so the first chevron leaves the
-			# bowl centre and runs down the grass.
-			t = lerpf(0.14, 0.90, float(i) / float(_count - 1))
+			var tail := i - main_n
+			if tail == 0:
+				taper = 0.70
+				t = 0.76
+			elif tail == 1:
+				taper = 0.48
+				t = 0.86
+			else:
+				taper = 0.32
+				t = 0.96
 		var centre := _sample(_path, t)
 		var tangent := _facing(_path, t)
-		var phase := (wave / PERIOD) * TAU - float(i) * (TAU / 5.5)
+		var phase := (wave / PERIOD) * TAU - float(i) * (TAU / 6.5)
 		var pulse := 0.5 + 0.5 * sin(phase)
-		var squash := lerpf(1.0, 0.86, pulse)
-		var hop := pulse * 0.016 * scale_h
-		var origin := Vector3(centre.x, SEAT_BLOCK + hop + _local_size.y * 0.5 * scale_h, centre.z)
+		var squash := lerpf(1.0, 0.90, pulse)
+		var hop := pulse * 0.007 * scale_h * taper
+		var sl := scale_l * taper
+		var sw := scale_w * taper * squash
+		var sh := scale_h * taper
+		var origin := Vector3(centre.x, SEAT_BLOCK + hop + _local_size.y * 0.42 * sh, centre.z)
 		var xf := Transform3D()
 		xf.origin = origin
 		xf = xf.looking_at(origin + tangent, Vector3.UP)
-		xf.basis = xf.basis.scaled(Vector3(scale_w * squash, scale_h, scale_l))
+		xf.basis = xf.basis.scaled(Vector3(sw, sh, sl))
 		mi.global_transform = xf
 		if i < _mats.size() and _mats[i] != null:
-			_mats[i].set_shader_parameter("power", amount)
+			_mats[i].set_shader_parameter("power", amount * taper)
 			_mats[i].set_shader_parameter("glow_enabled", true)
 			_mats[i].set_shader_parameter("along", t)
 
