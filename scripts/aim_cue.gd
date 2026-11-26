@@ -18,9 +18,9 @@ const SEAT_RIG := 0.052
 const STYLE_BLOCKS := 0
 const STYLE_RIGGED := 1
 const STYLE_BOTH := 2
-## First three stay full size so they still read on the grass. The fourth
-## sits a little smaller, then the line eases 90, 85, 80, and 70 at the tip.
-const TAPER := [1.00, 1.00, 1.00, 0.90, 0.90, 0.85, 0.80, 0.70]
+## First two stay full size so they still read on the grass. The third
+## sits 5% smaller, then 90, 90, 85, 80, and 70 at the tip.
+const TAPER := [1.00, 1.00, 0.95, 0.90, 0.90, 0.85, 0.80, 0.70]
 ## Start where the old second head sat, so the first block clears the bowl.
 const T_START := 0.223
 const T_END := 0.96

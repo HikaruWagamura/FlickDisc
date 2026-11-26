@@ -1217,7 +1217,7 @@ func _cuetest() -> void:
 		{"power": 0.52, "bias": 3, "hand": -1.0, "aim": Vector3(0.22, 0.0, -1.0), "file": "blocks_mid", "title": "5 + 3  •  MID  •  PINK", "kind": 0},
 		{"power": 0.92, "bias": 3, "hand": -1.0, "aim": Vector3(0.22, 0.0, -1.0), "file": "blocks_heavy", "title": "5 + 3  •  FULL  •  RED", "kind": 0},
 		{"power": 0.90, "bias": 3, "hand": 1.0, "aim": Vector3(-0.22, 0.0, -1.0), "file": "blocks_left", "title": "5 + 3  •  AIM LEFT", "kind": 0},
-		{"power": 0.90, "bias": 1, "hand": -1.0, "aim": Vector3(0.0, 0.0, -1.0), "file": "blocks_ahead", "title": "5 + 3  •  STRAIGHT AHEAD", "kind": 0},
+		{"power": 0.90, "bias": 1, "hand": -1.0, "aim": Vector3(0.0, 0.0, -1.0), "file": "blocks_jack", "title": "JACK  •  STRAIGHT", "kind": 0, "jack": true},
 		{"power": 0.96, "bias": 3, "hand": -1.0, "aim": Vector3(0.22, 0.0, -1.0), "file": "solid_heavy", "title": "SOLID  •  FULL WEIGHT", "kind": 1},
 	]
 	for step in steps:
@@ -1227,6 +1227,8 @@ func _cuetest() -> void:
 		_compare_aim = aim.normalized()
 		disc.configure_bowl(int(step["bias"]), float(step["hand"]))
 		disc.set_palette(0)
+		delivering_jack = bool(step.get("jack", false))
+		disc.delivering_jack = delivering_jack
 		_set_compare_banner(str(step["title"]))
 		_sync_compare_cue()
 		await get_tree().create_timer(1.8).timeout
@@ -1234,6 +1236,8 @@ func _cuetest() -> void:
 		await get_tree().create_timer(2.2).timeout
 	print("CUETEST done")
 	_use_cue_kind(0)
+	delivering_jack = false
+	disc.delivering_jack = false
 	_compare_power = 0.90
 	_compare_aim = Vector3(0.22, 0.0, -1.0).normalized()
 	disc.configure_bowl(3, -1.0)

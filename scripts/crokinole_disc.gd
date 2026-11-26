@@ -15,7 +15,7 @@ var is_aiming := false
 var shot_in_progress := false
 var aim_direction := Vector3(0.0, 0.0, -1.0)
 var power_ratio := 0.0
-var bias_ratio := 1.0
+var bias_ratio := 0.0
 
 var _guide_mesh := ImmediateMesh.new()
 var _guide_instance: MeshInstance3D
@@ -56,31 +56,17 @@ func guide_points() -> PackedVector3Array:
 
 
 func cue_points(_power: float) -> PackedVector3Array:
-	# A short hooked line for the 5+3 cue. Pegs stay out of it so the
-	# eight heads can show which way the disc will curl.
+	# Crokinole is a straight flick. The eight heads sit on the aim line.
 	var dir := Vector3(aim_direction.x, 0.0, aim_direction.z)
 	if dir.length() < 0.001:
 		dir = Vector3(0.0, 0.0, -1.0)
 	dir = dir.normalized()
 	var start := Vector3(global_position.x, 0.0, global_position.z)
-	var out := PackedVector3Array()
-	out.append(start)
-	var pos := start
 	var length := 1.05
-	var steps := 28
-	var hook := -bias_ratio * 0.52
-	for i in range(1, steps + 1):
-		var t := float(i) / float(steps)
-		var yaw := hook * (0.45 + 1.10 * t) / float(steps)
-		dir = dir.rotated(Vector3.UP, yaw)
-		dir.y = 0.0
-		if dir.length() < 0.001:
-			break
-		dir = dir.normalized()
-		pos += dir * (length / float(steps))
-		out.append(Vector3(pos.x, 0.0, pos.z))
-	if out.size() < 2:
-		out.append(start + dir * length)
+	var out := PackedVector3Array()
+	for step in 16:
+		var t := float(step) / 15.0
+		out.append(start + dir * (length * t))
 	return out
 
 
@@ -302,13 +288,7 @@ func _rebuild_guide() -> void:
 		direction = Vector3(0.0, 0.0, -1.0)
 	direction = direction.normalized()
 	var limit := Metrics.DITCH_OUTER - Metrics.DISC_RADIUS
-	for step_index in range(1, steps + 1):
-		var progress := float(step_index) / float(steps)
-		direction = direction.rotated(Vector3.UP, -bias_ratio * 0.18 * (1.0 - progress))
-		direction.y = 0.0
-		if direction.length() < 0.001:
-			break
-		direction = direction.normalized()
+	for _step_index in range(1, steps + 1):
 		var next_point := point + direction * (length / float(steps))
 		var flat := Vector2(global_position.x + next_point.x, global_position.z + next_point.z)
 		if flat.length() > limit or _blocked(flat):

@@ -42,9 +42,6 @@ func _ready() -> void:
 	reset_button = _make_button("RESET", Vector2(128.0, 10.0), Vector2(96.0, 32.0))
 	reset_button.pressed.connect(func() -> void: reset_requested.emit())
 
-	bias_button = _make_button("SPIN R", Vector2(228.0, 10.0), Vector2(68.0, 32.0))
-	bias_button.pressed.connect(func() -> void: bias_cycle_requested.emit())
-
 	next_button = _make_button("NEXT END", Vector2(150.0, 852.0), Vector2(240.0, 48.0))
 	next_button.pressed.connect(func() -> void: next_level_requested.emit())
 	next_button.visible = false
@@ -153,13 +150,6 @@ func show_end_overview(end_number: int, layout_name: String, you_items: Array, t
 
 func show_bias(value: float) -> void:
 	current_bias = value
-	if bias_button != null:
-		if current_bias < -0.5:
-			bias_button.text = "SPIN L"
-		elif current_bias > 0.5:
-			bias_button.text = "SPIN R"
-		else:
-			bias_button.text = "SPIN OFF"
 
 func show_opponent() -> void:
 	status_label.text = "OPPONENT TO PLAY"

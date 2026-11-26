@@ -467,7 +467,11 @@ func _clear_pucks() -> void:
 func _spawn_puck(player_disc: bool, spot: Vector2):
 	var puck = PuckScript.new()
 	var tint_color := player_tint if player_disc else Color("#6b3e28")
-	puck.setup(player_disc, tint_color)
+	var kit_index := 0
+	for other in pucks:
+		if bool(other.is_player) == player_disc:
+			kit_index += 1
+	puck.setup(player_disc, tint_color, kit_index)
 	puck.set_flat(spot)
 	puck.add_to_group("crokinole_puck")
 	pucks_root.add_child(puck)
@@ -510,7 +514,6 @@ func _begin_ready() -> void:
 		gesture.arm()
 		gesture.anchor = Vector3(0.0, 0.02, Metrics.PLAYER_START_Z)
 	ui.show_touch(int(current_level["number"]), discs_left, _side_total(true), _side_total(false), match_you, match_them)
-	ui.show_bias(disc.bias_ratio)
 
 
 func _arm_next_disc(_announce := true) -> void:
@@ -712,19 +715,17 @@ func _cuetest() -> void:
 	_snap_disc()
 	ui.status_label.text = ""
 	var steps := [
-		{"power": 0.18, "bias": 1.0, "aim": Vector3(0.0, 0.0, -1.0), "file": "crok_blocks_light", "title": "CROKINOLE  •  LIGHT  •  ICE"},
-		{"power": 0.52, "bias": 1.0, "aim": Vector3(0.0, 0.0, -1.0), "file": "crok_blocks_mid", "title": "CROKINOLE  •  MID  •  PINK"},
-		{"power": 0.94, "bias": 1.0, "aim": Vector3(0.0, 0.0, -1.0), "file": "crok_blocks_right", "title": "CROKINOLE  •  FULL  •  RIGHT HOOK"},
-		{"power": 0.94, "bias": -1.0, "aim": Vector3(0.0, 0.0, -1.0), "file": "crok_blocks_left", "title": "CROKINOLE  •  FULL  •  LEFT HOOK"},
+		{"power": 0.18, "aim": Vector3(0.0, 0.0, -1.0), "file": "crok_blocks_light", "title": "CROKINOLE  •  LIGHT  •  STRAIGHT"},
+		{"power": 0.52, "aim": Vector3(0.12, 0.0, -1.0), "file": "crok_blocks_mid", "title": "CROKINOLE  •  MID  •  STRAIGHT"},
+		{"power": 0.94, "aim": Vector3(0.0, 0.0, -1.0), "file": "crok_blocks_ahead", "title": "CROKINOLE  •  FULL  •  STRAIGHT"},
+		{"power": 0.94, "aim": Vector3(-0.18, 0.0, -1.0), "file": "crok_blocks_left", "title": "CROKINOLE  •  FULL  •  AIM LEFT"},
 	]
 	for step in steps:
-		disc.set_bias(float(step["bias"]))
 		var aim: Vector3 = step["aim"]
 		disc.preview_take(aim.normalized(), float(step["power"]))
 		if cue != null:
 			cue.present(disc.cue_points(float(step["power"])), float(step["power"]))
 		ui.status_label.text = str(step["title"])
-		ui.show_bias(float(step["bias"]))
 		await get_tree().create_timer(1.4).timeout
 		await _dump_cue_shot(str(step["file"]))
 		await get_tree().create_timer(0.6).timeout
