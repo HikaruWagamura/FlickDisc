@@ -11,6 +11,7 @@ const LevelScript := preload("res://scripts/level_manager.gd")
 const ScoreScript := preload("res://scripts/score_manager.gd")
 const BowlScript := preload("res://scripts/bowl.gd")
 const FeelScript := preload("res://scripts/feel.gd")
+const ArrowScript := preload("res://scripts/pack_arrow.gd")
 
 var disc
 var ui
@@ -55,6 +56,8 @@ var rack: Array = []
 var gesture
 var fan
 var cue
+var pack_arrow
+var arrow_style := "arrow_5"
 var distance_play := false
 var solo_play := false
 var solo_index := 0
@@ -187,6 +190,10 @@ func _wire_shot() -> void:
 	cue = preload("res://scripts/aim_cue.gd").new()
 	cue.name = "AimCue"
 	add_child(cue)
+	pack_arrow = ArrowScript.new()
+	pack_arrow.name = "PackArrow"
+	add_child(pack_arrow)
+	pack_arrow.wear(arrow_style, "lawn")
 
 
 func _begin_ready() -> void:
@@ -376,9 +383,19 @@ func _sync_direct(cam: Camera3D, placed: Vector3) -> void:
 	fan.present(bowl_px, power, 0.0, false, -PI * 0.5, 120.0)
 	if pulling:
 		if cue != null:
-			cue.present(disc.grass_cue(power), power)
-	elif cue != null:
-		cue.clear()
+			cue.clear()
+		if pack_arrow != null:
+			pack_arrow.present(live_pos, gesture.direct_aim, power)
+	elif live:
+		if cue != null:
+			cue.clear()
+		if pack_arrow != null:
+			pack_arrow.present(live_pos, Vector3(0.0, 0.0, -1.0), 0.28)
+	else:
+		if cue != null:
+			cue.clear()
+		if pack_arrow != null:
+			pack_arrow.clear()
 	fan.set_cue(PackedVector2Array(), PackedFloat32Array(), false)
 	fan.set_aim(Vector2.ZERO, Vector2.ZERO, false)
 	fan.set_line(Vector2.ZERO, Vector2.ZERO, false)

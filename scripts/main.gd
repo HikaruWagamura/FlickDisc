@@ -86,6 +86,7 @@ func _play(setup: Dictionary) -> void:
 	var packed: PackedScene = CROKINOLE_SCENE if rink_name == "crokinole" else LAWN_SCENE
 	current = packed.instantiate()
 	current.goal = str(setup.get("goal", ""))
+	current.set("arrow_style", preload("res://scripts/pack_arrow.gd").style_for(setup))
 	if rink_name == "crokinole":
 		current.match_target = int(setup.get("target", 100))
 		current.start_level = int(setup.get("level", 0))

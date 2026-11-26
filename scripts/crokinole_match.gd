@@ -13,6 +13,7 @@ const LevelScript = preload("res://scripts/crokinole_levels.gd")
 const ScoreScript = preload("res://scripts/crokinole_score.gd")
 const PuckScript = preload("res://scripts/puck.gd")
 const FeelScript = preload("res://scripts/feel.gd")
+const ArrowScript = preload("res://scripts/pack_arrow.gd")
 
 var disc
 var ui
@@ -48,6 +49,8 @@ var ai_turn := false
 var _ai_token := 0
 var _shot_start := {}
 var _shooter = null
+var arrow_style := "arrow_0"
+var pack_arrow
 const PULL_BACK := 0.42
 const AIM_CONE := 0.58
 const CURSOR_SPAN := 0.09
@@ -66,6 +69,10 @@ func _ready() -> void:
 	feel.name = "Feel"
 	add_child(feel)
 	_setup_view()
+	pack_arrow = ArrowScript.new()
+	pack_arrow.name = "PackArrow"
+	add_child(pack_arrow)
+	pack_arrow.wear(arrow_style, "crokinole")
 	disc.aim_changed.connect(_on_disc_aim_changed)
 	disc.bias_changed.connect(_on_disc_bias_changed)
 	disc.shot_started.connect(_on_disc_shot_started)
@@ -425,14 +432,21 @@ func _sync_fan() -> void:
 		active_puck.set_flat(Vector2(place_x, Metrics.PLAYER_START_Z + power * PULL_BACK))
 		active_puck.rotation.y = 0.0
 		disc.global_position = active_puck.global_position
-		if show_arrow:
-			disc.show_aim_line(_aim_from(0.0), true)
+		var aim := _aim_from(needle if pulling else 0.0)
+		if show_arrow or pulling or phase == "take" or phase == "hold":
+			disc.show_aim_line(Vector3.ZERO, false)
+			if pack_arrow != null:
+				pack_arrow.present(active_puck.global_position, aim, power if pulling else 0.38)
 		else:
 			disc.show_aim_line(Vector3.ZERO, false)
+			if pack_arrow != null:
+				pack_arrow.clear()
 		if pulling:
 			ui.show_aiming(power)
 			if feel != null:
 				feel.aim(power)
+	elif pack_arrow != null:
+		pack_arrow.clear()
 	var live_pos: Vector3 = placed
 	if active_puck != null:
 		live_pos = active_puck.global_position
@@ -440,11 +454,8 @@ func _sync_fan() -> void:
 	var rim := camera.unproject_position(live_pos + Vector3(Metrics.DISC_RADIUS, 0.0, 0.0))
 	var disc_px := cursor_at.distance_to(rim)
 	var lift := disc_px + 78.0
-	fan.present(cursor_at, power, needle, show_cursor, _facing(live_pos, _aim_from(0.0)), lift)
-	var dots := PackedVector2Array()
-	if show_arrow:
-		dots = fan.project_dots(camera, live_pos, disc.guide_points(), Metrics.DISC_RADIUS * 0.4, cursor_at, disc_px + 12.0)
-	fan.set_dots(dots, show_arrow)
+	fan.present(cursor_at, power, needle, pulling, _facing(live_pos, _aim_from(0.0)), lift)
+	fan.set_dots(PackedVector2Array(), false)
 	fan.set_line(Vector2.ZERO, Vector2.ZERO, false)
 	fan.set_aim(Vector2.ZERO, Vector2.ZERO, false)
 	fan.set_disc(cursor_at, false)
@@ -561,6 +572,8 @@ func _on_bias_cycle_requested() -> void:
 func _on_disc_shot_started() -> void:
 	if gesture != null:
 		gesture.busy()
+	if pack_arrow != null:
+		pack_arrow.clear()
 	discs_left -= 1
 	resolving = true
 	_remember_shot(active_puck)

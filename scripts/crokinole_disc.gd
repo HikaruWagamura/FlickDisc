@@ -38,12 +38,10 @@ func bind_puck(puck: Node3D) -> void:
 	_clear_guide()
 
 func _process(_delta: float) -> void:
-	var show_ring := active_puck != null and not shot_in_progress and not is_aiming
 	if _idle_ring != null:
-		_idle_ring.visible = show_ring
-		if show_ring:
-			global_position = active_puck.global_position
-			_idle_ring.scale = Vector3.ONE
+		_idle_ring.visible = false
+	if active_puck != null and not shot_in_progress:
+		global_position = active_puck.global_position
 	if is_aiming:
 		_rebuild_guide()
 	elif _guide_has_surface and not is_aiming:

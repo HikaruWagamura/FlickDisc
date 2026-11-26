@@ -20,7 +20,6 @@ func _ready() -> void:
 		_build_pegs()
 		_place_board_logos()
 		_build_twenty_racks()
-	_build_lane()
 
 
 func _mount_club() -> bool:
@@ -461,39 +460,6 @@ func _build_twenty_racks() -> void:
 		var edge := BoxMesh.new()
 		edge.size = Vector3(0.206, 0.004, 0.566)
 		Metrics.add_mesh(root, edge, lip, Vector3(0.0, 0.025, 0.0))
-
-
-func _build_lane() -> void:
-	var rail := StandardMaterial3D.new()
-	rail.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	rail.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	rail.albedo_color = Color(1.0, 0.84, 0.46, 0.72)
-	rail.cull_mode = BaseMaterial3D.CULL_DISABLED
-	var bar := BoxMesh.new()
-	bar.size = Vector3(Metrics.LANE_HALF * 2.0, 0.003, 0.006)
-	var near_z := Metrics.PLAYER_START_Z + Metrics.DISC_RADIUS + 0.045
-	var far_z := Metrics.PLAYER_START_Z - Metrics.DISC_RADIUS - 0.055
-	Metrics.add_mesh(self, bar, rail, Vector3(0.0, 0.008, near_z))
-	Metrics.add_mesh(self, bar, rail, Vector3(0.0, 0.008, far_z))
-	var point := StandardMaterial3D.new()
-	point.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	point.albedo_color = Color("#ffe27a")
-	var pip := CylinderMesh.new()
-	pip.top_radius = 0.022
-	pip.bottom_radius = 0.022
-	pip.height = 0.006
-	pip.radial_segments = 24
-	Metrics.add_mesh(self, pip, point, Vector3(0.0, 0.01, far_z))
-	var tick := BoxMesh.new()
-	tick.size = Vector3(0.012, 0.004, Metrics.DISC_RADIUS * 2.2)
-	Metrics.add_mesh(self, tick, point, Vector3(0.0, 0.009, Metrics.PLAYER_START_Z))
-	for side in [-1.0, 1.0]:
-		var cap := CylinderMesh.new()
-		cap.top_radius = 0.012
-		cap.bottom_radius = 0.012
-		cap.height = 0.006
-		cap.radial_segments = 16
-		Metrics.add_mesh(self, cap, rail, Vector3(side * Metrics.LANE_HALF, 0.01, Metrics.PLAYER_START_Z))
 
 
 func _disc_mesh(radius: float, thickness: float) -> ArrayMesh:
