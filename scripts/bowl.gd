@@ -189,7 +189,8 @@ static func _classify_tex(path: String) -> String:
 
 
 static func _apply_pbr(mat: StandardMaterial3D, maps: Dictionary) -> void:
-	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	# No mipmaps: spinning with mips is what made the pack grain go fuzzy.
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
 	# Pack albedo keeps the square bite. The baked normal reprints that
 	# grid and shimmers while the bowl rolls, which reads as blur.
 	mat.normal_enabled = false

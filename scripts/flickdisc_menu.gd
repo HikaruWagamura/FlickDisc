@@ -345,10 +345,10 @@ func _build_home() -> void:
 		_open_setup("classic")
 	)
 
-	_home_card(page, Rect2(28, 488, 236, 124), "LONG GREEN", "A full match rink.", "green", "🌿", "drive")
-	_home_card(page, Rect2(276, 488, 236, 124), "SOLO ENDS", "One bowl. The jack.", "solo", "🎯", "solo")
-	_home_card(page, Rect2(28, 624, 236, 124), "PRACTICE", "You and the jack.", "practice", "🔥", "practice")
-	_home_card(page, Rect2(276, 624, 236, 124), "THE BOARD", "Wins. Ends. Runs.", "board", "🏆", "rankings")
+	_home_card(page, Rect2(28, 496, 236, 124), "LONG GREEN", "A full match rink.", "green", "🌿", "drive")
+	_home_card(page, Rect2(276, 496, 236, 124), "SOLO ENDS", "One bowl. The jack.", "solo", "🎯", "solo")
+	_home_card(page, Rect2(28, 636, 236, 124), "PRACTICE", "You and the jack.", "practice", "🔥", "practice")
+	_home_card(page, Rect2(276, 636, 236, 124), "THE BOARD", "Wins. Ends. Runs.", "board", "🏆", "rankings")
 
 	home_record = _label("0W  ·  0L", 18, CREAM, bold_font)
 	_place(page, home_record, Vector2(20, 752), Vector2(500, 24))
@@ -364,15 +364,15 @@ func _home_card(page: Control, rect: Rect2, title: String, body: String, stamp_k
 	button.clip_contents = true
 	_place(page, button, rect.position, rect.size)
 	_paint_button(button, PLUM, Color("#FF4FA3"), CREAM, 20, 14, 2)
-	var heading := _label(title, 24, CREAM, title_font)
-	heading.position = Vector2(16, 22)
-	heading.size = Vector2(rect.size.x - 118, 36)
+	var heading := _label(title, 20, CREAM, title_font)
+	heading.position = Vector2(14, 18)
+	heading.size = Vector2(rect.size.x - 96, 32)
 	heading.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	button.add_child(heading)
-	var detail := _label(body, 14, MUTED, body_font)
-	detail.position = Vector2(16, 64)
-	detail.size = Vector2(rect.size.x - 118, 40)
-	detail.autowrap_mode = TextServer.AUTOWRAP_OFF
+	var detail := _label(body, 13, MUTED, body_font)
+	detail.position = Vector2(14, 54)
+	detail.size = Vector2(rect.size.x - 96, 56)
+	detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	detail.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	button.add_child(detail)
 	var art := Stamp.new()
@@ -412,10 +412,10 @@ func _build_setup() -> void:
 
 	title_label = _label("PLAY", 40, CREAM, title_font)
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_place(page, title_label, Vector2(16, 78), Vector2(508, 48))
+	_place(page, title_label, Vector2(16, 72), Vector2(508, 48))
 	sub_label = _label("Pick the table. Then bowl.", 16, CREAM, script_font)
 	sub_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_place(page, sub_label, Vector2(16, 124), Vector2(508, 28))
+	_place(page, sub_label, Vector2(16, 118), Vector2(508, 28))
 
 	crokin_card = _rink_card("FLICKDISC", "The round board.", "crokin", true)
 	lawn_card = _rink_card("FLICK BOWLS", "The long green.", "green", false)
@@ -429,42 +429,42 @@ func _build_setup() -> void:
 		rink = "crokinole"
 		_sync_setup()
 	)
-	_place(page, crokin_card, Vector2(20, 168), Vector2(244, 176))
-	_place(page, lawn_card, Vector2(276, 168), Vector2(244, 176))
+	_place(page, crokin_card, Vector2(20, 154), Vector2(244, 204))
+	_place(page, lawn_card, Vector2(276, 154), Vector2(244, 204))
 
 	hint_label = _label("", 13, MUTED, body_font)
 	hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_place(page, hint_label, Vector2(20, 352), Vector2(500, 22))
+	_place(page, hint_label, Vector2(20, 368), Vector2(500, 22))
 
 	customize_button = _row_button("CUSTOMIZE BOWLS", func() -> void:
 		_tap()
 		_open_kit(kind if kind != "" else "classic")
 	)
-	_place(page, customize_button, Vector2(20, 378), Vector2(500, 48))
+	_place(page, customize_button, Vector2(20, 396), Vector2(500, 52))
 
 	match_kicker = _kicker("MATCH")
-	_place(page, match_kicker, Vector2(28, 436), Vector2(200, 18))
-	match_chips = _chip_row(page, Vector2(20, 458), PackedStringArray(["1 END", "4 ENDS", "TO 10", "TO 21"]), func(i: int) -> void:
+	_place(page, match_kicker, Vector2(28, 470), Vector2(200, 18))
+	match_chips = _chip_row(page, Vector2(20, 492), PackedStringArray(["1 END", "4 ENDS", "TO 10", "TO 21"]), func(i: int) -> void:
 		race = i
 		_sync_setup()
 	)
 	skill_kicker = _kicker("AI")
-	_place(page, skill_kicker, Vector2(28, 522), Vector2(200, 18))
-	skill_chips = _chip_row(page, Vector2(20, 544), PackedStringArray(["EASY", "MEDIUM", "HARD"]), func(i: int) -> void:
+	_place(page, skill_kicker, Vector2(28, 562), Vector2(200, 18))
+	skill_chips = _chip_row(page, Vector2(20, 584), PackedStringArray(["EASY", "MEDIUM", "HARD"]), func(i: int) -> void:
 		difficulty = i
 		_sync_setup()
 	)
 
 	big_play = _primary("PLAY VERSUS AI", func() -> void: _launch("ai"))
-	_place(page, big_play, Vector2(20, 616), Vector2(500, 72))
+	_place(page, big_play, Vector2(20, 656), Vector2(500, 76))
 	friend_button = _row_button("PLAY A FRIEND", func() -> void: _launch("local"))
-	_place(page, friend_button, Vector2(20, 700), Vector2(500, 60))
+	_place(page, friend_button, Vector2(20, 748), Vector2(500, 64))
 
 	duo_note = _label("Both teams play on this device. Pass the phone each shot.", 13, MUTED, body_font)
 	duo_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	duo_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	duo_note.visible = false
-	_place(page, duo_note, Vector2(20, 704), Vector2(500, 40))
+	_place(page, duo_note, Vector2(20, 752), Vector2(500, 40))
 
 	difficulty_button = _choice_button()
 	difficulty_button.visible = false
@@ -956,13 +956,16 @@ func _sync_setup() -> void:
 		race_button.text = _race_options()[race]
 	if customize_button != null:
 		customize_button.text = "CUSTOMIZE BOWLS" if rink == "lawn" else "CUSTOMIZE DISCS"
-	_layout_chips(match_chips, match_captions, Vector2(20, 458))
+	_layout_chips(match_chips, match_captions, Vector2(20, 492))
 	_paint_chips(match_chips, race)
 	if skill_kicker != null:
 		skill_kicker.visible = classic
-	for chip in skill_chips:
-		chip.visible = classic
-	_paint_chips(skill_chips, difficulty)
+	if classic:
+		_layout_chips(skill_chips, PackedStringArray(["EASY", "MEDIUM", "HARD"]), Vector2(20, 584))
+		_paint_chips(skill_chips, difficulty)
+	else:
+		for chip in skill_chips:
+			chip.visible = false
 	_paint_rinks()
 	if code_label != null:
 		code_label.text = room_code
@@ -1437,27 +1440,27 @@ func _rink_card(title: String, body: String, stamp_kind: String, show_logo: bool
 	button.text = ""
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	button.clip_contents = true
-	button.custom_minimum_size = Vector2(150, 176)
+	button.custom_minimum_size = Vector2(150, 204)
 	var tag := _label("SELECTED", 11, CREAM, bold_font)
 	tag.name = "Tag"
-	tag.position = Vector2(14, 10)
+	tag.position = Vector2(14, 8)
 	tag.size = Vector2(216, 16)
 	tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	button.add_child(tag)
-	var heading := _label(title, 22, CREAM, title_font)
-	heading.position = Vector2(14, 30)
-	heading.size = Vector2(216, 32)
+	var heading := _label(title, 20, CREAM, title_font)
+	heading.position = Vector2(14, 28)
+	heading.size = Vector2(216, 30)
 	heading.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	button.add_child(heading)
 	var detail := _label(body, 14, MUTED, body_font)
-	detail.position = Vector2(14, 64)
-	detail.size = Vector2(120, 40)
+	detail.position = Vector2(14, 60)
+	detail.size = Vector2(216, 36)
 	detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	detail.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	button.add_child(detail)
 	if show_logo:
 		var mark := _mark_rect()
-		mark.position = Vector2(118, 72)
+		mark.position = Vector2(64, 100)
 		mark.size = Vector2(116, 96)
 		button.add_child(mark)
 	else:
@@ -1465,8 +1468,8 @@ func _rink_card(title: String, body: String, stamp_kind: String, show_logo: bool
 		art.texture = _bowl_portrait()
 		art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		art.position = Vector2(118, 58)
-		art.size = Vector2(118, 110)
+		art.position = Vector2(62, 98)
+		art.size = Vector2(120, 98)
 		art.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		art.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 		button.add_child(art)
@@ -1538,7 +1541,7 @@ func _glyph(text: String, size: int) -> Label:
 
 func _chip_row(page: Control, pos: Vector2, captions: PackedStringArray, pick: Callable) -> Array:
 	var chips: Array = []
-	var gap := 8.0
+	var gap := 12.0
 	var wide := (500.0 - gap * float(captions.size() - 1)) / float(captions.size())
 	for i in captions.size():
 		var button := _button(captions[i], 13)
@@ -1563,7 +1566,7 @@ func _paint_chips(chips: Array, current: int) -> void:
 
 
 func _layout_chips(chips: Array, captions: PackedStringArray, pos: Vector2) -> void:
-	var gap := 8.0
+	var gap := 12.0
 	var count := captions.size()
 	if count <= 0:
 		return

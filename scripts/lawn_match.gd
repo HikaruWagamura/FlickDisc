@@ -171,6 +171,8 @@ func _ready() -> void:
 		call_deferred("_kitshot")
 	elif OS.get_cmdline_user_args().has("--rollshot"):
 		call_deferred("_rollshot")
+	elif OS.get_cmdline_user_args().has("--aitest"):
+		call_deferred("_aitest")
 
 
 func _process(delta: float) -> void:
@@ -943,12 +945,21 @@ func _play_computer(token: int) -> void:
 
 
 func _ai_ring() -> float:
-	# Invisible scoring pocket around the jack. Not drawn on the green.
+	# Painted head is 1.32 m. Sit in those rings, not on the jack.
 	if difficulty == 0:
-		return 2.65
+		return 2.05
 	if difficulty >= 2:
-		return 1.12
-	return 1.85
+		return 0.98
+	return 1.28
+
+
+func _ai_want() -> float:
+	# Near the rings, not too close. Crashing the jack threw every end wide.
+	if difficulty == 0:
+		return 1.55
+	if difficulty >= 2:
+		return 0.68
+	return 0.95
 
 
 func _ai_nearest(side: int) -> float:
@@ -967,7 +978,7 @@ func _ai_nearest(side: int) -> float:
 
 func _ai_hold(from: Vector3, jack_at: Vector3, _along: float, bias: float, power: float) -> float:
 	# A drawing bowl that is sent at the jack finishes on the draw side.
-	# Aim up the hold by that same amount so the rest sits on the jack.
+	# Aim up the hold by that same amount so the rest sits in front of it.
 	var rest: Vector3 = disc.predict_rest(from, Vector3(0.0, 0.0, -1.0), power, bias)
 	var keep: float = float(rink.HALF_WIDTH) - 1.35
 	return clampf(jack_at.x - rest.x, -keep, keep)
@@ -981,6 +992,7 @@ func _ai_pick() -> Dictionary:
 	disc.global_position = from
 	var along := maxf(from.z - jack_at.z, 8.0)
 	var ring := _ai_ring()
+	var want := _ai_want()
 	var keep: float = float(rink.HALF_WIDTH) - 1.35
 	var lip: float = float(rink.HALF_WIDTH) - 0.72
 	var far_lip: float = rink.FAR_Z + 0.65
@@ -989,22 +1001,22 @@ func _ai_pick() -> Dictionary:
 	var best_aim := Vector3(0.0, 0.0, -1.0)
 	var best_power := 0.55
 	var best_hand := -1.0
-	var best_bias := 0
+	var best_bias := 1
 	var best_score := 9999.0
 	var best_err := 9999.0
+	var best_short := -99.0
 	var found := false
-	# Lazer first (narrower, stays on the green), then Blaze, then Ace.
-	# Classic draws too far for a centre-line send.
+	# Lazer, then Blaze (middle weight), then Ace. Classic draws too wide.
 	for bowl_i in [0, 1, 2]:
 		for hand in [-1.0, 1.0]:
 			disc.configure_bowl(bowl_i, hand)
 			var bias: float = disc.bias_ratio
-			var weight: float = disc.weight_for_length(along, bias)
+			var weight: float = disc.weight_for_length(maxf(along - 0.85, 8.0), bias)
 			var hold := _ai_hold(from, jack_at, along, bias, weight)
-			for p_off in [-0.04, 0.0, 0.05, 0.10]:
-				var power: float = clampf(weight + p_off, 0.18, 0.92)
-				for sample in 11:
-					var line := hold + (float(sample) - 5.0) * 0.38
+			for p_off in [-0.08, -0.04, 0.0, 0.03]:
+				var power: float = clampf(weight + p_off, 0.18, 0.88)
+				for sample in 13:
+					var line := hold + (float(sample) - 6.0) * 0.30
 					var aim := Vector3(line - from.x, 0.0, -along)
 					if aim.length() < 0.01:
 						continue
@@ -1013,38 +1025,42 @@ func _ai_pick() -> Dictionary:
 					if absf(rest.x) > lip or rest.z < far_lip or rest.z > near_lip:
 						continue
 					var err := Vector2(rest.x, rest.z).distance_to(Vector2(jack_at.x, jack_at.z))
-					var score := err
+					var short := rest.z - jack_at.z
+					var past := jack_at.z - rest.z
+					var score := absf(err - want)
+					if err < 0.42:
+						score += 8.0
 					if err > ring:
-						score += 6.5 + (err - ring) * 1.35
-					else:
-						score *= 0.40
+						score += 3.4 + (err - ring) * 1.25
+					if past > 0.12:
+						score += 2.6 + past * 3.0
+					if short > 0.30 and short < 1.70:
+						score -= 0.42
 					var edge: float = absf(rest.x) - keep
 					if edge > 0.0:
 						score += 4.0 + edge * 6.0
-					if they >= 0.0:
-						if err + 0.02 < they:
-							score -= 0.48
-						elif err > they:
-							score += 0.22
-					if rest.z > jack_at.z + 0.9:
-						score += 0.12
+					if they >= 0.0 and err >= 0.45:
+						if err + 0.05 < they:
+							score -= 0.38
+						elif err > they + 0.15:
+							score += 0.18
 					if score < best_score:
 						best_score = score
 						best_err = err
+						best_short = short
 						best_aim = aim
 						best_power = power
 						best_hand = hand
 						best_bias = bowl_i
 						found = true
-		if found and best_err <= ring:
+		if found and best_err <= ring and best_err >= 0.45 and best_short > 0.20:
 			break
 	if not found:
-		# Green-line hold. Never fire dead straight with a drawing bowl.
-		best_bias = 0
+		best_bias = 1
 		best_hand = -1.0
 		disc.configure_bowl(best_bias, best_hand)
 		var bias: float = disc.bias_ratio
-		best_power = disc.weight_for_length(along, bias)
+		best_power = disc.weight_for_length(maxf(along - 0.85, 8.0), bias)
 		var hold := _ai_hold(from, jack_at, along, bias, best_power)
 		best_aim = Vector3(hold - from.x, 0.0, -along)
 		if best_aim.length() < 0.01:
@@ -1053,27 +1069,10 @@ func _ai_pick() -> Dictionary:
 	disc.configure_bowl(best_bias, best_hand)
 	var try_aim := best_aim
 	var try_power := best_power
-	var fat := ring * 1.22
-	var scatter := 0.18
-	if difficulty == 0:
-		scatter = 0.36
-	elif difficulty >= 2:
-		scatter = 0.07
-	for _try in 6:
-		var aim2 := Vector3(best_aim.x + randf_range(-scatter, scatter) / along, 0.0, best_aim.z)
-		if aim2.length() < 0.01:
-			continue
-		aim2 = aim2.normalized()
-		var pow2 := clampf(best_power + randf_range(-scatter, scatter) * 0.012, 0.18, 0.92)
-		var rest2: Vector3 = disc.predict_rest(from, aim2, pow2, disc.bias_ratio)
-		if absf(rest2.x) > keep or rest2.z < far_lip:
-			continue
-		var err2 := Vector2(rest2.x, rest2.z).distance_to(Vector2(jack_at.x, jack_at.z))
-		if err2 <= fat:
-			try_aim = aim2
-			try_power = pow2
-			break
 	var live_rest: Vector3 = disc.predict_rest(from, try_aim, try_power, disc.bias_ratio)
+	if live_rest.z < jack_at.z - 0.12 or Vector2(live_rest.x, live_rest.z).distance_to(Vector2(jack_at.x, jack_at.z)) < 0.42:
+		try_power = clampf(try_power - 0.05, 0.18, 0.88)
+		live_rest = disc.predict_rest(from, try_aim, try_power, disc.bias_ratio)
 	if absf(live_rest.x) > lip or disc.will_ditch(from, try_aim, try_power, disc.bias_ratio):
 		try_aim = best_aim
 		try_power = best_power
@@ -2001,6 +2000,70 @@ func _rollshot() -> void:
 					img.save_png("/opt/cursor/artifacts/roll_%02d.png" % i)
 				frames += 1
 	print("ROLLSHOT frames=%d pos=%.2f,%.2f" % [frames, disc.global_position.x, disc.global_position.z])
+	get_tree().quit(0)
+
+
+func _aitest() -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+	delivering_jack = false
+	opponent = "local"
+	difficulty = 1
+	fast_play = true
+	if ui != null:
+		ui.visible = true
+	if gesture != null:
+		gesture.busy()
+	if disc == null or jack == null:
+		print("AITEST skip")
+		get_tree().quit(2)
+		return
+	jack.rest_at(Vector3(0.0, 0.0, line_z - 23.0))
+	jack.visible = true
+	jack_home = jack.global_position
+	rink.place_head(Vector2(jack.global_position.x, jack.global_position.z))
+	disc.obstacles = _table()
+	throw_index = 1
+	for n in 3:
+		var pick: Dictionary = _ai_pick()
+		disc.configure_bowl(int(pick["bias"]), float(pick["hand"]))
+		disc.set_palette(1)
+		ui.show_hand(float(pick["hand"]) < 0.0, _bowl_name(int(pick["bias"])))
+		var from := Vector3(0.0, 0.0, line_z)
+		var predicted: Vector3 = disc.predict_rest(from, pick["aim"], float(pick["power"]), disc.bias_ratio)
+		var pred_dist := Vector2(predicted.x, predicted.z).distance_to(Vector2(jack.global_position.x, jack.global_position.z))
+		print("AITEST pick%d bowl=%s power=%.2f pred_dist=%.2f pred_short=%.2f ring=%.2f" % [
+			n,
+			_bowl_name(int(pick["bias"])),
+			float(pick["power"]),
+			pred_dist,
+			predicted.z - jack.global_position.z,
+			_ai_ring(),
+		])
+		disc.reset_to_start()
+		disc.fire_taken(pick["aim"], float(pick["power"]))
+		var hung := true
+		for _i in 900:
+			await get_tree().process_frame
+			if not disc.shot_in_progress and settled.size() >= n + 1:
+				hung = false
+				break
+		if hung:
+			print("AITEST hung %d" % n)
+			get_tree().quit(2)
+			return
+		var rest: Vector3 = settled[n].global_position
+		var dist := _distance(rest, jack.global_position)
+		print("AITEST rest%d x=%.2f z=%.1f dist=%.2f in_ring=%s ditched=%s" % [
+			n,
+			rest.x,
+			rest.z,
+			dist,
+			str(dist <= _ai_ring()),
+			str(settled[n].in_ditch),
+		])
+		await _dump_compare_shot("ai_rest_%d" % n)
 	get_tree().quit(0)
 
 
