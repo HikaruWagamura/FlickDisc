@@ -49,6 +49,7 @@ var summary_detail: Label
 var power_fill: TextureRect
 var power_max: Label
 var current_bias := 0.0
+var menu_button: Button
 
 const POWER_WIDTH := 250.0
 
@@ -63,41 +64,41 @@ func _ready() -> void:
 	scrim.material = scrim_mat
 	add_child(scrim)
 
-	var menu_button := _make_button("MENU", Vector2(16.0, 14.0), Vector2(96.0, 40.0))
+	menu_button = _make_button("MENU", Vector2(16.0, 24.0), Vector2(96.0, 40.0))
 	menu_button.add_theme_font_size_override("font_size", 14)
 	_paint_sync(menu_button, true)
 	menu_button.pressed.connect(func() -> void: leave_requested.emit())
 
-	level_label = _make_label(Vector2(340.0, 18.0), Vector2(180.0, 26.0), 16, Color(0.96, 0.99, 0.97))
+	level_label = _make_label(Vector2(340.0, 28.0), Vector2(180.0, 26.0), 16, Color(0.96, 0.99, 0.97))
 	level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	throws_label = _make_label(Vector2(340.0, 44.0), Vector2(180.0, 22.0), 13, Color(0.55, 0.86, 0.9))
+	throws_label = _make_label(Vector2(340.0, 54.0), Vector2(180.0, 22.0), 13, Color(0.55, 0.86, 0.9))
 	throws_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 
-	ditch_button = _make_button("REBOUND", Vector2(280.0, 62.0), Vector2(148.0, 40.0))
+	ditch_button = _make_button("REBOUND", Vector2(280.0, 72.0), Vector2(148.0, 40.0))
 	ditch_button.add_theme_font_size_override("font_size", 13)
 	_paint_sync(ditch_button, false)
 	ditch_button.pressed.connect(func() -> void: ditch_option_requested.emit())
 
-	match_button = _make_button("4 ENDS", Vector2(16.0, 62.0), Vector2(118.0, 40.0))
+	match_button = _make_button("4 ENDS", Vector2(16.0, 72.0), Vector2(118.0, 40.0))
 	match_button.add_theme_font_size_override("font_size", 13)
 	_paint_sync(match_button, false)
 	match_button.pressed.connect(func() -> void: match_cycle_requested.emit())
 
-	camera_button = _make_button("FOLLOW", Vector2(144.0, 62.0), Vector2(124.0, 40.0))
+	camera_button = _make_button("FOLLOW", Vector2(144.0, 72.0), Vector2(124.0, 40.0))
 	camera_button.add_theme_font_size_override("font_size", 13)
 	camera_button.pressed.connect(func() -> void: camera_requested.emit())
 	show_camera_mode(false)
 	_build_summary()
 
-	status_label = _make_label(Vector2(18.0, 116.0), Vector2(504.0, 22.0), 14, Color(0.95, 0.99, 0.96))
-	score_label = _make_label(Vector2(18.0, 140.0), Vector2(504.0, 20.0), 13, Color(0.78, 0.92, 0.86))
+	status_label = _make_label(Vector2(18.0, 126.0), Vector2(504.0, 22.0), 14, Color(0.95, 0.99, 0.96))
+	score_label = _make_label(Vector2(18.0, 150.0), Vector2(504.0, 20.0), 13, Color(0.78, 0.92, 0.86))
 
 	_build_aim_dial()
+	_build_power_meter()
 	_build_bias_row()
 	_build_hand_bar()
-	_build_power_meter()
 
-	reset_button = _make_button("RESET", Vector2(122.0, 14.0), Vector2(96.0, 40.0))
+	reset_button = _make_button("RESET", Vector2(122.0, 24.0), Vector2(96.0, 40.0))
 	reset_button.add_theme_font_size_override("font_size", 14)
 	_paint_sync(reset_button, false)
 	reset_button.pressed.connect(func() -> void: reset_requested.emit())
@@ -105,6 +106,8 @@ func _ready() -> void:
 	next_button = _make_button("NEXT END", Vector2(150.0, 888.0), Vector2(240.0, 48.0))
 	next_button.pressed.connect(func() -> void: next_level_requested.emit())
 	next_button.visible = false
+	_layout_hud()
+	get_viewport().size_changed.connect(_layout_hud)
 
 
 func set_power_ratio(power_ratio: float) -> void:
@@ -392,8 +395,8 @@ func _hand_name() -> String:
 
 func _build_power_meter() -> void:
 	power_track = Panel.new()
-	power_track.position = Vector2(508.0, 158.0)
-	power_track.size = Vector2(26.0, 196.0)
+	power_track.position = Vector2(506.0, 172.0)
+	power_track.size = Vector2(26.0, 168.0)
 	power_track.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var track := StyleBoxFlat.new()
 	track.bg_color = Color(0.05, 0.03, 0.12, 0.88)
@@ -422,7 +425,7 @@ func _build_power_meter() -> void:
 	_paint_power_fill(0.0)
 	power_cap = Panel.new()
 	power_cap.size = Vector2(24.0, 24.0)
-	power_cap.position = Vector2(1.0, 166.0)
+	power_cap.position = Vector2(1.0, 138.0)
 	power_cap.visible = true
 	power_cap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var cap := StyleBoxFlat.new()
@@ -434,8 +437,8 @@ func _build_power_meter() -> void:
 	power_track.add_child(power_cap)
 	power_label = Label.new()
 	power_label.text = "POWER"
-	power_label.position = Vector2(448.0, 356.0)
-	power_label.size = Vector2(86.0, 16.0)
+	power_label.position = Vector2(468.0, 344.0)
+	power_label.size = Vector2(90.0, 16.0)
 	power_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	power_label.add_theme_font_override("font", HUD_FONT)
 	power_label.add_theme_font_size_override("font_size", 11)
@@ -479,6 +482,56 @@ func _paint_power_fill(ratio: float) -> void:
 	power_fill.texture = texture
 
 
+func _safe_pad() -> Vector2:
+	# Top and bottom insets in 540x960 viewport pixels, after letterboxing.
+	var safe := DisplayServer.get_display_safe_area()
+	var win := DisplayServer.window_get_size()
+	if win.x < 1 or win.y < 1:
+		return Vector2.ZERO
+	var scale := minf(float(win.x) / 540.0, float(win.y) / 960.0)
+	if scale <= 0.001:
+		return Vector2.ZERO
+	var letter_y := (float(win.y) - 960.0 * scale) * 0.5
+	var top := maxf(0.0, (float(safe.position.y) - letter_y) / scale)
+	var bottom_px := float(win.y) - float(safe.position.y + safe.size.y)
+	var bottom := maxf(0.0, (bottom_px - letter_y) / scale)
+	return Vector2(top, bottom)
+
+
+func _layout_hud() -> void:
+	var pad := _safe_pad()
+	var top := pad.x
+	var bottom := pad.y
+	if menu_button != null:
+		menu_button.position = Vector2(16.0, 24.0 + top)
+	if reset_button != null:
+		reset_button.position = Vector2(122.0, 24.0 + top)
+	if level_label != null:
+		level_label.position = Vector2(340.0, 28.0 + top)
+	if throws_label != null:
+		throws_label.position = Vector2(340.0, 54.0 + top)
+	if match_button != null:
+		match_button.position = Vector2(16.0, 72.0 + top)
+	if camera_button != null:
+		camera_button.position = Vector2(144.0, 72.0 + top)
+	if ditch_button != null:
+		ditch_button.position = Vector2(280.0, 72.0 + top)
+	if status_label != null:
+		status_label.position = Vector2(18.0, 126.0 + top)
+	if score_label != null:
+		score_label.position = Vector2(18.0, 150.0 + top)
+	if power_track != null:
+		power_track.position = Vector2(506.0, 172.0 + top)
+	if power_label != null:
+		power_label.position = Vector2(468.0, 344.0 + top)
+	if bias_rail != null:
+		bias_rail.position = Vector2(468.0, 360.0 + top)
+	if hand_switch != null:
+		hand_switch.position = Vector2(16.0, 812.0 - bottom)
+	if next_button != null:
+		next_button.position = Vector2(150.0, 888.0 - bottom)
+
+
 func _build_aim_dial() -> void:
 	var dial := preload("res://scripts/aim_dial.gd").new()
 	dial.name = "AimDial"
@@ -492,15 +545,15 @@ func _build_aim_dial() -> void:
 
 func _build_bias_row() -> void:
 	bias_rail = Control.new()
-	bias_rail.position = Vector2(400.0, 168.0)
-	bias_rail.size = Vector2(76.0, 400.0)
+	bias_rail.position = Vector2(468.0, 360.0)
+	bias_rail.size = Vector2(68.0, 292.0)
 	bias_rail.visible = false
 	bias_rail.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bias_rail)
 	for i in 4:
 		var chip := BiasChipScript.new()
-		chip.position = Vector2(2.0, float(i) * 98.0)
-		chip.size = Vector2(72.0, 96.0)
+		chip.position = Vector2(2.0, float(i) * 72.0)
+		chip.size = Vector2(64.0, 70.0)
 		chip.visible = false
 		chip.picked.connect(_emit_bias)
 		bias_rail.add_child(chip)
@@ -514,7 +567,7 @@ func _emit_bias(index: int) -> void:
 
 func _build_hand_bar() -> void:
 	hand_switch = HandSwitchScript.new()
-	hand_switch.position = Vector2(16.0, 820.0)
+	hand_switch.position = Vector2(16.0, 812.0)
 	hand_switch.size = Vector2(210.0, 64.0)
 	hand_switch.visible = false
 	hand_switch.chosen.connect(func(fore: bool) -> void: hand_selected.emit(fore))
