@@ -668,8 +668,8 @@ func grass_cue(power: float) -> PackedVector3Array:
 	if flat.length() < 0.001:
 		flat = Vector3(0.0, 0.0, -1.0)
 	flat = flat.normalized()
-	# Start at the bowl so the tail tucks under it. The chevron sits on the grass ahead.
-	var start := Vector3(global_position.x, 0.0, global_position.z) + flat * (radius * 0.55)
+	# From the bowl centre, on the grass, toward where the bowl will run.
+	var start := Vector3(global_position.x, 0.0, global_position.z)
 	var want := lerpf(2.35, 3.15, clampf(power, 0.0, 1.0))
 	var out := PackedVector3Array()
 	var use_bias := (not delivering_jack) and absf(bias_ratio) > 0.04

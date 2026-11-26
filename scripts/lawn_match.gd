@@ -1176,28 +1176,31 @@ func _cuetest() -> void:
 	ui.show_bias(bias_index, 0)
 	ui.show_hand(true, _bowl_name(bias_index))
 	ui.show_match("AIM CUE")
-	_compare_aim = Vector3(0.12, 0.0, -1.0).normalized()
+	cue.set_style(0)
 	var steps := [
-		{"style": 0, "power": 0.22, "file": "cue_blocks_3", "title": "5-BLOCK PACK  •  3 ARROWS"},
-		{"style": 0, "power": 0.50, "file": "cue_blocks_4", "title": "5-BLOCK PACK  •  4 ARROWS"},
-		{"style": 0, "power": 0.90, "file": "cue_blocks_5", "title": "5-BLOCK PACK  •  5 ARROWS"},
-		{"style": 1, "power": 0.90, "file": "cue_rigged", "title": "RIGGED BONE ARROW  •  ON THE AIM LINE"},
-		{"style": 2, "power": 0.90, "file": "cue_both", "title": "BOTH ON THE LIVE AIM LINE"},
+		{"power": 0.90, "bias": 1, "hand": -1.0, "aim": Vector3(0.0, 0.0, -1.0), "file": "cue_ahead_5", "title": "5 ARROWS  •  STRAIGHT AHEAD"},
+		{"power": 0.90, "bias": 3, "hand": -1.0, "aim": Vector3(0.16, 0.0, -1.0), "file": "cue_hook_5", "title": "5 ARROWS  •  HOOK"},
+		{"power": 0.22, "bias": 3, "hand": -1.0, "aim": Vector3(0.16, 0.0, -1.0), "file": "cue_hook_3", "title": "3 ARROWS  •  HOOK"},
+		{"power": 0.90, "bias": 3, "hand": 1.0, "aim": Vector3(-0.16, 0.0, -1.0), "file": "cue_backhand_5", "title": "5 ARROWS  •  BACKHAND"},
 	]
 	for step in steps:
 		_compare_power = float(step["power"])
-		cue.set_style(int(step["style"]))
+		var aim: Vector3 = step["aim"]
+		_compare_aim = aim.normalized()
+		disc.configure_bowl(int(step["bias"]), float(step["hand"]))
+		disc.set_palette(0)
 		_set_compare_banner(str(step["title"]))
 		_sync_compare_cue()
-		await get_tree().create_timer(2.0).timeout
+		await get_tree().create_timer(1.8).timeout
 		await _dump_compare_shot(str(step["file"]))
-		await get_tree().create_timer(2.8).timeout
+		await get_tree().create_timer(2.2).timeout
 	print("CUETEST done")
-	# Stay on both so a recording can keep watching the live hop.
-	cue.set_style(2)
 	_compare_power = 0.90
-	_set_compare_banner("BOTH ON THE LIVE AIM LINE")
-	await get_tree().create_timer(8.0).timeout
+	_compare_aim = Vector3(0.16, 0.0, -1.0).normalized()
+	disc.configure_bowl(3, -1.0)
+	_set_compare_banner("5 ARROWS  •  HOOK")
+	_sync_compare_cue()
+	await get_tree().create_timer(6.0).timeout
 	get_tree().quit(0)
 
 

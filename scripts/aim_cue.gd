@@ -177,15 +177,27 @@ func _extract_one(source: ArrayMesh) -> ArrayMesh:
 		max_p.y = maxf(max_p.y, v.y)
 		max_p.z = maxf(max_p.z, v.z)
 	_local_centre = (min_p + max_p) * 0.5
-	_local_size = max_p - min_p
+	# Pack chevrons point along +X and open across Z. Rotate so Godot -Z is
+	# the tip, +Y is up, +X is the V width. looking_at can then face them
+	# down the path.
 	var out_verts := PackedVector3Array()
 	var out_uvs := PackedVector2Array()
+	var rot_min := Vector3(INF, INF, INF)
+	var rot_max := Vector3(-INF, -INF, -INF)
 	for i in new_verts.size():
 		var local := new_verts[i] - _local_centre
-		out_verts.append(local)
-		var along := 0.5
-		if _local_size.x > 0.001:
-			along = clampf((new_verts[i].x - min_p.x) / _local_size.x, 0.0, 1.0)
+		var baked := Vector3(local.z, local.y, -local.x)
+		out_verts.append(baked)
+		rot_min.x = minf(rot_min.x, baked.x)
+		rot_min.y = minf(rot_min.y, baked.y)
+		rot_min.z = minf(rot_min.z, baked.z)
+		rot_max.x = maxf(rot_max.x, baked.x)
+		rot_max.y = maxf(rot_max.y, baked.y)
+		rot_max.z = maxf(rot_max.z, baked.z)
+	_local_size = rot_max - rot_min
+	var span_z := maxf(_local_size.z, 0.001)
+	for baked in out_verts:
+		var along := clampf((baked.z - rot_min.z) / span_z, 0.0, 1.0)
 		out_uvs.append(Vector2(0.5, along))
 	_local_centre = Vector3.ZERO
 	var st := SurfaceTool.new()
@@ -193,13 +205,15 @@ func _extract_one(source: ArrayMesh) -> ArrayMesh:
 	if new_indices.is_empty():
 		for i in out_verts.size():
 			if i < new_normals.size():
-				st.set_normal(new_normals[i])
+				var n: Vector3 = new_normals[i]
+				st.set_normal(Vector3(n.z, n.y, -n.x))
 			st.set_uv(out_uvs[i])
 			st.add_vertex(out_verts[i])
 	else:
 		for idx in new_indices:
 			if idx < new_normals.size():
-				st.set_normal(new_normals[idx])
+				var n: Vector3 = new_normals[idx]
+				st.set_normal(Vector3(n.z, n.y, -n.x))
 			st.set_uv(out_uvs[idx])
 			st.add_vertex(out_verts[idx])
 	st.generate_normals()
@@ -275,42 +289,39 @@ func _place_blocks() -> void:
 	var amount := _power
 	var wave := float(Time.get_ticks_msec()) * 0.001
 	var length := _path_length()
-	var body := maxf(_local_size.x, 0.16)
-	var fit := (length * 0.78) / maxf(float(_count), 1.0)
-	var scale_l := clampf(fit / body, 0.28, 0.62)
-	var scale_h := lerpf(0.62, 0.88, amount)
+	var body := maxf(_local_size.z, 0.18)
+	var fit := (length * 0.82) / maxf(float(_count), 1.0)
+	var scale_l := clampf(fit / body, 0.32, 0.78)
+	var scale_w := scale_l * 0.70
+	var scale_h := lerpf(0.85, 1.15, amount)
 	if style == STYLE_BOTH:
 		scale_l *= 0.90
+		scale_w *= 0.90
 	for i in MAX_ARROWS:
 		var mi := _nodes[i]
 		if i >= _count:
 			mi.visible = false
 			continue
 		mi.visible = true
-		var t := 0.34
+		var t := 0.18
 		if _count == 1:
-			t = 0.55
+			t = 0.45
 		else:
-			t = lerpf(0.24, 0.88, float(i) / float(_count - 1))
+			# Start just ahead of the stone so the first chevron leaves the
+			# bowl centre and runs down the grass.
+			t = lerpf(0.14, 0.90, float(i) / float(_count - 1))
 		var centre := _sample(_path, t)
-		var tangent := _tangent(_path, t)
-		var side := tangent.cross(Vector3.UP)
-		if side.length_squared() < 0.0001:
-			side = Vector3.RIGHT
-		else:
-			side = side.normalized()
+		var tangent := _facing(_path, t)
 		var phase := (wave / PERIOD) * TAU - float(i) * (TAU / 5.5)
 		var pulse := 0.5 + 0.5 * sin(phase)
-		var squash := lerpf(1.0, 0.80, pulse)
-		var hop := pulse * 0.02 * scale_h
-		var sx := scale_l * squash
-		var sy := scale_h * lerpf(1.0, 1.08, pulse)
-		var sz := scale_l * 0.92
-		# Pack chevrons point along mesh Z. Put that on the path, not the row axis.
-		var basis := Basis(side, Vector3.UP, tangent)
-		basis = basis.scaled(Vector3(sx, sy, sz))
-		var origin := Vector3(centre.x, SEAT_BLOCK + hop + _local_size.y * 0.45 * sy, centre.z)
-		mi.global_transform = Transform3D(basis, origin)
+		var squash := lerpf(1.0, 0.86, pulse)
+		var hop := pulse * 0.016 * scale_h
+		var origin := Vector3(centre.x, SEAT_BLOCK + hop + _local_size.y * 0.5 * scale_h, centre.z)
+		var xf := Transform3D()
+		xf.origin = origin
+		xf = xf.looking_at(origin + tangent, Vector3.UP)
+		xf.basis = xf.basis.scaled(Vector3(scale_w * squash, scale_h, scale_l))
+		mi.global_transform = xf
 		if i < _mats.size() and _mats[i] != null:
 			_mats[i].set_shader_parameter("power", amount)
 			_mats[i].set_shader_parameter("glow_enabled", true)
@@ -446,4 +457,15 @@ func _tangent(path: PackedVector3Array, t: float) -> Vector3:
 	dir.y = 0.0
 	if dir.length() < 0.001:
 		return Vector3(0.0, 0.0, -1.0)
+	return dir.normalized()
+
+
+func _facing(path: PackedVector3Array, t: float) -> Vector3:
+	# Point this chevron at a spot a little further along the path so a
+	# hook still reads as arrows facing the run, not the side.
+	var here := _sample(path, t)
+	var ahead := _sample(path, minf(t + 0.10, 1.0))
+	var dir := Vector3(ahead.x - here.x, 0.0, ahead.z - here.z)
+	if dir.length() < 0.04:
+		return _tangent(path, t)
 	return dir.normalized()
