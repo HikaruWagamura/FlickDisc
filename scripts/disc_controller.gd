@@ -50,6 +50,9 @@ var shot_bias := 0.0
 var shot_power := 0.0
 var delivering_jack := false
 var ditch_mode := false
+## Distance play stretches the run. 1 is a normal end.
+var pace_scale := 1.0
+var drag := DECEL
 var in_ditch := false
 var bowl_bias := 0.95
 var hand_sign := -1.0
@@ -59,6 +62,8 @@ var velocity := Vector3.ZERO
 var stop_timer := 0.0
 var spin_angle := 0.0
 var roll_basis := Basis.IDENTITY
+var rest_lean := 0.0
+var travel_facing := Vector3(0.0, 0.0, -1.0)
 var punch := 0.0
 var palette_index := 0
 var obstacles: Array = []
@@ -249,6 +254,7 @@ func preview_take(aim: Vector3, power: float) -> void:
 	var shown := clampf(power, 0.0, 1.0)
 	_power_target = shown
 	power_ratio = shown
+	shot_bias = 0.0 if delivering_jack else bias_ratio
 	is_aiming = shown >= 0.08
 	if not is_aiming:
 		_hide_guide()
@@ -271,10 +277,12 @@ func fire_taken(aim: Vector3, power: float) -> void:
 	# Leave from the hand. Snapping back to the mat was a hitch on release.
 	var held := global_position
 	var runup := held.z - start_position.z
-	if runup < -0.05 or runup > RUNUP_MAX or absf(held.x - start_position.x) > 0.4:
+	# Stay where the hand left the bowl. Snapping sideways made the line
+	# jump off the finger on the release.
+	if runup < -0.05 or runup > RUNUP_MAX or absf(held.x - start_position.x) > 1.5:
 		global_position = start_position
 	else:
-		global_position = Vector3(start_position.x, 0.0, held.z)
+		global_position = Vector3(held.x, 0.0, held.z)
 	if power_ratio < 0.08:
 		power_ratio = 0.0
 		aim_changed.emit(Vector2(aim_direction.x, aim_direction.z), 0.0)
@@ -291,8 +299,18 @@ func launch() -> void:
 	shot_started.emit()
 
 
+func set_pace(scale: float, slowdown: float) -> void:
+	pace_scale = maxf(scale, 0.4)
+	drag = maxf(slowdown, 0.2)
+
+
+func reach_for(power: float) -> float:
+	var speed := lerpf(MIN_SPEED, MAX_SPEED, clampf(power, 0.0, 1.0)) * pace_scale
+	return speed * speed / (2.0 * drag)
+
+
 func _delivery_velocity(aim: Vector3, power: float) -> Vector3:
-	var speed := lerpf(MIN_SPEED, MAX_SPEED, power)
+	var speed := lerpf(MIN_SPEED, MAX_SPEED, power) * pace_scale
 	var planar := Vector2(aim.x, aim.z)
 	if planar.length() < 0.001:
 		planar = Vector2(0.0, -1.0)
@@ -312,6 +330,8 @@ func reset_to_start() -> void:
 	shot_bias = 0.0
 	spin_angle = 0.0
 	roll_basis = Basis.IDENTITY
+	rest_lean = 0.0
+	travel_facing = Vector3(0.0, 0.0, -1.0)
 	punch = 0.0
 	visible = true
 	_hide_guide()
@@ -320,6 +340,8 @@ func reset_to_start() -> void:
 
 func set_palette(index: int) -> void:
 	palette_index = index % 2
+	if _body_mat == null:
+		return
 	BowlScript.apply_team(_body_mat, palette_index, false)
 
 
@@ -541,8 +563,9 @@ func weight_for_length(metres: float, bias: float) -> float:
 func predict_rest(from: Vector3, aim: Vector3, power: float, bias: float) -> Vector3:
 	var pos := from
 	var vel := _delivery_velocity(aim, power)
-	var step := 0.05
-	for _i in 480:
+	var step := 0.05 if pace_scale < 1.2 else 0.08
+	var limit := 480 if pace_scale < 1.2 else 800
+	for _i in limit:
 		var moved := _move_planar(pos, vel, radius, bias, true, step, power)
 		pos = moved[0]
 		vel = moved[1]
@@ -576,14 +599,15 @@ func _damp(vel: Vector3, bias: float, delta: float) -> Vector3:
 	if speed < 0.001:
 		return Vector3.ZERO
 	if absf(bias) > 0.001:
-		var slow := clampf(1.0 - speed / MAX_SPEED, 0.0, 1.0)
+		var slow := clampf(1.0 - speed / (MAX_SPEED * pace_scale), 0.0, 1.0)
 		var curve := CURL_PER_METRE * (1.0 + CURL_DRAW * slow * slow)
 		# Turn with the distance run. Negative bias is the forehand
 		# and bends to the player's left. The same bowl takes the same
 		# hand from a centre line or a wide one.
-		planar = planar.rotated(bias * curve * speed * delta)
+		var hand := 1.0 if pace_scale < 1.2 else 0.075
+		planar = planar.rotated(bias * curve * hand * speed * delta)
 		speed = planar.length()
-	var next := speed - DECEL * delta
+	var next := speed - drag * delta
 	if next <= STOP_SPEED:
 		return Vector3.ZERO
 	planar = planar / speed * next
@@ -591,13 +615,19 @@ func _damp(vel: Vector3, bias: float, delta: float) -> Vector3:
 
 
 func _lean_angle(speed: float) -> float:
-	if not shot_in_progress or absf(shot_bias) < 0.01 or speed < 0.2:
+	if absf(shot_bias) < 0.01:
+		rest_lean = 0.0
 		return 0.0
+	if not shot_in_progress:
+		return rest_lean
 	var slow := clampf(1.0 - speed / MAX_SPEED, 0.0, 1.0)
 	var into := clampf(absf(shot_bias) / 1.45, 0.0, 1.0)
-	var wobble := sin(spin_angle * 2.0) * 0.03 * clampf(speed / 8.0, 0.0, 1.0)
-	# Negative bias draws left, so the bowl tips onto that side.
-	return -signf(shot_bias) * into * lerpf(0.05, 0.2, slow * slow) + wobble
+	var wobble := sin(spin_angle * 2.0) * 0.02 * clampf(speed / 8.0, 0.0, 1.0)
+	# Fast, it stands on the wide running surface. As it slows it tips
+	# onto the thin bias side. That tip is what draws the bowl.
+	var lean := -signf(shot_bias) * into * lerpf(0.0, 0.14, slow * slow) + wobble
+	rest_lean = lean
+	return lean
 
 
 func _apply_visual(speed: float) -> void:
@@ -613,6 +643,8 @@ func _apply_visual(speed: float) -> void:
 		_jack_visual.position = Vector3(0.0, sit + hop, 0.0)
 		_jack_visual.transform.basis = roll_basis
 	else:
+		if velocity.length() > 0.2:
+			travel_facing = velocity
 		var facing := velocity if velocity.length() > 0.2 else aim_direction
 		_visual.position = Vector3(0.0, sit + hop, 0.0)
 		_visual.basis = BowlScript._posed_basis(facing, _lean_angle(speed), Basis.IDENTITY)
@@ -633,6 +665,47 @@ func guide_points() -> PackedVector3Array:
 	if not is_aiming or power_ratio <= 0.02:
 		return PackedVector3Array()
 	return _predict_path()
+
+
+func grass_cue(power: float) -> PackedVector3Array:
+	# A short block on the green, from under the bowl. The jack
+	# stays straight. A bowl takes the hand of its bias.
+	var flat := Vector3(aim_direction.x, 0.0, aim_direction.z)
+	if flat.length() < 0.001:
+		flat = Vector3(0.0, 0.0, -1.0)
+	flat = flat.normalized()
+	# Start at the bowl so the tail tucks under it. The chevron sits on the grass ahead.
+	var start := Vector3(global_position.x, 0.0, global_position.z) + flat * (radius * 0.55)
+	var want := lerpf(2.10, 2.70, clampf(power, 0.0, 1.0))
+	var out := PackedVector3Array()
+	var use_bias := (not delivering_jack) and absf(bias_ratio) > 0.04
+	if not use_bias:
+		for step in 28:
+			var t := float(step) / 27.0
+			var point := start + flat * (want * t)
+			point.y = 0.0
+			out.append(point)
+		return out
+	var pos := global_position
+	var vel := _delivery_velocity(aim_direction, clampf(maxf(power, 0.18), 0.0, 1.0))
+	var travelled := 0.0
+	var bias := bias_ratio
+	out.append(start)
+	var step := 0.04
+	for _i in 180:
+		var prev := pos
+		var moved := _move_planar(pos, vel, radius, bias, true, step, power)
+		pos = moved[0]
+		vel = moved[1]
+		travelled += prev.distance_to(pos)
+		var point := Vector3(pos.x, 0.0, pos.z)
+		if out[out.size() - 1].distance_to(point) >= 0.07:
+			out.append(point)
+		if travelled >= want or bool(moved[3]) or vel.length() < STOP_SPEED:
+			break
+	if out.size() < 2:
+		out.append(start + flat * want)
+	return out
 
 
 func _update_guide() -> void:
@@ -673,7 +746,8 @@ func _predict_path() -> PackedVector3Array:
 			dists.append(travelled)
 		if moved[3] or vel.length() < STOP_SPEED:
 			break
-	var limit := maxf(travelled * GUIDE_PORTION, 1.2)
+	var portion := GUIDE_PORTION if pace_scale < 1.2 else 0.07
+	var limit := maxf(travelled * portion, 1.2)
 	var points := PackedVector3Array()
 	for i in samples.size():
 		if dists[i] <= limit:
@@ -686,18 +760,18 @@ func _predict_path() -> PackedVector3Array:
 func _build_visual() -> void:
 	_shadow = MeshInstance3D.new()
 	var shadow_mesh := CylinderMesh.new()
-	shadow_mesh.top_radius = 0.16
-	shadow_mesh.bottom_radius = 0.16
-	shadow_mesh.height = 0.008
+	shadow_mesh.top_radius = 0.08
+	shadow_mesh.bottom_radius = 0.12
+	shadow_mesh.height = 0.003
 	shadow_mesh.radial_segments = 24
 	_shadow.mesh = shadow_mesh
 	var shadow_mat := StandardMaterial3D.new()
 	shadow_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	shadow_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	shadow_mat.albedo_color = Color(0.0, 0.05, 0.02, 0.34)
+	shadow_mat.albedo_color = Color(0.02, 0.05, 0.03, 0.32)
 	_shadow.material_override = shadow_mat
 	_shadow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_shadow.position = Vector3(0.1, 0.012, 0.06)
+	_shadow.position = Vector3(0.04, 0.002, 0.05)
 	add_child(_shadow)
 
 	_visual = Node3D.new()
@@ -773,6 +847,9 @@ func _add_sphere(parent: Node3D, pos: Vector3, radius_m: float, scale: Vector3, 
 	mi.position = pos
 	mi.scale = scale
 	mi.material_override = mat
+	# The contact shade is drawn on the grass. A cast shadow from this low sun
+	# lands in front of the ball and reads as a second, detached blot.
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	parent.add_child(mi)
 
 

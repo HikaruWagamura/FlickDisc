@@ -4,6 +4,7 @@ extends CanvasLayer
 const BowlScript := preload("res://scripts/bowl.gd")
 const BiasChipScript := preload("res://scripts/bias_chip.gd")
 const HandSwitchScript := preload("res://scripts/hand_switch.gd")
+const HUD_FONT := preload("res://assets/fonts/Inter-Bold.ttf")
 
 signal reset_requested
 signal next_level_requested
@@ -39,13 +40,14 @@ var back_button: Button
 var turn_mark: Control
 var bias_buttons: Array = []
 var bias_rail: Control
-var hand_switch
+var hand_switch: Control
 var bias_team := 0
 var summary: Panel
 var summary_title: Label
 var summary_shots: Label
 var summary_detail: Label
 var power_fill: TextureRect
+var power_max: Label
 var current_bias := 0.0
 
 const POWER_WIDTH := 250.0
@@ -61,8 +63,8 @@ func _ready() -> void:
 	scrim.material = scrim_mat
 	add_child(scrim)
 
-	var menu_button := _make_button("MENU", Vector2(16.0, 12.0), Vector2(104.0, 32.0))
-	menu_button.add_theme_font_size_override("font_size", 13)
+	var menu_button := _make_button("MENU", Vector2(16.0, 14.0), Vector2(96.0, 40.0))
+	menu_button.add_theme_font_size_override("font_size", 14)
 	_paint_sync(menu_button, true)
 	menu_button.pressed.connect(func() -> void: leave_requested.emit())
 
@@ -71,20 +73,20 @@ func _ready() -> void:
 	throws_label = _make_label(Vector2(340.0, 44.0), Vector2(180.0, 22.0), 13, Color("#C4AEFF"))
 	throws_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 
-	ditch_button = _make_button("REBOUND", Vector2(372.0, 70.0), Vector2(148.0, 34.0))
-	ditch_button.add_theme_font_size_override("font_size", 12)
+	ditch_button = _make_button("REBOUND", Vector2(280.0, 62.0), Vector2(148.0, 40.0))
+	ditch_button.add_theme_font_size_override("font_size", 13)
 	_paint_sync(ditch_button, false)
 	ditch_button.pressed.connect(func() -> void: ditch_option_requested.emit())
 
-	match_button = _make_button("4 ENDS", Vector2(16.0, 74.0), Vector2(118.0, 34.0))
-	match_button.add_theme_font_size_override("font_size", 12)
+	match_button = _make_button("4 ENDS", Vector2(16.0, 62.0), Vector2(118.0, 40.0))
+	match_button.add_theme_font_size_override("font_size", 13)
 	_paint_sync(match_button, false)
 	match_button.pressed.connect(func() -> void: match_cycle_requested.emit())
 
-	camera_button = _make_button("CHASE CAM", Vector2(144.0, 74.0), Vector2(132.0, 34.0))
-	camera_button.add_theme_font_size_override("font_size", 11)
+	camera_button = _make_button("FOLLOW", Vector2(144.0, 62.0), Vector2(124.0, 40.0))
+	camera_button.add_theme_font_size_override("font_size", 13)
 	camera_button.pressed.connect(func() -> void: camera_requested.emit())
-	show_camera_mode(true)
+	show_camera_mode(false)
 	_build_summary()
 
 	status_label = _make_label(Vector2(18.0, 116.0), Vector2(504.0, 22.0), 14, Color(0.95, 0.99, 0.96))
@@ -93,9 +95,10 @@ func _ready() -> void:
 	_build_aim_dial()
 	_build_bias_row()
 	_build_hand_bar()
+	_build_power_meter()
 
-	reset_button = _make_button("RESET", Vector2(128.0, 12.0), Vector2(96.0, 32.0))
-	reset_button.add_theme_font_size_override("font_size", 12)
+	reset_button = _make_button("RESET", Vector2(122.0, 14.0), Vector2(96.0, 40.0))
+	reset_button.add_theme_font_size_override("font_size", 14)
 	_paint_sync(reset_button, false)
 	reset_button.pressed.connect(func() -> void: reset_requested.emit())
 
@@ -108,19 +111,36 @@ func set_power_ratio(power_ratio: float) -> void:
 	if power_fill == null:
 		return
 	var ratio := clampf(power_ratio, 0.0, 1.0)
-	var inner := 352.0
+	var inner := 500.0
 	if power_track != null:
-		inner = power_track.size.x - 8.0
-	power_fill.size.x = inner * ratio
+		inner = power_track.size.y - 20.0
+	var tall := maxf(inner * ratio, 4.0)
+	power_fill.size = Vector2(12.0, tall)
+	power_fill.position = Vector2(7.0, 10.0 + inner - tall)
+	_paint_power_fill(ratio)
 	if power_cap != null:
-		power_cap.visible = ratio > 0.04
-		power_cap.position = Vector2(4.0 + power_fill.size.x - 7.0, 4.0)
+		power_cap.visible = true
+		var heat := Color(0.36, 1.0, 0.95).lerp(Color(1.0, 0.12, 0.18), smoothstep(0.35, 1.0, ratio))
+		var cap := StyleBoxFlat.new()
+		cap.bg_color = heat.lerp(Color(1.0, 0.96, 0.94), 0.35)
+		cap.border_color = heat
+		cap.set_border_width_all(3)
+		cap.set_corner_radius_all(14)
+		cap.shadow_color = Color(heat.r, heat.g, heat.b, 0.45)
+		cap.shadow_size = 8
+		power_cap.add_theme_stylebox_override("panel", cap)
+		power_cap.position = Vector2(1.0, power_fill.position.y - 6.0)
+	if power_max != null:
+		power_max.visible = ratio >= 0.94
+		if power_max.visible:
+			var pulse := 0.72 + 0.28 * sin(Time.get_ticks_msec() * 0.012)
+			power_max.self_modulate = Color(1.0, 0.22, 0.28, pulse)
 
 
 func show_jack_prompt(end_number: int, match_label: String, score_line: String, caster: String = "RED") -> void:
 	level_label.text = "END %d" % end_number
 	throws_label.text = "4 EACH"
-	status_label.text = "%s TO CAST THE JACK  •  TAP TO LOCK" % caster
+	status_label.text = "DRAG THE JACK BACK  •  LET GO TO BOWL"
 	score_label.text = "%s  •  %s" % [match_label, score_line]
 	reset_button.visible = true
 	next_button.visible = false
@@ -141,7 +161,7 @@ func show_camera_mode(chase: bool) -> void:
 	camera_chase = chase
 	if camera_button == null:
 		return
-	camera_button.text = "CHASE CAM" if chase else "MAT CAM"
+	camera_button.text = "FOLLOWING" if chase else "FOLLOW"
 	if chase:
 		_paint_selected(camera_button)
 	else:
@@ -150,9 +170,9 @@ func show_camera_mode(chase: bool) -> void:
 
 func show_place_line(jack: bool) -> void:
 	if jack:
-		status_label.text = "TOUCH TO AIM  •  TAP THE JACK TO LOCK"
+		status_label.text = "DRAG THE JACK BACK  •  LET GO TO BOWL"
 	else:
-		status_label.text = "TOUCH TO AIM  •  TAP THE BOWL TO LOCK"
+		status_label.text = "DRAG THE BOWL BACK  •  LET GO TO BOWL"
 
 
 func show_sliding(jack: bool) -> void:
@@ -163,24 +183,32 @@ func show_aiming_line(jack: bool) -> void:
 	show_place_line(jack)
 
 
+func show_drag(metres: float, long_green: bool) -> void:
+	var reach := int(round(metres))
+	if long_green:
+		status_label.text = "DRAG BACK  •  ABOUT %d m" % reach
+	else:
+		status_label.text = "THE LINE IS YOUR DRAG  •  ABOUT %d m" % reach
+
+
 func show_aim_ready(jack: bool) -> void:
 	if jack:
-		status_label.text = "TAP THE JACK TO LOCK"
+		status_label.text = "DRAG THE JACK BACK  •  LET GO TO BOWL"
 	else:
-		status_label.text = "TAP THE BOWL TO LOCK"
+		status_label.text = "DRAG THE BOWL BACK  •  LET GO TO BOWL"
 
 
 func show_take_shot(_jack: bool = false) -> void:
-	status_label.text = "PULL THE BOWL  •  RELEASE ON THE GREEN"
+	status_label.text = "DRAG THE BOWL BACK  •  LET GO TO BOWL"
 
 
 func show_jack_aim(_power_ratio: float) -> void:
-	status_label.text = "RELEASE ON THE GREEN"
+	status_label.text = "LET GO TO BOWL"
 
 
 func show_jack_running() -> void:
 	status_label.text = "JACK RUNNING"
-	score_label.text = "FOLLOWING THE JACK" if camera_chase else "FROM THE MAT"
+	score_label.text = "FOLLOWING THE JACK" if camera_chase else "DOWN THE LINE"
 
 
 func show_jack_illegal(reason: String, travelled: float, detail: String) -> void:
@@ -198,13 +226,77 @@ func show_jack_set(travelled: float, bowl_name: String, side_name: String) -> vo
 
 
 func show_aiming(_power_ratio: float) -> void:
-	status_label.text = "RELEASE ON THE GREEN"
+	status_label.text = "LET GO TO BOWL"
+
+
+func show_drive_prompt(left: int, longest: float, best_miss: float) -> void:
+	level_label.text = "LONG GREEN"
+	throws_label.text = "%d BOWLS" % left
+	status_label.text = "DRAG BACK  •  FIND THE MARK"
+	var far := "NO DRIVE YET" if longest < 1.0 else "LONGEST  %d m" % int(round(longest))
+	var near := "MARK IS OUT THERE" if best_miss > 500.0 else "BEST MARK  %.1f m" % best_miss
+	score_label.text = "%s  •  %s" % [far, near]
+	hide_summary()
+	next_button.visible = false
+	show_bowl_controls(true)
+
+
+func show_drive_result(travelled: float, miss: float, left: int, in_ditch: bool) -> void:
+	throws_label.text = "%d LEFT" % left
+	if in_ditch:
+		status_label.text = "IN THE DITCH  •  %d m" % int(round(travelled))
+	else:
+		status_label.text = "%d m  •  %.1f m FROM THE MARK" % [int(round(travelled)), miss]
+	score_label.text = "THE MARK STAYS FOR THIS ROUND"
+
+
+func show_drive_done(longest: float, best_miss: float) -> void:
+	summary.visible = true
+	summary_title.text = "THE LONG GREEN"
+	summary_shots.text = "%d m" % int(round(longest))
+	summary_detail.text = "LONGEST BOWL\nNEAREST MARK  %.1f m" % best_miss
+	status_label.text = "ROUND COMPLETE"
+	score_label.text = "TRY ANOTHER THREE"
+	next_button.text = "NEW ROUND"
+	next_button.visible = true
+	reset_button.visible = true
+	show_bowl_controls(false)
+
+
+func show_solo_prompt(end_number: int, end_count: int, end_name: String, blurb: String) -> void:
+	level_label.text = "END %d / %d" % [end_number, end_count]
+	throws_label.text = "ONE BOWL"
+	status_label.text = end_name
+	score_label.text = blurb
+	hide_summary()
+	next_button.visible = false
+	show_bowl_controls(true)
+
+
+func show_solo_result(won: bool, end_name: String, miss: float, in_ditch: bool) -> void:
+	summary.visible = true
+	summary_title.text = end_name
+	if in_ditch:
+		summary_shots.text = "DITCH"
+		summary_detail.text = "That bowl is dead.\nDrag again."
+	elif won:
+		summary_shots.text = "SHOT"
+		summary_detail.text = "Your bowl is closest.\n%.2f m from the jack." % miss
+	else:
+		summary_shots.text = "SHORT"
+		summary_detail.text = "Theirs is closer.\nYou finished %.2f m off." % miss
+	status_label.text = "END WON" if won else "HAVE ANOTHER GO"
+	score_label.text = "ONE BOWL  •  BE THE SHOT"
+	next_button.text = "NEXT END" if won else "TRY AGAIN"
+	next_button.visible = true
+	reset_button.visible = true
+	show_bowl_controls(false)
 
 
 func show_in_motion(side_name: String, bowl_name: String, forehand: bool, score_line: String) -> void:
 	throws_label.text = score_line
 	status_label.text = "%s  •  %s  •  %s" % [side_name, bowl_name, "FOREHAND" if forehand else "BACKHAND"]
-	score_label.text = "FOLLOWING THE BOWL" if camera_chase else "BEHIND THE MAT"
+	score_label.text = "FOLLOWING THE BOWL" if camera_chase else "DOWN THE LINE"
 
 
 func show_computer(side_name: String, left: int, intent: String = "DRAW") -> void:
@@ -273,19 +365,22 @@ func hide_summary() -> void:
 		summary.visible = false
 
 
-func show_hand(forehand: bool, _bowl_name: String) -> void:
+func show_hand(forehand: bool, bowl_name: String) -> void:
 	current_bias = -1.0 if forehand else 1.0
-	if hand_switch != null:
+	if hand_switch != null and hand_switch.has_method("set_forehand"):
 		hand_switch.set_forehand(forehand)
+	if score_label != null and "TO BOWL" in score_label.text:
+		var side := score_label.text.split(" TO BOWL")[0]
+		score_label.text = "%s TO BOWL  •  %s" % [side, bowl_name]
 
 
 func show_bias(index: int, team: int = -1) -> void:
 	if team >= 0:
-		bias_team = team
+		bias_team = team % 2
 	for i in bias_buttons.size():
 		var chip = bias_buttons[i]
-		var tex: Texture2D = BowlScript.chip_texture(bias_team, i)
-		chip.set_chip(i, bias_team, tex, i == index)
+		if chip.has_method("set_chip"):
+			chip.set_chip(i, bias_team, BowlScript.chip_texture(bias_team, i), i == index)
 
 
 func show_bowl_controls(enabled: bool) -> void:
@@ -305,55 +400,91 @@ func _hand_name() -> String:
 
 func _build_power_meter() -> void:
 	power_track = Panel.new()
-	power_track.position = Vector2(70.0, 912.0)
-	power_track.size = Vector2(400.0, 28.0)
+	power_track.position = Vector2(508.0, 158.0)
+	power_track.size = Vector2(26.0, 196.0)
 	power_track.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var track := StyleBoxFlat.new()
-	track.bg_color = Color(0.03, 0.07, 0.1, 0.92)
-	track.border_color = Color(0.9, 0.76, 0.38)
+	track.bg_color = Color(0.05, 0.03, 0.12, 0.88)
+	track.border_color = Color(0.72, 0.42, 1.0, 0.95)
 	track.set_border_width_all(2)
-	track.set_corner_radius_all(11)
+	track.set_corner_radius_all(16)
+	track.shadow_color = Color(0.55, 0.18, 1.0, 0.32)
+	track.shadow_size = 8
 	power_track.add_theme_stylebox_override("panel", track)
-	power_track.clip_contents = true
+	power_track.clip_contents = false
 	add_child(power_track)
-	var gradient := Gradient.new()
-	gradient.set_color(0, Color(0.16, 0.55, 0.66))
-	gradient.add_point(0.62, Color(0.55, 0.9, 0.78))
-	gradient.set_color(gradient.get_point_count() - 1, Color(0.98, 0.78, 0.32))
-	var texture := GradientTexture2D.new()
-	texture.gradient = gradient
-	texture.width = 256
-	texture.height = 16
-	texture.fill_from = Vector2(0.0, 0.5)
-	texture.fill_to = Vector2(1.0, 0.5)
+	for tick in 4:
+		var mark := ColorRect.new()
+		mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		mark.color = Color(1.0, 1.0, 1.0, 0.18)
+		mark.size = Vector2(10.0, 2.0)
+		mark.position = Vector2(8.0, 16.0 + float(tick) * 44.0)
+		power_track.add_child(mark)
 	power_fill = TextureRect.new()
-	power_fill.position = Vector2(4.0, 4.0)
-	power_fill.size = Vector2(0.0, 20.0)
-	power_fill.texture = texture
+	power_fill.position = Vector2(8.0, 10.0)
+	power_fill.size = Vector2(12.0, 4.0)
 	power_fill.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	power_fill.stretch_mode = TextureRect.STRETCH_SCALE
 	power_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	power_track.add_child(power_fill)
+	_paint_power_fill(0.0)
 	power_cap = Panel.new()
-	power_cap.size = Vector2(14.0, 20.0)
-	power_cap.position = Vector2(4.0, 4.0)
-	power_cap.visible = false
+	power_cap.size = Vector2(24.0, 24.0)
+	power_cap.position = Vector2(1.0, 166.0)
+	power_cap.visible = true
 	power_cap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var cap := StyleBoxFlat.new()
-	cap.bg_color = Color(0.98, 0.9, 0.62)
-	cap.set_corner_radius_all(7)
+	cap.bg_color = Color(0.85, 1.0, 1.0)
+	cap.border_color = Color(0.36, 1.0, 0.95)
+	cap.set_border_width_all(3)
+	cap.set_corner_radius_all(14)
 	power_cap.add_theme_stylebox_override("panel", cap)
 	power_track.add_child(power_cap)
 	power_label = Label.new()
 	power_label.text = "POWER"
-	power_label.position = Vector2(70.0, 892.0)
-	power_label.size = Vector2(400.0, 18.0)
+	power_label.position = Vector2(448.0, 356.0)
+	power_label.size = Vector2(86.0, 16.0)
 	power_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	power_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	power_label.add_theme_font_override("font", HUD_FONT)
 	power_label.add_theme_font_size_override("font_size", 11)
-	power_label.add_theme_color_override("font_color", Color(0.98, 0.92, 0.72, 0.95))
+	power_label.add_theme_color_override("font_color", Color(0.92, 0.82, 1.0, 0.95))
 	power_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(power_label)
+	power_max = Label.new()
+	power_max.text = "MAX"
+	power_max.position = Vector2(-48.0, -4.0)
+	power_max.size = Vector2(48.0, 20.0)
+	power_max.visible = false
+	power_max.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	power_max.add_theme_font_override("font", HUD_FONT)
+	power_max.add_theme_font_size_override("font_size", 14)
+	power_max.add_theme_color_override("font_color", Color(1.0, 0.22, 0.32))
+	power_max.add_theme_color_override("font_outline_color", Color(0.18, 0.02, 0.06, 0.85))
+	power_max.add_theme_constant_override("outline_size", 4)
+	power_max.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	power_track.add_child(power_max)
+
+
+func _paint_power_fill(ratio: float) -> void:
+	if power_fill == null:
+		return
+	var gradient := Gradient.new()
+	var cyan := Color(0.22, 0.95, 1.0)
+	var violet := Color(0.78, 0.28, 1.0)
+	var red := Color(1.0, 0.12, 0.18)
+	gradient.set_color(0, cyan)
+	if ratio < 0.45:
+		gradient.set_color(gradient.get_point_count() - 1, cyan.lerp(violet, clampf(ratio / 0.45, 0.0, 1.0)))
+	else:
+		gradient.add_point(0.42, violet)
+		gradient.set_color(gradient.get_point_count() - 1, violet.lerp(red, clampf((ratio - 0.45) / 0.55, 0.0, 1.0)))
+	var texture := GradientTexture2D.new()
+	texture.gradient = gradient
+	texture.width = 16
+	texture.height = 256
+	texture.fill_from = Vector2(0.5, 1.0)
+	texture.fill_to = Vector2(0.5, 0.0)
+	power_fill.texture = texture
 
 
 func _build_aim_dial() -> void:
@@ -369,15 +500,15 @@ func _build_aim_dial() -> void:
 
 func _build_bias_row() -> void:
 	bias_rail = Control.new()
-	bias_rail.position = Vector2(456.0, 176.0)
+	bias_rail.position = Vector2(400.0, 168.0)
 	bias_rail.size = Vector2(76.0, 400.0)
 	bias_rail.visible = false
 	bias_rail.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bias_rail)
 	for i in 4:
 		var chip := BiasChipScript.new()
-		chip.position = Vector2(2.0, float(i) * 96.0)
-		chip.size = Vector2(72.0, 94.0)
+		chip.position = Vector2(2.0, float(i) * 98.0)
+		chip.size = Vector2(72.0, 96.0)
 		chip.visible = false
 		chip.picked.connect(_emit_bias)
 		bias_rail.add_child(chip)
@@ -391,8 +522,8 @@ func _emit_bias(index: int) -> void:
 
 func _build_hand_bar() -> void:
 	hand_switch = HandSwitchScript.new()
-	hand_switch.position = Vector2(276.0, 868.0)
-	hand_switch.size = Vector2(248.0, 72.0)
+	hand_switch.position = Vector2(16.0, 820.0)
+	hand_switch.size = Vector2(210.0, 64.0)
 	hand_switch.visible = false
 	hand_switch.chosen.connect(func(fore: bool) -> void: hand_selected.emit(fore))
 	add_child(hand_switch)
@@ -449,9 +580,10 @@ func _make_label(label_position: Vector2, label_size: Vector2, font_size: int, c
 	var label := Label.new()
 	label.position = label_position
 	label.size = label_size
+	label.add_theme_font_override("font", HUD_FONT)
 	label.add_theme_font_size_override("font_size", font_size)
 	label.add_theme_color_override("font_color", color)
-	label.add_theme_color_override("font_outline_color", Color(0.0, 0.02, 0.04, 0.72))
+	label.add_theme_color_override("font_outline_color", Color(0.18, 0.02, 0.16, 0.85))
 	label.add_theme_constant_override("outline_size", 4)
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(label)
@@ -463,8 +595,10 @@ func _make_button(button_text: String, button_position: Vector2, button_size: Ve
 	button.text = button_text
 	button.position = button_position
 	button.size = button_size
+	button.add_theme_font_override("font", HUD_FONT)
 	button.add_theme_font_size_override("font_size", 13)
-	button.add_theme_color_override("font_color", Color("#e9fbff"))
+	button.action_mode = BaseButton.ACTION_MODE_BUTTON_PRESS
+	button.add_theme_color_override("font_color", Color("#F7F4FF"))
 	button.add_theme_color_override("font_hover_color", Color("#080719"))
 	button.add_theme_color_override("font_pressed_color", Color("#080719"))
 	button.add_theme_stylebox_override("normal", _button_style(Color("#1A1028"), Color("#7A3BFF")))
@@ -474,22 +608,19 @@ func _make_button(button_text: String, button_position: Vector2, button_size: Ve
 	return button
 
 
-func _paint_sync(button: Button, gold: bool) -> void:
-	var fill := Color("#E7BC57") if gold else Color("#080719")
-	var font := Color("#080719") if gold else Color("#F7F4FF")
-	button.add_theme_stylebox_override("normal", _button_style(fill, Color("#E7BC57")))
-	button.add_theme_stylebox_override("hover", _button_style(Color("#C4AEFF"), Color("#E7BC57")))
-	button.add_theme_stylebox_override("pressed", _button_style(Color("#E7BC57"), Color("#F7F4FF")))
-	button.add_theme_color_override("font_color", font)
-	button.add_theme_color_override("font_hover_color", Color("#080719"))
-	button.add_theme_color_override("font_pressed_color", Color("#080719"))
+func _paint_sync(button: Button, hot: bool) -> void:
+	var fill := Color("#E8C56A") if hot else Color("#1A1028")
+	var border := Color("#F7F4FF") if hot else Color("#7A3BFF")
+	button.add_theme_stylebox_override("normal", _pill(fill, border))
+	button.add_theme_stylebox_override("hover", _pill(fill.lightened(0.12), border))
+	button.add_theme_stylebox_override("pressed", _pill(Color("#7A3BFF"), Color("#E8C56A")))
+	button.add_theme_color_override("font_color", Color("#FFF6FF"))
+	button.add_theme_color_override("font_hover_color", Color("#FFF6FF"))
+	button.add_theme_color_override("font_pressed_color", Color("#1A0610"))
 
 
 func _paint_selected(button: Button) -> void:
-	button.add_theme_stylebox_override("normal", _button_style(Color(0.95, 0.74, 0.34), Color(1.0, 0.91, 0.64)))
-	button.add_theme_stylebox_override("hover", _button_style(Color(1.0, 0.86, 0.55), Color(1.0, 0.95, 0.75)))
-	button.add_theme_color_override("font_color", Color(0.1, 0.08, 0.05))
-	button.add_theme_color_override("font_hover_color", Color(0.1, 0.08, 0.05))
+	_paint_sync(button, true)
 
 func _premium_style(fill: Color, border: Color) -> StyleBoxFlat:
 	var style := _button_style(fill, border)
@@ -500,12 +631,21 @@ func _premium_style(fill: Color, border: Color) -> StyleBoxFlat:
 	return style
 
 
+func _pill(fill: Color, border: Color) -> StyleBoxFlat:
+	var style := _button_style(fill, border)
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(20)
+	style.shadow_color = Color(0.48, 0.23, 1.0, 0.28)
+	style.shadow_size = 6
+	return style
+
+
 func _button_style(fill: Color, border: Color) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = fill
 	style.border_color = border
-	style.set_border_width_all(1)
-	style.set_corner_radius_all(12)
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(20)
 	style.content_margin_top = 4
 	style.content_margin_bottom = 4
 	return style

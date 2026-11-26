@@ -42,7 +42,7 @@ func _apply_host() -> void:
 			"goal": "",
 			"target": 100,
 			"level": 0,
-			"ditch": false,
+			"ditch": true,
 		})
 		print("HOST_PLAY rink=%s" % str(host["rink"]))
 		return
@@ -94,7 +94,9 @@ func _play(setup: Dictionary) -> void:
 		current.match_index = int(setup.get("match_index", 1))
 		current.opponent = str(setup.get("opponent", "local"))
 		current.difficulty = int(setup.get("difficulty", 1))
-		current.ditch_mode = bool(setup.get("ditch", false))
+		current.ditch_mode = bool(setup.get("ditch", true))
+		current.distance_play = bool(setup.get("distance", false))
+		current.solo_play = bool(setup.get("solo", false))
 	get_tree().root.set_meta("flickdisc_sound", profile.sound)
 	get_tree().root.set_meta("flickdisc_haptics", profile.haptics)
 	menu.set_open(false)
@@ -103,6 +105,10 @@ func _play(setup: Dictionary) -> void:
 		current.goal_cleared.connect(_on_goal)
 	if current.has_signal("match_decided"):
 		current.match_decided.connect(_on_match)
+	if current.has_signal("tally_drive"):
+		current.tally_drive.connect(_on_drive)
+	if current.has_signal("tally_solo"):
+		current.tally_solo.connect(_on_solo)
 	var ui := current.get_node_or_null("UI")
 	if ui != null and ui.has_signal("leave_requested"):
 		ui.leave_requested.connect(_leave)
@@ -119,6 +125,14 @@ func _on_goal() -> void:
 
 func _on_match(you_won: bool) -> void:
 	profile.record_match(you_won)
+
+
+func _on_drive(metres: float, miss: float) -> void:
+	profile.note_drive(metres, miss)
+
+
+func _on_solo(end_number: int) -> void:
+	profile.note_solo(end_number)
 
 
 func _close_game() -> void:

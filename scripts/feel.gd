@@ -108,6 +108,19 @@ func contact(speed: float, hit_jack: bool, hit_bank: bool) -> void:
 		_vibrate(int(round(lerpf(16.0, 42.0, amount))))
 
 
+func mark_found(miss_m: float) -> void:
+	unlock()
+	if miss_m < 6.0:
+		_play("chime", 1.0, -5.0)
+		_vibrate_pattern(18, 60, 28)
+	elif miss_m < 20.0:
+		_play("jack", lerpf(1.1, 0.85, clampf(miss_m / 20.0, 0.0, 1.0)), -4.0)
+		_vibrate(22)
+	else:
+		_play("settle", 0.9, -7.0)
+		_vibrate(14)
+
+
 func settled(closest_m: float) -> void:
 	unlock()
 	if closest_m >= 0.0 and closest_m < 1.25:
