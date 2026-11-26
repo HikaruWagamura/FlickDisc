@@ -209,13 +209,13 @@ static func hand_yaw(hand: float) -> float:
 
 static func bowl_type(index: int) -> Dictionary:
 	var types := [
-		# Width is how far it runs off the line. Finish is the late cut —
-		# Blaze stays mid-width then falls away; Classic dies forward and
-		# runs the last steps sideways. Hand (fore/back) still flips the side.
-		{"name": "LAZER", "bias": 0.48, "finish": 0.0},
-		{"name": "BLAZE", "bias": 0.78, "finish": 0.95},
-		{"name": "ACE", "bias": 1.28, "finish": 0.55},
-		{"name": "CLASSIC", "bias": 1.72, "finish": 1.35},
+		# Bias is the draw for the whole run. Finish is the late cut.
+		# Pace is extra weight; shop fire bowls will raise this later.
+		# Hand (fore/back) still flips the side.
+		{"name": "LAZER", "bias": 1.05, "finish": 0.20, "pace": 1.00},
+		{"name": "BLAZE", "bias": 1.42, "finish": 1.05, "pace": 1.04},
+		{"name": "ACE", "bias": 1.82, "finish": 0.75, "pace": 1.08},
+		{"name": "CLASSIC", "bias": 2.18, "finish": 1.50, "pace": 1.12},
 	]
 	return types[index % types.size()]
 

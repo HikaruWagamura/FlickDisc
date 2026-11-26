@@ -910,12 +910,12 @@ func _play_computer(token: int) -> void:
 	place_x = from.x
 	disc.start_position = from
 	var along := maxf(from.z - jack_at.z, 8.0)
-	# Close enough to look like bowling, loose enough to leave a shot.
-	var miss := 0.52
+	# Better than the last nerf, still beatable. Hard holds a tighter line.
+	var miss := 0.24
 	if difficulty == 0:
-		miss = 0.92
+		miss = 0.44
 	elif difficulty >= 2:
-		miss = 0.26
+		miss = 0.11
 	var best_aim := Vector3(0.0, 0.0, -1.0)
 	var best_power := 0.55
 	var best_hand := -1.0
@@ -926,8 +926,8 @@ func _play_computer(token: int) -> void:
 		var weight: float = disc.weight_for_length(along, bias)
 		for p_off in [-0.04, 0.0, 0.05]:
 			var power: float = clampf(weight + p_off, 0.22, 0.90)
-			for sample in 7:
-				var line := (float(sample) - 3.0) * 0.48
+			for sample in 9:
+				var line := (float(sample) - 4.0) * 0.82
 				var aim := Vector3(line, 0.0, -along).normalized()
 				var rest: Vector3 = disc.predict_rest(from, aim, power, bias)
 				var err := Vector2(rest.x, rest.z).distance_to(Vector2(jack_at.x, jack_at.z))
@@ -1511,7 +1511,10 @@ func _drawtest() -> void:
 		var bias: float = disc.bias_ratio
 		var power: float = disc.weight_for_length(23.0, bias)
 		var rest: Vector3 = disc.predict_rest(from, Vector3(0.0, 0.0, -1.0), power, bias)
-		print("DRAWTEST %s bias=%.2f power=%.2f rest_x=%.2f along=%.1f" % [_bowl_name(index), bias, power, rest.x, from.z - rest.z])
+		print("DRAWTEST %s bias=%.2f finish=%.2f pace=%.2f power=%.2f rest_x=%.2f along=%.1f" % [_bowl_name(index), bias, disc.bowl_finish, disc.bowl_pace, power, rest.x, from.z - rest.z])
+		var long_power: float = disc.weight_for_length(40.0, bias)
+		var long_rest: Vector3 = disc.predict_rest(from, Vector3(0.0, 0.0, -1.0), long_power, bias)
+		print("DRAWTEST %s 40m rest_x=%.2f along=%.1f" % [_bowl_name(index), long_rest.x, from.z - long_rest.z])
 		if gesture != null:
 			gesture.arm()
 			gesture.direct = true
@@ -1527,6 +1530,8 @@ func _drawtest() -> void:
 		_sync_compare_cue()
 		await get_tree().create_timer(0.35).timeout
 		await _dump_compare_shot("draw_cue_%s" % _bowl_name(index).to_lower())
+	disc.configure_bowl(1, -1.0)
+	print("DRAWTEST reach cruise=%.1f fire=%.1f green=%.1f" % [disc.reach_for(0.86), disc.reach_for(1.0), -rink.FAR_Z + line_z])
 	disc.configure_bowl(3, 1.0)
 	_compare_aim = Vector3(-0.18, 0.0, -1.0).normalized()
 	_compare_power = 0.82

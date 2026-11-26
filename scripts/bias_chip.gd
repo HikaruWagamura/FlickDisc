@@ -7,7 +7,7 @@ extends Control
 signal picked(index: int)
 
 const NAMES := ["LAZER", "BLAZE", "ACE", "CLASSIC"]
-const HOOK := [0.22, 0.42, 0.68, 0.95]
+const HOOK := [0.32, 0.55, 0.78, 1.0]
 const FONT := preload("res://assets/fonts/Inter-Bold.ttf")
 
 var index := 0
