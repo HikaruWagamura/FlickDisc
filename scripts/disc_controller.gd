@@ -653,8 +653,14 @@ func _cue_face() -> Vector3:
 
 
 func _line_yaw() -> float:
-	var face := _aim_face()
-	return atan2(face.x, -face.z) * 1.35
+	# From the mat, +Y yaw reads as a left turn. Face the line the
+	# player chose, so a right aim turns the stone right.
+	var face := Vector3(aim_direction.x, 0.0, aim_direction.z)
+	if face.length() < 0.001:
+		face = Vector3(0.0, 0.0, -1.0)
+	else:
+		face = face.normalized()
+	return -atan2(face.x, -face.z) * 1.35
 
 
 func _aim_basis(speed: float) -> Basis:

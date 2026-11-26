@@ -383,7 +383,7 @@ func _sync_direct(cam: Camera3D, placed: Vector3) -> void:
 	fan.set_cue(PackedVector2Array(), PackedFloat32Array(), false)
 	fan.set_aim(Vector2.ZERO, Vector2.ZERO, false)
 	fan.set_line(Vector2.ZERO, Vector2.ZERO, false)
-	fan.set_disc(bowl_px, live and not pulling)
+	fan.set_disc(bowl_px, false)
 	fan.set_bowl(centre, bowl_r * 1.18)
 	fan.set_finger(gesture.finger, pulling)
 
@@ -1119,6 +1119,12 @@ func _sync_compare_cue() -> void:
 	disc.preview_take(_compare_aim, _compare_power)
 	cue.present(disc.grass_cue(_compare_power), _compare_power)
 	ui.set_power_ratio(_compare_power)
+	if fan != null:
+		fan.present(Vector2.ZERO, 0.0, 0.0, false)
+		fan.set_disc(Vector2.ZERO, false)
+		fan.set_finger(Vector2.ZERO, false)
+		fan.set_aim(Vector2.ZERO, Vector2.ZERO, false)
+		fan.set_line(Vector2.ZERO, Vector2.ZERO, false)
 
 
 func _set_compare_banner(title: String) -> void:

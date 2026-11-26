@@ -317,13 +317,13 @@ func _place_blocks() -> void:
 		else:
 			var tail := i - main_n
 			if tail == 0:
-				taper = 0.70
+				taper = 0.90
 				t = 0.76
 			elif tail == 1:
-				taper = 0.48
+				taper = 0.70
 				t = 0.86
 			else:
-				taper = 0.32
+				taper = 0.50
 				t = 0.96
 		var centre := _sample(_path, t)
 		var tangent := _facing(_path, t)
@@ -333,7 +333,7 @@ func _place_blocks() -> void:
 		var hop := pulse * 0.007 * scale_h * taper
 		var sl := scale_l * taper
 		var sw := scale_w * taper * squash
-		var sh := scale_h * taper
+		var sh := scale_h * lerpf(1.0, taper, 0.35)
 		var origin := Vector3(centre.x, SEAT_BLOCK + hop + _local_size.y * 0.42 * sh, centre.z)
 		var xf := Transform3D()
 		xf.origin = origin
@@ -341,7 +341,7 @@ func _place_blocks() -> void:
 		xf.basis = xf.basis.scaled(Vector3(sw, sh, sl))
 		mi.global_transform = xf
 		if i < _mats.size() and _mats[i] != null:
-			_mats[i].set_shader_parameter("power", amount * taper)
+			_mats[i].set_shader_parameter("power", amount)
 			_mats[i].set_shader_parameter("glow_enabled", true)
 			_mats[i].set_shader_parameter("along", t)
 

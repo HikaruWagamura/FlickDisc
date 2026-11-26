@@ -217,8 +217,6 @@ func _draw() -> void:
 		_draw_line()
 	if _show_aim:
 		_draw_aim()
-	if _show_disc:
-		_draw_disc_ring()
 	if _show_finger:
 		_draw_finger()
 	if _show:
@@ -283,10 +281,9 @@ func _draw_aim() -> void:
 
 
 func _draw_disc_ring() -> void:
-	# A touch mark on the ball, so the finger knows where to take hold.
-	draw_arc(_disc, 34.0, 0.0, TAU, 40, Color(1.0, 0.22, 0.55, 0.35), 7.0, true)
-	draw_arc(_disc, 34.0, 0.0, TAU, 40, Color(1.0, 0.78, 0.9, 0.95), 2.2, true)
-	draw_circle(_disc, 5.0, Color(1.0, 0.95, 0.98, 0.9))
+	# The grass cue is the aim. A 2D reticle on the rink reads as a
+	# gunsight and hides which way the bowl is facing.
+	return
 
 
 func _draw_finger() -> void:
