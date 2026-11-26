@@ -16,5 +16,5 @@ class Handler(SimpleHTTPRequestHandler):
             return "application/wasm"
         return super().guess_type(path)
 if __name__ == "__main__":
-    print(f"Flick Disc at http://127.0.0.1:{PORT}/", flush=True)
+    print(f"FlickDisc at http://127.0.0.1:{PORT}/", flush=True)
     ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()

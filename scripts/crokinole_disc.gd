@@ -38,12 +38,10 @@ func bind_puck(puck: Node3D) -> void:
 	_clear_guide()
 
 func _process(_delta: float) -> void:
-	var show_ring := active_puck != null and not shot_in_progress and not is_aiming
 	if _idle_ring != null:
-		_idle_ring.visible = show_ring
-		if show_ring:
-			global_position = active_puck.global_position
-			_idle_ring.scale = Vector3.ONE
+		_idle_ring.visible = false
+	if active_puck != null and not shot_in_progress:
+		global_position = active_puck.global_position
 	if is_aiming:
 		_rebuild_guide()
 	elif _guide_has_surface and not is_aiming:
@@ -227,7 +225,7 @@ func _blocked(flat: Vector2) -> bool:
 		if node == active_puck:
 			continue
 		var puck := node as Node3D
-		if puck == null or bool(puck.get("sunk")):
+		if puck == null or bool(puck.get("sunk")) or bool(puck.get("banked")):
 			continue
 		if flat.distance_to(Vector2(puck.position.x, puck.position.z)) <= Metrics.DISC_RADIUS * 1.9:
 			return true

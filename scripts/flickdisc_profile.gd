@@ -3,14 +3,14 @@ extends RefCounted
 ## Local FlickDisc profile. Wins, challenges, and the disc colour stay on this device.
 
 const COLORS: Array[Color] = [
-	Color("#ff3d9a"),
+	Color("#7A3BFF"),
 	Color("#ff4b5c"),
 	Color("#7af0ff"),
 	Color("#ffe27a"),
 	Color("#c9a4ff"),
 	Color("#f4f4f6"),
 ]
-const COLOR_NAMES: PackedStringArray = ["Club pink", "Hot red", "Ice", "Gold", "Violet", "Chalk"]
+const COLOR_NAMES: PackedStringArray = ["Royal", "Hot red", "Ice", "Gold", "Violet", "Chalk"]
 const CHALLENGE_XP := {"hole": 25, "fifteen": 15, "draw": 20}
 
 var player_name := "Flicker"
@@ -22,6 +22,11 @@ var disc_index := 0
 var sound := true
 var haptics := true
 var cleared: PackedStringArray = PackedStringArray()
+var best_drive := 0.0
+var best_mark := 9999.0
+var solo_cleared := 0
+var solo_wins := 0
+var results: PackedStringArray = PackedStringArray()
 
 
 func level() -> int:
@@ -41,7 +46,7 @@ func disc_name() -> String:
 
 
 func record_text() -> String:
-	return "%dW  ·  %dL" % [wins, losses]
+	return "%d WINS  ·  %d LOSSES" % [wins, losses]
 
 
 func is_cleared(challenge_id: String) -> bool:
@@ -62,6 +67,17 @@ func load_profile() -> void:
 	disc_index = int(cfg.get_value("player", "disc", 0))
 	sound = bool(cfg.get_value("player", "sound", true))
 	haptics = bool(cfg.get_value("player", "haptics", true))
+	best_drive = float(cfg.get_value("player", "best_drive", 0.0))
+	best_mark = float(cfg.get_value("player", "best_mark", 9999.0))
+	solo_cleared = int(cfg.get_value("player", "solo_cleared", 0))
+	solo_wins = int(cfg.get_value("player", "solo_wins", 0))
+	results = PackedStringArray()
+	var history := str(cfg.get_value("player", "results", ""))
+	if history != "":
+		for part in history.split("|"):
+			var line := str(part).strip_edges()
+			if line != "":
+				results.append(line)
 	cleared = PackedStringArray()
 	var raw := str(cfg.get_value("player", "cleared", ""))
 	if raw != "":
@@ -82,6 +98,11 @@ func save_profile() -> void:
 	cfg.set_value("player", "sound", sound)
 	cfg.set_value("player", "haptics", haptics)
 	cfg.set_value("player", "cleared", ",".join(cleared))
+	cfg.set_value("player", "best_drive", best_drive)
+	cfg.set_value("player", "best_mark", best_mark)
+	cfg.set_value("player", "solo_cleared", solo_cleared)
+	cfg.set_value("player", "solo_wins", solo_wins)
+	cfg.set_value("player", "results", "|".join(results))
 	cfg.save("user://flickdisc.cfg")
 
 
@@ -93,10 +114,54 @@ func note_round() -> void:
 func record_match(you_won: bool) -> void:
 	if you_won:
 		wins += 1
+		_push_result("Match won  ·  %d wins" % wins)
 	else:
 		losses += 1
+		_push_result("Match lost  ·  %d losses" % losses)
 	xp += 8
 	save_profile()
+
+
+func note_drive(metres: float, miss: float) -> void:
+	var posted := false
+	if metres > best_drive + 0.5:
+		best_drive = metres
+		posted = true
+	if miss < best_mark - 0.05:
+		best_mark = miss
+		posted = true
+	if posted:
+		var near := "mark %.1f m" % miss
+		_push_result("Drive %d m  ·  %s" % [int(round(metres)), near])
+		xp += 2
+		save_profile()
+
+
+func note_solo(end_number: int) -> void:
+	solo_wins += 1
+	if end_number > solo_cleared:
+		solo_cleared = end_number
+	xp += 12
+	_push_result("Solo end %d cleared" % end_number)
+	save_profile()
+
+
+func drive_text() -> String:
+	if best_drive < 1.0:
+		return "NO DRIVE YET"
+	return "%d m" % int(round(best_drive))
+
+
+func mark_text() -> String:
+	if best_mark > 500.0:
+		return "MARK NOT FOUND"
+	return "%.1f m" % best_mark
+
+
+func _push_result(line: String) -> void:
+	results.insert(0, line)
+	while results.size() > 8:
+		results.remove_at(results.size() - 1)
 
 
 func clear_challenge(challenge_id: String) -> bool:

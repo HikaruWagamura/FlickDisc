@@ -31,16 +31,77 @@ const DISC_RESTITUTION := 0.9
 const RAIL_RESTITUTION := 0.4
 const STOP_SPEED := 0.055
 
+## Filled when the paid crokinole pack is on the table. Pegs and buttons
+## then use the pack's own size and placement instead of the procedural set.
+static var club_pegs: Array[Vector3] = []
+static var club_dark: Array = []
+static var club_light: Array = []
+static var club_disc_xform := Transform3D.IDENTITY
+static var club_figures_mat: Material
+static var club_center_y := DISC_CENTER_Y
+static var club_ditch_y := DITCH_Y
+
 static func peg_positions() -> Array[Vector3]:
+	if club_pegs.size() >= 8:
+		return club_pegs
 	var points: Array[Vector3] = []
 	for index in 8:
 		var angle := PI / 8.0 + float(index) * TAU / 8.0
 		points.append(Vector3(cos(angle) * PEG_RING, 0.0, sin(angle) * PEG_RING))
 	return points
 
+
+static func sit_y(in_ditch: bool) -> float:
+	return club_ditch_y if in_ditch else club_center_y
+
+
+static func club_disc_mesh(player_disc: bool, kit_index: int) -> Mesh:
+	var bank: Array = club_dark if player_disc else club_light
+	if bank.is_empty():
+		bank = club_light if player_disc else club_dark
+	if bank.is_empty():
+		return null
+	return bank[kit_index % bank.size()]
+
+static func in_twenty_hole(distance_from_center: float, speed: float) -> bool:
+	# NCA 6c: a 20 is completely in the hole and lying flat. The cup is only
+	# a little wider than the disc, so the centre has to sit in the well.
+	if speed > 0.95:
+		return false
+	return distance_from_center + DISC_RADIUS * 0.86 <= HOLE_RADIUS
+
+
+static func in_fifteen(distance_from_center: float) -> bool:
+	# Touching the 15 line still counts as within 15 (no-hiding / a 20 counts).
+	return distance_from_center <= RING_15 + DISC_RADIUS * 0.02
+
+
+static func in_ditch(distance_from_center: float) -> bool:
+	# NCA 6e: the bottom edge over the outer line is out of play.
+	return distance_from_center + DISC_RADIUS >= SURFACE_RADIUS
+
+
+static func twenty_rack_slot(player_side: bool, index: int) -> Vector3:
+	# Park 20s just outside the 5-ring: left for you, right for them.
+	var side := -1.0 if player_side else 1.0
+	var col := index / 4
+	var row := index % 4
+	var x := (RING_5 + DISC_RADIUS * 1.35 + float(col) * DISC_RADIUS * 2.15) * side
+	var z := (float(row) - 1.5) * DISC_RADIUS * 2.2
+	return Vector3(x, 0.028, z)
+
+
+static func shot_is_valid(had_opponent: bool, struck_opponent: bool, shooter_in_fifteen: bool) -> bool:
+	# NCA 5: if any opponent is in play you must strike one. If none are in
+	# play (no hiding) the shooter must finish in the 15, and a 20 counts.
+	if had_opponent:
+		return struck_opponent
+	return shooter_in_fifteen
+
+
 static func points_for(distance_from_center: float, sunk: bool) -> int:
-	# A disc scores a ring only when it is clear of that ring's line.
-	# Touching the line scores the lower ring. The hole scores only when the disc has dropped.
+	# NCA 6: 20 in the hole, 15 inside the pegs, 10 outside the pegs, 5 in the
+	# outer ring. A disc on a line scores the lower region.
 	if sunk:
 		return 20
 	var clear := DISC_RADIUS

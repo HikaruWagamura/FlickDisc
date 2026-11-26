@@ -13,6 +13,7 @@ var _roll: AudioStreamPlayer
 var _roll_state := 0.0
 var _streams := {}
 var _last_aim_bucket := -1
+var _last_hit_ms := 0
 
 
 func _ready() -> void:
@@ -26,14 +27,14 @@ func _ready() -> void:
 	generator.mix_rate = 22050
 	generator.buffer_length = 0.2
 	_roll.stream = generator
-	_roll.volume_db = -16.0
+	_roll.volume_db = -11.0
 	add_child(_roll)
 	_streams["release"] = _make_whoosh()
-	_streams["hit"] = _make_hit(210.0, 0.09, 36.0)
+	_streams["hit"] = _make_clack()
 	_streams["jack"] = _make_bell()
-	_streams["bank"] = _make_hit(120.0, 0.07, 28.0)
+	_streams["bank"] = _make_hit(96.0, 0.11, 22.0)
 	_streams["tick"] = _make_hit(1480.0, 0.035, 70.0)
-	_streams["settle"] = _make_hit(240.0, 0.14, 12.0)
+	_streams["settle"] = _make_hit(180.0, 0.16, 10.0)
 	_streams["chime"] = _make_chime()
 
 
@@ -61,7 +62,7 @@ func unlock() -> void:
 
 
 func set_roll(speed_ratio: float) -> void:
-	roll_amount = clampf(speed_ratio, 0.0, 1.0) * 0.55
+	roll_amount = clampf(speed_ratio, 0.0, 1.0) * 0.72
 
 
 func tap() -> void:
@@ -90,17 +91,34 @@ func release(power_ratio: float) -> void:
 
 
 func contact(speed: float, hit_jack: bool, hit_bank: bool) -> void:
+	var now := Time.get_ticks_msec()
+	if now - _last_hit_ms < 28:
+		return
+	_last_hit_ms = now
 	unlock()
-	var amount := clampf(speed / 12.0, 0.25, 1.0)
+	var amount := clampf(speed / 9.0, 0.22, 1.0)
 	if hit_jack:
-		_play("jack", lerpf(1.25, 0.82, amount), -3.0)
-		_vibrate(int(round(lerpf(18.0, 46.0, amount))))
+		_play("jack", lerpf(1.22, 0.78, amount), lerpf(-6.0, -1.0, amount))
+		_vibrate(int(round(lerpf(20.0, 52.0, amount))))
 	elif hit_bank:
-		_play("bank", lerpf(1.2, 0.8, amount), -8.0)
-		_vibrate(int(round(lerpf(10.0, 22.0, amount))))
+		_play("bank", lerpf(1.12, 0.76, amount), lerpf(-10.0, -5.0, amount))
+		_vibrate(int(round(lerpf(12.0, 26.0, amount))))
 	else:
-		_play("hit", lerpf(1.35, 0.78, amount), -5.0)
-		_vibrate(int(round(lerpf(14.0, 34.0, amount))))
+		_play("hit", lerpf(1.18, 0.72, amount), lerpf(-7.0, -1.5, amount))
+		_vibrate(int(round(lerpf(16.0, 42.0, amount))))
+
+
+func mark_found(miss_m: float) -> void:
+	unlock()
+	if miss_m < 6.0:
+		_play("chime", 1.0, -5.0)
+		_vibrate_pattern(18, 60, 28)
+	elif miss_m < 20.0:
+		_play("jack", lerpf(1.1, 0.85, clampf(miss_m / 20.0, 0.0, 1.0)), -4.0)
+		_vibrate(22)
+	else:
+		_play("settle", 0.9, -7.0)
+		_vibrate(14)
 
 
 func settled(closest_m: float) -> void:
@@ -193,6 +211,26 @@ func _make_hit(freq: float, seconds: float, decay: float) -> AudioStreamWAV:
 		phase += TAU * freq / float(rate)
 		var noise := randf() * 2.0 - 1.0
 		samples[i] = (sin(phase) * 0.72 + noise * 0.28) * env
+	return _wav(samples, rate)
+
+
+func _make_clack() -> AudioStreamWAV:
+	var rate := 22050
+	var count := int(rate * 0.16)
+	var samples := PackedFloat32Array()
+	samples.resize(count)
+	var p_low := 0.0
+	var p_mid := 0.0
+	var p_click := 0.0
+	for i in count:
+		var t := float(i) / float(rate)
+		var body := exp(-t * 18.0)
+		var click := exp(-t * 70.0)
+		p_low += TAU * 92.0 / float(rate)
+		p_mid += TAU * 420.0 / float(rate)
+		p_click += TAU * 1680.0 / float(rate)
+		var noise := randf() * 2.0 - 1.0
+		samples[i] = (sin(p_low) * 0.55 + sin(p_mid) * 0.28) * body + (sin(p_click) * 0.22 + noise * 0.35) * click
 	return _wav(samples, rate)
 
 

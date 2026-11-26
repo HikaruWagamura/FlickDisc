@@ -1,12 +1,12 @@
 ; Engine configuration file.
-; DISC QUEST - first playable foundation
+; FlickDisc — the round board and Flick Bowls on the long green.
 ; Godot 4.x
 
 config_version=5
 
 [application]
 
-config/name="SyncBowls"
+config/name="FlickDisc"
 run/main_scene="res://scenes/Main.tscn"
 config/features=PackedStringArray("4.3", "GL Compatibility")
 config/icon="res://assets/icon.png"
