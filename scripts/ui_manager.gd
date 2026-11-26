@@ -18,6 +18,7 @@ signal dial_released(pull: Vector2)
 signal mode_requested(mode_name: String)
 signal leave_requested
 signal camera_requested
+signal cue_cycle_requested
 
 var status_label: Label
 var score_label: Label
@@ -50,6 +51,7 @@ var power_fill: TextureRect
 var power_max: Label
 var current_bias := 0.0
 var menu_button: Button
+var cue_button: Button
 
 const POWER_WIDTH := 250.0
 
@@ -102,6 +104,12 @@ func _ready() -> void:
 	reset_button.add_theme_font_size_override("font_size", 14)
 	_paint_sync(reset_button, false)
 	reset_button.pressed.connect(func() -> void: reset_requested.emit())
+
+	cue_button = _make_button("5+3", Vector2(228.0, 24.0), Vector2(100.0, 40.0))
+	cue_button.add_theme_font_size_override("font_size", 13)
+	_paint_sync(cue_button, false)
+	cue_button.pressed.connect(func() -> void: cue_cycle_requested.emit())
+	show_cue_kind(0)
 
 	next_button = _make_button("NEXT END", Vector2(150.0, 888.0), Vector2(240.0, 48.0))
 	next_button.pressed.connect(func() -> void: next_level_requested.emit())
@@ -158,6 +166,17 @@ func show_match(match_label: String) -> void:
 
 func show_ditch_mode(enabled: bool) -> void:
 	ditch_button.text = "DITCH ON" if enabled else "REBOUND"
+
+
+func show_cue_kind(kind: int) -> void:
+	if cue_button == null:
+		return
+	if kind == 1:
+		cue_button.text = "ARROW"
+		_paint_selected(cue_button)
+	else:
+		cue_button.text = "5+3"
+		_paint_sync(cue_button, false)
 
 
 func show_camera_mode(chase: bool) -> void:
@@ -506,6 +525,8 @@ func _layout_hud() -> void:
 		menu_button.position = Vector2(16.0, 24.0 + top)
 	if reset_button != null:
 		reset_button.position = Vector2(122.0, 24.0 + top)
+	if cue_button != null:
+		cue_button.position = Vector2(228.0, 24.0 + top)
 	if level_label != null:
 		level_label.position = Vector2(340.0, 28.0 + top)
 	if throws_label != null:

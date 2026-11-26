@@ -54,6 +54,9 @@ var rack: Array = []
 var gesture
 var fan
 var cue
+var cue_blocks
+var cue_solid
+var cue_kind := 0
 var _cue_compare := false
 var _compare_label: Label
 var _compare_power := 0.85
@@ -122,6 +125,7 @@ func _ready() -> void:
 	ui.hand_selected.connect(_on_hand_selected)
 	ui.bias_selected.connect(_on_bias_selected)
 	ui.camera_requested.connect(_on_camera_requested)
+	ui.cue_cycle_requested.connect(_on_cue_cycle_requested)
 	_wire_shot()
 	_lock_portrait_on_device()
 	if _wants_bowltest():
@@ -187,9 +191,14 @@ func _wire_shot() -> void:
 	fan = preload("res://scripts/shot_fan.gd").new()
 	fan.name = "ShotFan"
 	ui.add_child(fan)
-	cue = preload("res://scripts/aim_cue.gd").new()
-	cue.name = "AimCue"
-	add_child(cue)
+	cue_blocks = preload("res://scripts/aim_cue.gd").new()
+	cue_blocks.name = "AimCueBlocks"
+	add_child(cue_blocks)
+	cue_solid = preload("res://scripts/aim_cue_solid.gd").new()
+	cue_solid.name = "AimCueSolid"
+	add_child(cue_solid)
+	cue = cue_blocks
+	cue_kind = 0
 
 
 func _begin_ready() -> void:
@@ -540,6 +549,22 @@ func _on_bias_selected(index: int) -> void:
 	disc.configure_bowl(bias_index, hand_sign)
 	ui.show_bias(bias_index, _side())
 	ui.show_hand(hand_sign < 0.0, _bowl_name(bias_index))
+
+
+func _on_cue_cycle_requested() -> void:
+	feel.tap()
+	_use_cue_kind(1 if cue_kind == 0 else 0)
+
+
+func _use_cue_kind(kind: int) -> void:
+	if cue != null:
+		cue.clear()
+	cue_kind = 1 if kind == 1 else 0
+	cue = cue_solid if cue_kind == 1 else cue_blocks
+	if ui != null:
+		ui.show_cue_kind(cue_kind)
+	if _cue_compare:
+		_sync_compare_cue()
 
 
 func _on_camera_requested() -> void:
@@ -1182,14 +1207,20 @@ func _cuetest() -> void:
 	ui.show_bias(bias_index, 0)
 	ui.show_hand(true, _bowl_name(bias_index))
 	ui.show_match("AIM CUE")
-	cue.set_style(0)
+	_use_cue_kind(0)
+	if cue_blocks != null and cue_blocks.has_method("set_style"):
+		cue_blocks.set_style(0)
 	var steps := [
-		{"power": 0.90, "bias": 1, "hand": -1.0, "aim": Vector3(0.0, 0.0, -1.0), "file": "cue_ahead_5", "title": "5 + 3  •  STRAIGHT AHEAD"},
-		{"power": 0.90, "bias": 3, "hand": -1.0, "aim": Vector3(0.22, 0.0, -1.0), "file": "cue_hook_5", "title": "5 + 3  •  AIM RIGHT"},
-		{"power": 0.90, "bias": 3, "hand": 1.0, "aim": Vector3(-0.22, 0.0, -1.0), "file": "cue_backhand_5", "title": "5 + 3  •  AIM LEFT"},
-		{"power": 0.22, "bias": 3, "hand": -1.0, "aim": Vector3(0.22, 0.0, -1.0), "file": "cue_hook_3", "title": "3 + 3  •  LIGHT PULL"},
+		{"power": 0.90, "bias": 1, "hand": -1.0, "aim": Vector3(0.0, 0.0, -1.0), "file": "cue_ahead_5", "title": "5 + 3  •  STRAIGHT AHEAD", "kind": 0},
+		{"power": 0.90, "bias": 3, "hand": -1.0, "aim": Vector3(0.22, 0.0, -1.0), "file": "cue_hook_5", "title": "5 + 3  •  AIM RIGHT", "kind": 0},
+		{"power": 0.90, "bias": 3, "hand": 1.0, "aim": Vector3(-0.22, 0.0, -1.0), "file": "cue_backhand_5", "title": "5 + 3  •  AIM LEFT", "kind": 0},
+		{"power": 0.28, "bias": 3, "hand": -1.0, "aim": Vector3(0.22, 0.0, -1.0), "file": "solid_light", "title": "SOLID  •  LIGHT PULL", "kind": 1},
+		{"power": 0.62, "bias": 3, "hand": -1.0, "aim": Vector3(0.22, 0.0, -1.0), "file": "solid_mid", "title": "SOLID  •  MID WEIGHT", "kind": 1},
+		{"power": 0.96, "bias": 3, "hand": -1.0, "aim": Vector3(0.22, 0.0, -1.0), "file": "solid_heavy", "title": "SOLID  •  FULL WEIGHT", "kind": 1},
+		{"power": 0.96, "bias": 3, "hand": 1.0, "aim": Vector3(-0.22, 0.0, -1.0), "file": "solid_left", "title": "SOLID  •  AIM LEFT", "kind": 1},
 	]
 	for step in steps:
+		_use_cue_kind(int(step["kind"]))
 		_compare_power = float(step["power"])
 		var aim: Vector3 = step["aim"]
 		_compare_aim = aim.normalized()
@@ -1201,10 +1232,11 @@ func _cuetest() -> void:
 		await _dump_compare_shot(str(step["file"]))
 		await get_tree().create_timer(2.2).timeout
 	print("CUETEST done")
-	_compare_power = 0.90
-	_compare_aim = Vector3(-0.22, 0.0, -1.0).normalized()
-	disc.configure_bowl(3, 1.0)
-	_set_compare_banner("5 + 3  •  AIM LEFT")
+	_use_cue_kind(1)
+	_compare_power = 0.96
+	_compare_aim = Vector3(0.22, 0.0, -1.0).normalized()
+	disc.configure_bowl(3, -1.0)
+	_set_compare_banner("SOLID  •  FULL WEIGHT")
 	_sync_compare_cue()
 	await get_tree().create_timer(6.0).timeout
 	get_tree().quit(0)
