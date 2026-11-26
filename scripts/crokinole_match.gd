@@ -75,6 +75,8 @@ func _ready() -> void:
 	_load_level(start_level)
 	if OS.get_cmdline_user_args().has("--cuetest"):
 		call_deferred("_cuetest")
+	elif OS.get_cmdline_user_args().has("--crokshot"):
+		call_deferred("_crokshot")
 
 
 func _process(delta: float) -> void:
@@ -85,37 +87,36 @@ func _process(delta: float) -> void:
 func _setup_view() -> void:
 	var environment := Environment.new()
 	environment.background_mode = Environment.BG_COLOR
-	environment.background_color = Color("#7eb6e8")
+	environment.background_color = Color("#6EB4E8")
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.ambient_light_color = Color("#c4b49a")
-	environment.ambient_light_energy = 0.62
+	environment.ambient_light_color = Color("#F0E2C8")
+	environment.ambient_light_energy = 0.58
 	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	environment.tonemap_exposure = 0.92
+	environment.tonemap_exposure = 0.96
 	environment.glow_enabled = true
-	environment.glow_intensity = 0.18
-	environment.glow_strength = 0.45
-	environment.glow_bloom = 0.02
-	environment.glow_hdr_threshold = 1.25
+	environment.glow_intensity = 0.22
+	environment.glow_strength = 0.52
+	environment.glow_bloom = 0.03
+	environment.glow_hdr_threshold = 1.18
 	var world := WorldEnvironment.new()
 	world.environment = environment
 	add_child(world)
 
 	camera = Camera3D.new()
 	camera.name = "Camera3D"
-	camera.fov = 54.0
+	camera.fov = 52.0
 	camera.near = 0.04
 	camera.far = 40.0
 	camera.current = true
 	add_child(camera)
-	# The round board fills the phone. The cup stays a small hole
-	# and the disc starts on the near edge of the playing surface.
-	camera.position = Vector3(0.0, 2.2, 2.4)
-	camera.look_at(Vector3(0.0, 0.0, 0.35), Vector3.UP)
+	# A little pull-back so the garden and trees frame the board.
+	camera.position = Vector3(0.0, 2.58, 3.05)
+	camera.look_at(Vector3(0.0, 0.02, 0.10), Vector3.UP)
 
 	var key := DirectionalLight3D.new()
 	key.rotation_degrees = Vector3(-52.0, -28.0, 0.0)
 	key.light_color = Color("#fff3e4")
-	key.light_energy = 0.95
+	key.light_energy = 1.05
 	key.shadow_enabled = true
 	key.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
 	key.directional_shadow_max_distance = 8.0
@@ -148,11 +149,6 @@ func _substep(delta: float) -> void:
 		if puck.sunk or not puck.moving:
 			continue
 		var speed: float = Vector2(puck.velocity.x, puck.velocity.z).length()
-		if speed > Metrics.STOP_SPEED and absf(puck.shot_bias) > 0.01:
-			var slowdown := clampf(1.0 - speed / Metrics.MAX_SPEED, 0.0, 1.0)
-			var turn_rate := lerpf(0.1, 0.7, slowdown)
-			var turned: Vector3 = puck.velocity.rotated(Vector3.UP, -puck.shot_bias * turn_rate * delta)
-			puck.velocity = Vector3(turned.x, 0.0, turned.z)
 		var friction: float = Metrics.DITCH_FRICTION if bool(puck.in_ditch) else Metrics.SURFACE_FRICTION
 		puck.velocity *= pow(friction, delta)
 		puck.position += puck.velocity * delta
@@ -334,14 +330,17 @@ func _wire_shot() -> void:
 	shot.fired.connect(_on_shot_fired)
 	add_child(shot)
 	gesture = shot
+	gesture.direct = true
+	gesture.direct_runup = 0.22
 	fan = preload("res://scripts/shot_fan.gd").new()
 	fan.name = "ShotFan"
 	ui.add_child(fan)
 	cue = preload("res://scripts/aim_cue.gd").new()
 	cue.name = "AimCue"
 	cue.set_heads(5)
-	cue.set_path_start(0.07)
-	cue.set_size_scale(0.70)
+	cue.set_style(0)
+	cue.set_path_start(0.06)
+	cue.set_size_scale(0.98)
 	add_child(cue)
 
 
@@ -374,9 +373,12 @@ func _on_pull_cancelled() -> void:
 	ui.show_power(0.0)
 
 
-func _on_shot_fired(power: float, needle: float) -> void:
+func _on_shot_fired(power: float, _needle: float) -> void:
 	_snap_disc()
-	disc.fire_at(_aim_from(needle), power)
+	if gesture != null and gesture.direct:
+		disc.fire_at(gesture.direct_aim, power)
+		return
+	disc.fire_at(_aim_from(0.0), power)
 
 
 func _snap_disc() -> void:
@@ -412,41 +414,82 @@ func _sync_fan() -> void:
 		return
 	if _cue_compare:
 		return
+	if gesture.direct:
+		_sync_direct()
+		return
 	var placed := Vector3(place_x, 0.02, Metrics.PLAYER_START_Z)
 	gesture.anchor = placed
 	var phase := str(gesture.phase)
 	var live: bool = active_puck != null and not resolving and not bool(disc.shot_in_progress) and phase != "busy"
 	var pulling: bool = phase == "pull"
-	var show_cursor: bool = live and (phase == "take" or phase == "hold" or pulling)
-	var show_arrow: bool = live and (phase == "idle" or phase == "place")
 	var power: float = gesture.read_power() if pulling else 0.0
-	var needle: float = gesture.read_needle() if pulling else 0.0
 	if live:
 		active_puck.set_flat(Vector2(place_x, Metrics.PLAYER_START_Z + power * PULL_BACK))
 		active_puck.rotation.y = 0.0
 		disc.global_position = active_puck.global_position
 		if pulling:
-			disc.preview_take(_aim_from(needle), maxf(power, 0.12))
+			disc.preview_take(_aim_from(0.0), maxf(power, 0.12))
 			ui.show_aiming(power)
+			ui.show_power(power)
 			if feel != null:
 				feel.aim(power)
-		elif show_arrow:
-			disc.show_aim_line(_aim_from(0.0), true)
 		else:
 			disc.show_aim_line(Vector3.ZERO, false)
+			ui.show_power(0.0)
 	var live_pos: Vector3 = placed
 	if active_puck != null:
 		live_pos = active_puck.global_position
 	var cursor_at := camera.unproject_position(live_pos + Vector3(0.0, 0.06, 0.0))
-	var rim := camera.unproject_position(live_pos + Vector3(Metrics.DISC_RADIUS, 0.0, 0.0))
-	var disc_px := cursor_at.distance_to(rim)
-	var lift := disc_px + 78.0
-	fan.present(cursor_at, power, needle, show_cursor, _facing(live_pos, _aim_from(0.0)), lift)
+	fan.present(cursor_at, power, 0.0, false, -PI * 0.5, 80.0)
 	if cue != null:
-		if live and (pulling or show_arrow):
-			var path: PackedVector3Array = disc.cue_points(power if pulling else 0.45)
+		if live and pulling:
+			var path: PackedVector3Array = disc.cue_points(power)
 			if path.size() >= 2:
-				cue.present(path, power if pulling else 0.45)
+				cue.present(path, power)
+			else:
+				cue.clear()
+		else:
+			cue.clear()
+	fan.set_dots(PackedVector2Array(), false)
+	fan.set_line(Vector2.ZERO, Vector2.ZERO, false)
+	fan.set_aim(Vector2.ZERO, Vector2.ZERO, false)
+	fan.set_disc(cursor_at, false)
+
+
+func _sync_direct() -> void:
+	var placed := Vector3(place_x, 0.02, Metrics.PLAYER_START_Z)
+	gesture.anchor = placed
+	var phase := str(gesture.phase)
+	var live: bool = active_puck != null and not resolving and not bool(disc.shot_in_progress) and phase != "busy"
+	var pulling: bool = live and phase == "pull"
+	var power: float = gesture.direct_power if pulling else 0.0
+	if live:
+		if pulling:
+			var hold: Vector3 = gesture.direct_hold
+			active_puck.set_flat(Vector2(hold.x, hold.z))
+			active_puck.rotation.y = 0.0
+			disc.global_position = active_puck.global_position
+			disc.preview_take(gesture.direct_aim, maxf(power, 0.12))
+			ui.show_aiming(power)
+			ui.show_power(power)
+			if feel != null:
+				feel.aim(power)
+		else:
+			active_puck.set_flat(Vector2(place_x, Metrics.PLAYER_START_Z))
+			active_puck.rotation.y = 0.0
+			disc.global_position = active_puck.global_position
+			disc.show_aim_line(Vector3.ZERO, false)
+			ui.show_power(0.0)
+	var live_pos: Vector3 = placed
+	if active_puck != null:
+		live_pos = active_puck.global_position
+	var cursor_at := camera.unproject_position(live_pos + Vector3(0.0, 0.06, 0.0))
+	fan.present(cursor_at, power, 0.0, false, -PI * 0.5, 80.0)
+	if cue != null:
+		if pulling:
+			var path: PackedVector3Array = disc.cue_points(power)
+			if path.size() >= 2:
+				cue.present(path, power)
 			else:
 				cue.clear()
 		else:
@@ -555,6 +598,7 @@ func _on_disc_aim_changed(_direction: Vector3, power_ratio: float) -> void:
 		feel.aim(power_ratio)
 	if power_ratio > 0.0:
 		ui.show_aiming(power_ratio)
+		ui.show_power(power_ratio)
 
 func _on_disc_bias_changed(bias_ratio: float) -> void:
 	ui.show_bias(bias_ratio)
@@ -562,8 +606,7 @@ func _on_disc_bias_changed(bias_ratio: float) -> void:
 		ui.show_aiming(disc.power_ratio)
 
 func _on_bias_cycle_requested() -> void:
-	if not resolving:
-		disc.cycle_bias()
+	pass
 
 func _on_disc_shot_started() -> void:
 	if gesture != null:
@@ -713,6 +756,38 @@ func _on_reset_requested() -> void:
 func _on_next_level_requested() -> void:
 	if current_level_index < level_manager.get_level_count() - 1:
 		_load_level(current_level_index + 1)
+
+
+func _crokshot() -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	await _dump_cue_shot("crok_lounge")
+	if active_puck == null:
+		_arm_next_disc()
+	_snap_disc()
+	if gesture != null and active_puck != null:
+		gesture.direct = true
+		gesture.anchor = active_puck.global_position
+		gesture.direct_aim = Vector3(0.0, 0.0, -1.0)
+		gesture.direct_power = 0.78
+		gesture.direct_hold = active_puck.global_position + Vector3(0.0, 0.0, 0.16)
+		gesture._raw_aim = Vector3(0.0, 0.0, -1.0)
+		gesture._raw_power = 0.78
+		gesture._raw_hold = gesture.direct_hold
+		gesture.phase = "pull"
+	disc.preview_take(Vector3(0.0, 0.0, -1.0), 0.78)
+	if cue != null:
+		cue.set_heads(5)
+		cue.present(disc.cue_points(0.78), 0.78)
+	ui.show_power(0.78)
+	ui.show_aiming(0.78)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	await _dump_cue_shot("crok_five_straight")
+	print("CROKSHOT done")
+	get_tree().quit(0)
 
 
 func _cuetest() -> void:

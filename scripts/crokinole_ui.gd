@@ -15,7 +15,9 @@ var reset_button: Button
 var next_button: Button
 var bias_button: Button
 var stop_button: Button
-var power_fill: ColorRect
+var power_fill: TextureRect
+var power_track: Panel
+var power_cap: Panel
 var current_bias := 0.0
 var overview: Control
 var overview_panel: ColorRect
@@ -38,8 +40,8 @@ func _ready() -> void:
 	throws_label = _make_label(Vector2(300.0, 34.0), Vector2(216.0, 18.0), 12, Color("#8fd7ea"), "8 DISCS")
 	throws_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 
-	status_label = _make_label(Vector2(22.0, 58.0), Vector2(496.0, 22.0), 13, Color("#d9f5e8"), "")
-	score_label = _make_label(Vector2(22.0, 80.0), Vector2(496.0, 20.0), 11, Color("#8fc9bf"), "")
+	status_label = _make_label(Vector2(22.0, 58.0), Vector2(496.0, 22.0), 13, Color("#FFF6FF"), "")
+	score_label = _make_label(Vector2(22.0, 80.0), Vector2(496.0, 20.0), 11, Color("#F7D4EA"), "")
 
 	reset_button = _make_button("RESET", Vector2(128.0, 10.0), Vector2(96.0, 32.0))
 	reset_button.pressed.connect(func() -> void: reset_requested.emit())
@@ -61,10 +63,11 @@ func _ready() -> void:
 	next_button.text = "NEXT END"
 	_build_overview()
 	_build_pause()
+	_build_power()
 
 func show_touch(level_number: int, discs_left: int, you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0) -> void:
 	hide_overview()
-	status_label.text = "TOUCH TO AIM  •  TAP THE DISC TO LOCK"
+	status_label.text = "PULL THE DISC  •  FIVE STRAIGHT"
 	show_match_status(level_number, discs_left, you_board, far_board, match_you, match_them)
 	reset_button.text = "RESET"
 	reset_button.visible = true
@@ -73,14 +76,14 @@ func show_touch(level_number: int, discs_left: int, you_board: int = 0, far_boar
 	show_power(0.0)
 
 func show_sliding() -> void:
-	status_label.text = "TOUCH TO AIM  •  TAP THE DISC TO LOCK"
+	status_label.text = "PULL THE DISC  •  FIVE STRAIGHT"
 
 
 func show_aim_ready() -> void:
-	status_label.text = "TAP THE DISC TO LOCK"
+	status_label.text = "PULL THE DISC"
 
 func show_take() -> void:
-	status_label.text = "PULL THE PUCK  •  RELEASE ON THE GREEN"
+	status_label.text = "PULL BACK  •  RELEASE TO FLICK"
 	_show_stop(false)
 
 func show_lane(level_number: int, discs_left: int, difficulty: String = "", you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0) -> void:
@@ -96,7 +99,7 @@ func _show_stop(_rolling: bool) -> void:
 func show_ready(level_number: int, discs_left: int, difficulty: String = "", you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0) -> void:
 	hide_overview()
 	var layout := difficulty.to_upper() if difficulty != "" else "CROKINOLE"
-	status_label.text = "LEVEL %02d  •  %s  •  TAP YOUR DISC" % [level_number, layout]
+	status_label.text = "LEVEL %02d  •  %s  •  PULL YOUR DISC" % [level_number, layout]
 	show_match_status(level_number, discs_left, you_board, far_board, match_you, match_them)
 	reset_button.text = "RESET"
 	reset_button.visible = true
@@ -111,10 +114,41 @@ func show_match_status(level_number: int, discs_left: int, you_board: int = 0, f
 	score_label.text = "BOARD %d–%d    MATCH %d–%d" % [you_board, far_board, match_you, match_them]
 
 func show_aiming(_power_ratio: float) -> void:
-	status_label.text = "RELEASE ON THE GREEN"
+	status_label.text = "RELEASE TO FLICK"
 
-func show_power(_ratio: float) -> void:
-	pass
+func show_power(ratio: float) -> void:
+	if power_fill == null or power_track == null:
+		return
+	var amount := clampf(ratio, 0.0, 1.0)
+	var inner := power_track.size.y - 10.0
+	var tall := maxf(8.0, inner * amount)
+	power_fill.size = Vector2(power_track.size.x - 10.0, tall)
+	power_fill.position = Vector2(5.0, 5.0 + inner - tall)
+	var gradient := Gradient.new()
+	var ice := Color(0.75, 0.95, 1.0)
+	var lilac := Color(0.78, 0.55, 1.0)
+	var pink := Color(1.0, 0.24, 0.60)
+	var red := Color(0.85, 0.08, 0.18)
+	gradient.set_color(0, ice)
+	if amount < 0.5:
+		gradient.set_color(gradient.get_point_count() - 1, ice.lerp(lilac, clampf(amount / 0.5, 0.0, 1.0)))
+	elif amount < 0.82:
+		gradient.add_point(0.45, lilac)
+		gradient.set_color(gradient.get_point_count() - 1, lilac.lerp(pink, clampf((amount - 0.5) / 0.32, 0.0, 1.0)))
+	else:
+		gradient.add_point(0.42, lilac)
+		gradient.add_point(0.78, pink)
+		gradient.set_color(gradient.get_point_count() - 1, pink.lerp(red, clampf((amount - 0.82) / 0.18, 0.0, 1.0)))
+	var texture := GradientTexture2D.new()
+	texture.gradient = gradient
+	texture.width = 20
+	texture.height = 256
+	texture.fill_from = Vector2(0.5, 1.0)
+	texture.fill_to = Vector2(0.5, 0.0)
+	power_fill.texture = texture
+	if power_cap != null:
+		power_cap.position = Vector2((power_track.size.x - power_cap.size.x) * 0.5, power_fill.position.y - 6.0)
+		power_cap.visible = amount > 0.04
 
 func show_in_motion() -> void:
 	_show_stop(false)
@@ -357,6 +391,52 @@ func _make_label(label_position: Vector2, label_size: Vector2, font_size: int, c
 	label.add_theme_color_override("font_color", color)
 	add_child(label)
 	return label
+
+func _build_power() -> void:
+	power_track = Panel.new()
+	power_track.position = Vector2(478.0, 108.0)
+	power_track.size = Vector2(46.0, 400.0)
+	power_track.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	power_track.clip_contents = true
+	var track := StyleBoxFlat.new()
+	track.bg_color = Color(0.07, 0.02, 0.10, 0.94)
+	track.border_color = Color(1.0, 0.32, 0.62, 0.95)
+	track.set_border_width_all(2)
+	track.set_corner_radius_all(16)
+	track.shadow_color = Color(1.0, 0.18, 0.55, 0.32)
+	track.shadow_size = 10
+	power_track.add_theme_stylebox_override("panel", track)
+	add_child(power_track)
+	power_fill = TextureRect.new()
+	power_fill.position = Vector2(5.0, 5.0)
+	power_fill.size = Vector2(36.0, 8.0)
+	power_fill.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	power_fill.stretch_mode = TextureRect.STRETCH_SCALE
+	power_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	power_track.add_child(power_fill)
+	power_cap = Panel.new()
+	power_cap.size = Vector2(32.0, 22.0)
+	power_cap.position = Vector2(7.0, 360.0)
+	power_cap.visible = false
+	power_cap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var cap := StyleBoxFlat.new()
+	cap.bg_color = Color(0.95, 1.0, 1.0)
+	cap.border_color = Color(1.0, 0.45, 0.75)
+	cap.set_border_width_all(2)
+	cap.set_corner_radius_all(10)
+	power_cap.add_theme_stylebox_override("panel", cap)
+	power_track.add_child(power_cap)
+	var label := Label.new()
+	label.text = "POWER"
+	label.position = Vector2(466.0, 514.0)
+	label.size = Vector2(72.0, 16.0)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.add_theme_font_size_override("font_size", 11)
+	label.add_theme_color_override("font_color", Color(1.0, 0.72, 0.88, 0.95))
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(label)
+	show_power(0.0)
+
 
 func _make_button(button_text: String, button_position: Vector2, button_size: Vector2) -> Button:
 	var button := Button.new()

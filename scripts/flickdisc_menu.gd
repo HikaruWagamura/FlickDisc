@@ -21,7 +21,7 @@ var backdrop: Control
 var pages := {}
 var screen := ""
 var kind := "classic"
-var rink := "lawn"
+var rink := "crokinole"
 var difficulty := 1
 var race := 1
 var room_code := ""
@@ -405,8 +405,8 @@ func _build_setup() -> void:
 	sub_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_place(page, sub_label, Vector2(16, 124), Vector2(508, 28))
 
-	lawn_card = _rink_card("FLICK BOWLS", "The long green.", "green", true)
-	crokin_card = _rink_card("FLICKDISC", "The round board.", "crokin", false)
+	crokin_card = _rink_card("FLICKDISC", "The round board.", "crokin", true)
+	lawn_card = _rink_card("FLICK BOWLS", "The long green.", "green", false)
 	lawn_tag = lawn_card.get_node("Tag") as Label
 	crokin_tag = crokin_card.get_node("Tag") as Label
 	lawn_card.pressed.connect(func() -> void:
@@ -417,8 +417,8 @@ func _build_setup() -> void:
 		rink = "crokinole"
 		_sync_setup()
 	)
-	_place(page, lawn_card, Vector2(20, 168), Vector2(244, 176))
-	_place(page, crokin_card, Vector2(276, 168), Vector2(244, 176))
+	_place(page, crokin_card, Vector2(20, 168), Vector2(244, 176))
+	_place(page, lawn_card, Vector2(276, 168), Vector2(244, 176))
 
 	hint_label = _label("", 13, MUTED, body_font)
 	hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1335,15 +1335,15 @@ func _rink_card(title: String, body: String, stamp_kind: String, show_logo: bool
 	button.add_child(detail)
 	if show_logo:
 		var mark := _mark_rect()
-		mark.position = Vector2(128, 78)
-		mark.size = Vector2(100, 86)
+		mark.position = Vector2(118, 72)
+		mark.size = Vector2(116, 96)
 		button.add_child(mark)
 	else:
 		var art := Stamp.new()
 		art.kind = stamp_kind
 		art.lit = true
-		art.position = Vector2(142, 86)
-		art.size = Vector2(78, 78)
+		art.position = Vector2(132, 78)
+		art.size = Vector2(96, 86)
 		art.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		button.add_child(art)
 	return button
@@ -1687,10 +1687,13 @@ class Stamp extends Control:
 		draw_circle(mid + Vector2(0, span * 0.28), span * 0.16, gold)
 
 	func _rink(mid: Vector2, span: float, grass: Color, cream: Color, pink: Color) -> void:
-		draw_rect(Rect2(mid.x - span * 0.28, mid.y - span, span * 0.56, span * 2.0), grass, true)
-		draw_rect(Rect2(mid.x - span * 0.22, mid.y - span * 0.86, span * 0.44, span * 1.72), Color("#1F6B34"), true)
-		draw_circle(Vector2(mid.x, mid.y - span * 0.42), span * 0.16, cream)
-		draw_circle(Vector2(mid.x, mid.y + span * 0.38), span * 0.22, pink)
+		draw_rect(Rect2(mid.x - span * 0.72, mid.y - span * 0.92, span * 1.44, span * 1.84), Color("#163C22"), true)
+		draw_rect(Rect2(mid.x - span * 0.28, mid.y - span * 0.88, span * 0.56, span * 1.72), grass, true)
+		draw_rect(Rect2(mid.x - span * 0.22, mid.y - span * 0.78, span * 0.44, span * 1.52), Color("#1F6B34"), true)
+		draw_circle(Vector2(mid.x, mid.y - span * 0.48), span * 0.14, cream)
+		draw_circle(Vector2(mid.x - span * 0.08, mid.y + span * 0.18), span * 0.24, pink)
+		draw_circle(Vector2(mid.x + span * 0.16, mid.y + span * 0.42), span * 0.22, Color("#2A6AD4"))
+		draw_arc(Vector2(mid.x - span * 0.08, mid.y + span * 0.18), span * 0.24, -0.6, 1.2, 10, Color(1, 1, 1, 0.45), 1.8, true)
 
 	func _target(mid: Vector2, span: float, cream: Color, pink: Color, gold: Color) -> void:
 		draw_circle(mid, span, cream)

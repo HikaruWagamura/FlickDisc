@@ -55,15 +55,14 @@ func guide_points() -> PackedVector3Array:
 	return _guide_world
 
 
-func cue_points(_power: float) -> PackedVector3Array:
-	# Crokinole is a straight flick. Five heads on a short line so the
-	# cue does not run the full board.
+func cue_points(power: float) -> PackedVector3Array:
+	# Crokinole is a straight flick. Five heads on one line; length is weight.
 	var dir := Vector3(aim_direction.x, 0.0, aim_direction.z)
 	if dir.length() < 0.001:
 		dir = Vector3(0.0, 0.0, -1.0)
 	dir = dir.normalized()
 	var start := Vector3(global_position.x, 0.0, global_position.z)
-	var length := 0.52
+	var length := lerpf(0.28, 0.86, clampf(power, 0.0, 1.0))
 	var out := PackedVector3Array()
 	for step in 16:
 		var t := float(step) / 15.0
@@ -102,10 +101,8 @@ func preview_take(aim: Vector3, power: float) -> void:
 	power_ratio = clampf(power, 0.0, 1.0)
 	is_aiming = power_ratio > 0.02
 	global_position = active_puck.global_position
-	if is_aiming:
-		_rebuild_guide()
-	else:
-		_clear_guide()
+	# Five straight heads come from aim_cue. Keep the old dotted guide off.
+	_clear_guide()
 
 
 func set_bias(value: float) -> void:
@@ -177,7 +174,7 @@ func _launch() -> void:
 	active_puck.velocity.y = 0.0
 	active_puck.moving = true
 	active_puck.played = true
-	active_puck.shot_bias = bias_ratio
+	active_puck.shot_bias = 0.0
 	active_puck.stop_timer = 0.0
 	shot_in_progress = true
 	shot_started.emit()

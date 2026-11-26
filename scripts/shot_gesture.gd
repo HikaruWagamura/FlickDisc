@@ -22,6 +22,7 @@ var _raw_aim := Vector3(0.0, 0.0, -1.0)
 var _raw_power := 0.0
 var _raw_hold := Vector3.ZERO
 const DIRECT_METRES := 0.78
+var direct_runup := DIRECT_METRES
 const DIRECT_PULL_PX := 235.0
 ## Widest send is about 50° so a right drag still fires up the green.
 const DIRECT_MAX_SIDE := 1.15
@@ -323,7 +324,7 @@ func _apply_direct(screen: Vector2) -> void:
 	var travel := clampf(dist / DIRECT_PULL_PX, 0.0, 1.0)
 	_raw_aim = send
 	_raw_power = pow(travel, 0.84)
-	_raw_hold = anchor + Vector3(-send.x, 0.0, -send.z) * (travel * DIRECT_METRES)
+	_raw_hold = anchor + Vector3(-send.x, 0.0, -send.z) * (travel * direct_runup)
 
 
 func _is_mouse_press(event: InputEvent) -> bool:
