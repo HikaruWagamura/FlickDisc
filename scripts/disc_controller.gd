@@ -84,6 +84,7 @@ var _dots: Array[MeshInstance3D] = []
 var _jack_visual: Node3D
 var _bias_pip: Node3D
 var _stone: Node3D
+var _bowl_index := -1
 
 
 func _ready() -> void:
@@ -158,11 +159,12 @@ func configure_bowl(index: int, hand: float) -> void:
 	radius = DISC_RADIUS
 	mass = BowlScript.DISC_MASS
 	is_jack = false
-	set_palette(0)
 	if _visual != null:
 		_visual.visible = true
 	if _jack_visual != null:
 		_jack_visual.visible = false
+	_redress_bowl(index)
+	set_palette(palette_index)
 	_place_pip()
 	bias_changed.emit(bias_ratio)
 
@@ -668,7 +670,7 @@ func grass_cue(power: float) -> PackedVector3Array:
 	flat = flat.normalized()
 	# Start at the bowl so the tail tucks under it. The chevron sits on the grass ahead.
 	var start := Vector3(global_position.x, 0.0, global_position.z) + flat * (radius * 0.55)
-	var want := lerpf(2.10, 2.70, clampf(power, 0.0, 1.0))
+	var want := lerpf(2.35, 3.15, clampf(power, 0.0, 1.0))
 	var out := PackedVector3Array()
 	var use_bias := (not delivering_jack) and absf(bias_ratio) > 0.04
 	if not use_bias:
@@ -789,6 +791,24 @@ func _build_visual() -> void:
 	jack_mat.emission_energy_multiplier = 0.22
 	_add_sphere(_jack_visual, Vector3.ZERO, BowlScript.JACK_RADIUS, Vector3.ONE, jack_mat)
 	_jack_visual.position = Vector3(0.0, BowlScript.JACK_RADIUS + BowlScript.GROUND_CLEAR, 0.0)
+
+
+func _redress_bowl(index: int) -> void:
+	if _spin == null:
+		return
+	if index == _bowl_index and _stone != null:
+		return
+	_bowl_index = index
+	for child in _spin.get_children():
+		_spin.remove_child(child)
+		child.free()
+	var dressed: Dictionary = BowlScript.dress_stone(_spin, palette_index, hand_sign, false, index)
+	_rim_mat = dressed["rim"]
+	_body_mat = dressed["body"]
+	_cap_mat = dressed["cap"]
+	_mark_mat = dressed["mark"]
+	_bias_pip = dressed["weight"]
+	_stone = dressed["weight"]
 
 
 func _place_pip() -> void:

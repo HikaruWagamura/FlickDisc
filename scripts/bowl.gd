@@ -4,8 +4,9 @@ extends Node3D
 ## A bowl or the jack on the green. Motion is owned by the table in DiscController.
 ## Settled bowls stay where they stop, and later bowls can knock them.
 ## Red is one side, blue is the other. Each side bowls four in an end.
-## Club bowls are the CGTrader set (main). The earlier sculpt stays as the
-## WIDE bias look so that shape is not thrown away.
+## Playable bowls are the purchased CGTrader set: four full lawn-bowl
+## meshes (NARROW / MEDIUM / WIDE / HOOK) plus a half-size jack, with the
+## four pack colours. The earlier Tripo sculpt is not used on the green.
 
 const DISC_RADIUS := 0.20
 const JACK_RADIUS := 0.16
@@ -15,16 +16,14 @@ const JACK_MASS := 0.52
 const DISC_RESTITUTION := 0.55
 const JACK_RESTITUTION := 0.48
 const CONTACT_FRICTION := 0.34
-## Tripo sculpt sits on Y=0 and stands 0.978 tall.
-const WIDE_MESH_HEIGHT := 0.97834063
 const WIDE_BIAS := 2
 ## The running surface kisses the grass. A few millimetres of contact,
 ## so the bowl sits on the green and the shade falls beside it.
 const SIT_NEST := 0.0
 const GROUND_CLEAR := 0.002
-const WIDE_SCENE := preload("res://assets/bowls/lawn_bowl.glb")
 const CLUB_SCENE := preload("res://assets/bowls/modern_lawn_bowls.fbx")
-const ALBEDO_BLUE := preload("res://assets/bowls/bowl_albedo_blue.jpg")
+const CLUB_NAMES := ["ball_1", "ball_2", "ball_3", "ball_4"]
+const JACK_NAME := "ball_1_1"
 
 static var _club_meshes: Array[Mesh] = []
 static var _jack_mesh: Mesh
@@ -79,22 +78,31 @@ static func team_color(index: int) -> Color:
 static func apply_team(mat: StandardMaterial3D, index: int, _wide: bool = false) -> void:
 	if mat == null:
 		return
-	# One colour for the whole bowl. The grooves stay in the normal map.
 	var maps := _club_maps()
 	_apply_pbr(mat, maps)
-	mat.albedo_texture = null
-	mat.albedo_color = team_color(index)
-	mat.roughness = 0.4
+	var tex: Texture2D = maps["red"] if index % 2 == 0 else maps["blue"]
+	if tex == null:
+		tex = maps["albedo"]
+	if tex != null:
+		mat.albedo_texture = tex
+		mat.albedo_color = Color(1.0, 1.0, 1.0)
+	else:
+		mat.albedo_texture = null
+		mat.albedo_color = team_color(index)
+	mat.roughness = 0.36
 	if maps["normal"] != null:
-		mat.normal_scale = 1.2
+		mat.normal_scale = 0.9
 
 
 static func tint_band(mat: StandardMaterial3D, index: int) -> void:
 	if mat == null:
 		return
+	# Rings and dimples are modelled in the pack mesh. Keep them pale so
+	# the terrazzo body stays the team colour.
+	var cream := Color(0.93, 0.90, 0.84) if index % 2 == 0 else Color(0.88, 0.92, 0.97)
 	mat.albedo_texture = null
-	mat.albedo_color = team_color(index)
-	mat.roughness = 0.34
+	mat.albedo_color = cream
+	mat.roughness = 0.32
 
 
 static func _club_maps() -> Dictionary:
@@ -107,6 +115,8 @@ static func _club_maps() -> Dictionary:
 		"metallic": null,
 		"red": _load_tex("res://assets/bowls/textures/bowl_color_3.jpg"),
 		"blue": _load_tex("res://assets/bowls/textures/bowl_color_1.jpg"),
+		"green": _load_tex("res://assets/bowls/textures/bowl_color_2.jpg"),
+		"orange": _load_tex("res://assets/bowls/textures/bowl_color_4.jpg"),
 		"jack": null,
 	}
 	if maps["red"] == null:
@@ -210,11 +220,14 @@ static func chip_texture(team: int, bias: int) -> Texture2D:
 	var key := "%d_%d" % [team % 2, bias % 4]
 	if _chip_cache.has(key):
 		return _chip_cache[key]
+	var maps := _club_maps()
+	var src: Texture2D = maps["blue"] if team % 2 == 1 else maps["red"]
+	var src_img: Image = src.get_image() if src != null else null
+	if src_img != null and src_img.is_compressed():
+		src_img.decompress()
 	var size := 128
 	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
-	var body := team_color(team)
-	var groove := body.darkened(0.32)
-	var open := 0.10 + float(bias % 4) * 0.16
+	var open := 0.16 + float(bias % 4) * 0.13
 	for y in size:
 		for x in size:
 			var nx := (float(x) + 0.5) / float(size) * 2.0 - 1.0
@@ -223,14 +236,22 @@ static func chip_texture(team: int, bias: int) -> Texture2D:
 			if r2 > 1.0:
 				continue
 			var nz := sqrt(maxf(0.0, 1.0 - r2))
-			var col := body
-			var band := absf(fmod(ny * 6.0 + 3.0, 1.0) - 0.5)
-			if band < 0.07:
-				col = col.lerp(groove, 0.65)
-			var pip := Vector2(open, -0.04)
-			if Vector2(nx, ny).distance_to(pip) < 0.16:
-				col = col.lightened(0.42)
-			var light := clampf(0.42 + nz * 0.7 + nx * 0.12 - ny * 0.06, 0.28, 1.15)
+			var u := 0.5 + atan2(nx, nz) / TAU
+			var v := 0.5 - ny * 0.48
+			var col := team_color(team)
+			if src_img != null:
+				var sx := clampi(int(clampf(u, 0.0, 0.999) * float(src_img.get_width())), 0, src_img.get_width() - 1)
+				var sy := clampi(int(clampf(v, 0.0, 0.999) * float(src_img.get_height())), 0, src_img.get_height() - 1)
+				col = src_img.get_pixel(sx, sy)
+			var ring := absf(ny)
+			if ring > 0.20 and ring < 0.28:
+				col = col.lerp(Color(0.94, 0.91, 0.84), 0.78)
+			if ring > 0.32 and ring < 0.39:
+				col = col.lerp(Color(0.94, 0.91, 0.84), 0.52)
+			var pip := Vector2(open, -0.05)
+			if Vector2(nx, ny).distance_to(pip) < 0.20:
+				col = col.lerp(Color(0.97, 0.95, 0.90), 0.72)
+			var light := clampf(0.40 + nz * 0.72 + nx * 0.14 - ny * 0.08, 0.22, 1.18)
 			var alpha := 1.0
 			if r2 > 0.90:
 				alpha = clampf((1.0 - r2) / 0.10, 0.0, 1.0)
@@ -294,13 +315,29 @@ func paint(index: int, hand: float = -1.0, bias: int = -1) -> void:
 	palette_index = index
 	side = index % 2
 	hand_sign = -1.0 if signf(hand) < 0.0 else 1.0
-	if bias >= 0:
+	var bias_changed := false
+	if bias >= 0 and bias != bias_type:
+		bias_type = bias
+		bias_changed = true
+	elif bias >= 0:
 		bias_type = bias
 	radius = DISC_RADIUS
 	mass = DISC_MASS
 	is_jack = false
 	if _spin == null:
 		_build_disc(index, hand)
+		return
+	if bias_changed:
+		for child in _spin.get_children():
+			_spin.remove_child(child)
+			child.free()
+		var dressed: Dictionary = dress_stone(_spin, index, hand, false, bias_type)
+		_rim_mat = dressed["rim"]
+		_body_mat = dressed["body"]
+		_cap_mat = dressed["cap"]
+		_mark_mat = dressed["mark"]
+		_pip = dressed["weight"]
+		set_hand(hand)
 		return
 	apply_team(_body_mat, index, false)
 	tint_band(_rim_mat, index)
@@ -378,11 +415,8 @@ func _build_disc(index: int, hand: float) -> void:
 	add_child(_shadow)
 	_spin = Node3D.new()
 	add_child(_spin)
-	var variant := _next_club_variant
-	_next_club_variant += 1
-	# The paid pack is the bowl you play. WIDE is still a stronger bias,
-	# not a swap back to the earlier sculpt.
-	var dressed: Dictionary = dress_stone(_spin, index, hand, false, variant)
+	# The paid pack is the bowl you play. Each bias uses one of the four meshes.
+	var dressed: Dictionary = dress_stone(_spin, index, hand, false, bias_type)
 	_rim_mat = dressed["rim"]
 	_body_mat = dressed["body"]
 	_cap_mat = dressed["cap"]
@@ -410,7 +444,7 @@ func _build_jack() -> void:
 	var ball := MeshInstance3D.new()
 	if mesh != null:
 		ball.mesh = mesh
-		_fit_mesh(ball, JACK_RADIUS * 2.0)
+		_fit_mesh(ball, JACK_RADIUS * 2.0, true)
 	else:
 		var sphere := SphereMesh.new()
 		sphere.radius = JACK_RADIUS
@@ -456,8 +490,7 @@ func _seat_shadow(body_radius: float) -> void:
 
 
 static func dress_stone(parent: Node3D, index: int, hand: float, wide: bool = false, variant: int = 0) -> Dictionary:
-	if wide:
-		return _dress_wide(parent, index, hand)
+	# The four pack meshes are the four biases. The old sculpt is not used.
 	return _dress_club(parent, index, hand, variant)
 
 
@@ -468,7 +501,7 @@ static func _dress_club(parent: Node3D, index: int, hand: float, variant: int = 
 	var mi := MeshInstance3D.new()
 	mi.mesh = club_mesh(variant)
 	if mi.mesh != null:
-		_fit_mesh(mi, DISC_RADIUS * 2.0)
+		_fit_mesh(mi, DISC_RADIUS * 2.0, true)
 	else:
 		var sphere := SphereMesh.new()
 		sphere.radius = DISC_RADIUS
@@ -503,32 +536,6 @@ static func _dress_club(parent: Node3D, index: int, hand: float, variant: int = 
 	return {"rim": ring, "body": body, "cap": mark, "mark": mark, "weight": holder}
 
 
-static func _dress_wide(parent: Node3D, index: int, hand: float) -> Dictionary:
-	var holder := Node3D.new()
-	holder.name = "WideBowl"
-	parent.add_child(holder)
-	var sculpt: Node = WIDE_SCENE.instantiate()
-	var mesh_scale := (DISC_RADIUS * 2.0) / WIDE_MESH_HEIGHT
-	sculpt.scale = Vector3.ONE * mesh_scale
-	sculpt.position = Vector3(0.0, -DISC_RADIUS, 0.0)
-	holder.add_child(sculpt)
-	holder.rotation = Vector3(0.0, hand_yaw(hand), 0.0)
-	var mesh := _first_mesh(sculpt)
-	var mat := StandardMaterial3D.new()
-	if mesh != null:
-		var source: Material = mesh.material_override
-		if source == null:
-			source = mesh.get_active_material(0)
-		if source is StandardMaterial3D:
-			mat = (source as StandardMaterial3D).duplicate()
-		mesh.material_override = mat
-	mat.roughness = 0.52
-	mat.metallic = 0.04
-	mat.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
-	apply_team(mat, index, true)
-	return {"rim": mat, "body": mat, "cap": mat, "mark": mat, "weight": holder}
-
-
 static func club_mesh(variant: int = 0) -> Mesh:
 	_ensure_club_meshes()
 	if _club_meshes.is_empty():
@@ -544,12 +551,14 @@ static func jack_mesh() -> Mesh:
 static func _ensure_club_meshes() -> void:
 	if not _club_meshes.is_empty():
 		return
+	if CLUB_SCENE == null:
+		return
 	var root: Node = CLUB_SCENE.instantiate()
-	for name in PackedStringArray(["ball_1", "ball_2", "ball_3", "ball_4", "ball_1_2"]):
+	for name in CLUB_NAMES:
 		var mi := _named_mesh(root, PackedStringArray([name]))
 		if mi != null and mi.mesh != null:
 			_club_meshes.append(mi.mesh)
-	var jack_mi := _named_mesh(root, PackedStringArray(["Sphere"]))
+	var jack_mi := _named_mesh(root, PackedStringArray([JACK_NAME, "Sphere"]))
 	if jack_mi != null:
 		_jack_mesh = jack_mi.mesh
 	if _club_meshes.is_empty():
@@ -584,11 +593,13 @@ static func _named_mesh(node: Node, names: PackedStringArray) -> MeshInstance3D:
 	return null
 
 
-static func _fit_mesh(mi: MeshInstance3D, target_span: float) -> void:
+static func _fit_mesh(mi: MeshInstance3D, target_span: float, keep_bias: bool = false) -> void:
 	if mi.mesh == null:
 		return
 	var aabb := mi.mesh.get_aabb()
 	var span := maxf(aabb.size.x, maxf(aabb.size.y, aabb.size.z))
+	if keep_bias:
+		span = maxf(aabb.size.x, aabb.size.z)
 	if span < 0.0001:
 		return
 	mi.scale = Vector3.ONE * (target_span / span)
@@ -605,7 +616,7 @@ static func apply_jack(mat: StandardMaterial3D) -> void:
 		mat.albedo_color = Color(1.0, 1.0, 1.0)
 	else:
 		mat.albedo_texture = null
-		mat.albedo_color = Color(0.96, 0.94, 0.88)
+		mat.albedo_color = Color(0.93, 0.90, 0.82)
 
 
 static func _first_mesh(node: Node) -> MeshInstance3D:

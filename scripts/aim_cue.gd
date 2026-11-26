@@ -1,39 +1,217 @@
-extends MeshInstance3D
+extends Node3D
 
-## Raised block arrow on the grass. Faceted like the rest of the rink:
-## a thick shaft, a sharp chevron, real lighting, and a shadow.
+## Two real aim cues on the same grass path:
+##   BLOCKS — the purchased 5-chevron pack, 3/4/5 along the line with hop
+##   RIGGED — the 10-bone skinned arrow, posed along that same curve
+##   BOTH   — both meshes sitting on the live aim line at once
 
-const RING_COUNT := 32
-const PROFILE_COUNT := 6
-const SHAFT_HALF := 0.20
-const HEAD_HALF := 0.36
-const HEIGHT := 0.15
-const BOTTOM := 0.016
+const PACK := preload("res://assets/arrows/arrow.fbx")
+const RIGGED := preload("res://assets/arrows/rigged_arrow.glb")
 const SHADER_PATH := "res://shaders/aim_guide_3d.gdshader"
+const MESH_NAME := "arrow_15"
+const MAX_ARROWS := 5
+const PERIOD := 0.67
+const SEAT_BLOCK := 0.018
+const SEAT_RIG := 0.052
+const STYLE_BLOCKS := 0
+const STYLE_RIGGED := 1
+const STYLE_BOTH := 2
 
+var style := STYLE_BLOCKS
 var _material: ShaderMaterial
+var _chevron: ArrayMesh
+var _local_centre := Vector3.ZERO
+var _local_size := Vector3.ONE
+var _nodes: Array[MeshInstance3D] = []
+var _mats: Array[ShaderMaterial] = []
+var _rig: Node3D
+var _rig_mesh: MeshInstance3D
+var _skel: Skeleton3D
+var _bone_order: PackedInt32Array = PackedInt32Array()
 var _showing := false
+var _count := 0
+var _path := PackedVector3Array()
+var _power := 0.0
 
 
 func _ready() -> void:
-	cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	extra_cull_margin = 10.0
-	sorting_offset = 0.0
-	position = Vector3.ZERO
+	_chevron = _load_chevron()
 	var shader := load(SHADER_PATH) as Shader
-	if shader == null:
-		push_error("Aim cue shader missing: %s" % SHADER_PATH)
+	if shader != null:
+		_material = ShaderMaterial.new()
+		_material.shader = shader
+	for i in MAX_ARROWS:
+		var mi := MeshInstance3D.new()
+		mi.name = "MiniArrow%d" % i
+		mi.mesh = _chevron
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		mi.extra_cull_margin = 8.0
+		mi.visible = false
+		if _material != null:
+			var mat := _material.duplicate() as ShaderMaterial
+			mi.material_override = mat
+			_mats.append(mat)
+		add_child(mi)
+		_nodes.append(mi)
+	_load_rigged()
+
+
+func _load_rigged() -> void:
+	var packed: PackedScene = RIGGED
+	if packed == null:
+		push_error("Rigged aim arrow missing")
 		return
-	_material = ShaderMaterial.new()
-	_material.shader = shader
-	material_override = _material
+	_rig = packed.instantiate()
+	_rig.name = "RiggedArrow"
+	_rig.visible = false
+	add_child(_rig)
+	_skel = _find_skel(_rig)
+	_rig_mesh = _find_mesh_node(_rig)
+	if _rig_mesh != null:
+		_rig_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		_rig_mesh.extra_cull_margin = 8.0
+	if _skel == null:
+		push_error("Rigged aim arrow has no skeleton")
+		return
+	_bone_order = _chain_bones(_skel)
+	_skel.motion_scale = 1.0
+
+
+func set_style(which: int) -> void:
+	style = clampi(which, STYLE_BLOCKS, STYLE_BOTH)
+	if _showing:
+		_place()
+	else:
+		_hide_parts()
+
+
+func _load_chevron() -> ArrayMesh:
+	var packed: PackedScene = PACK
+	if packed == null:
+		push_error("Aim cue pack missing")
+		return ArrayMesh.new()
+	var root := packed.instantiate()
+	var source := _find_pack_mesh(root, MESH_NAME)
+	var mesh := _extract_one(source)
+	root.queue_free()
+	return mesh
+
+
+func _find_pack_mesh(node: Node, mesh_name: String) -> ArrayMesh:
+	if node is MeshInstance3D and node.name == mesh_name:
+		var mi := node as MeshInstance3D
+		if mi.mesh is ArrayMesh:
+			return mi.mesh as ArrayMesh
+	for child in node.get_children():
+		var found := _find_pack_mesh(child, mesh_name)
+		if found != null:
+			return found
+	return null
+
+
+func _extract_one(source: ArrayMesh) -> ArrayMesh:
+	if source == null or source.get_surface_count() < 1:
+		return ArrayMesh.new()
+	var arrays := source.surface_get_arrays(0)
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	if verts.is_empty():
+		return source
+	var lo := verts[0].x
+	var hi := verts[0].x
+	for v in verts:
+		lo = minf(lo, v.x)
+		hi = maxf(hi, v.x)
+	var span := maxf(hi - lo, 0.001)
+	# Keep the centre mini of the five-arrow row.
+	var pick := 2
+	var keep := PackedInt32Array()
+	for i in verts.size():
+		var bin := clampi(int(((verts[i].x - lo) / span) * 5.0), 0, 4)
+		if bin == pick:
+			keep.append(i)
+	if keep.size() < 3:
+		_local_centre = source.get_aabb().position + source.get_aabb().size * 0.5
+		_local_size = source.get_aabb().size
+		return source
+	var remap := {}
+	var new_verts := PackedVector3Array()
+	var new_normals := PackedVector3Array()
+	var new_uvs := PackedVector2Array()
+	var src_n: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+	var src_uv: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]
+	for old_i in keep:
+		remap[old_i] = new_verts.size()
+		new_verts.append(verts[old_i])
+		if old_i < src_n.size():
+			new_normals.append(src_n[old_i])
+		if old_i < src_uv.size():
+			new_uvs.append(src_uv[old_i])
+	var new_indices := PackedInt32Array()
+	var src_idx: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+	if src_idx.is_empty():
+		for i in range(0, verts.size() - 2, 3):
+			if remap.has(i) and remap.has(i + 1) and remap.has(i + 2):
+				new_indices.append(remap[i])
+				new_indices.append(remap[i + 1])
+				new_indices.append(remap[i + 2])
+	else:
+		for i in range(0, src_idx.size() - 2, 3):
+			var a: int = src_idx[i]
+			var b: int = src_idx[i + 1]
+			var c: int = src_idx[i + 2]
+			if remap.has(a) and remap.has(b) and remap.has(c):
+				new_indices.append(remap[a])
+				new_indices.append(remap[b])
+				new_indices.append(remap[c])
+	if new_verts.is_empty():
+		_local_centre = source.get_aabb().position + source.get_aabb().size * 0.5
+		_local_size = source.get_aabb().size
+		return source
+	var min_p := new_verts[0]
+	var max_p := new_verts[0]
+	for v in new_verts:
+		min_p.x = minf(min_p.x, v.x)
+		min_p.y = minf(min_p.y, v.y)
+		min_p.z = minf(min_p.z, v.z)
+		max_p.x = maxf(max_p.x, v.x)
+		max_p.y = maxf(max_p.y, v.y)
+		max_p.z = maxf(max_p.z, v.z)
+	_local_centre = (min_p + max_p) * 0.5
+	_local_size = max_p - min_p
+	var out_verts := PackedVector3Array()
+	var out_uvs := PackedVector2Array()
+	for i in new_verts.size():
+		var local := new_verts[i] - _local_centre
+		out_verts.append(local)
+		var along := 0.5
+		if _local_size.x > 0.001:
+			along = clampf((new_verts[i].x - min_p.x) / _local_size.x, 0.0, 1.0)
+		out_uvs.append(Vector2(0.5, along))
+	_local_centre = Vector3.ZERO
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	if new_indices.is_empty():
+		for i in out_verts.size():
+			if i < new_normals.size():
+				st.set_normal(new_normals[i])
+			st.set_uv(out_uvs[i])
+			st.add_vertex(out_verts[i])
+	else:
+		for idx in new_indices:
+			if idx < new_normals.size():
+				st.set_normal(new_normals[idx])
+			st.set_uv(out_uvs[idx])
+			st.add_vertex(out_verts[idx])
+	st.generate_normals()
+	return st.commit()
 
 
 func clear() -> void:
-	if _showing:
-		mesh = null
-		_showing = false
+	_showing = false
+	_count = 0
+	_path = PackedVector3Array()
 	visible = false
+	_hide_parts()
 
 
 func present(path: PackedVector3Array, power: float) -> void:
@@ -41,134 +219,224 @@ func present(path: PackedVector3Array, power: float) -> void:
 		clear()
 		return
 	visible = true
-	global_transform = Transform3D.IDENTITY
-	var amount := clampf(power, 0.0, 1.0)
-	if _material != null:
-		_material.set_shader_parameter("power", amount)
-		_material.set_shader_parameter("glow_enabled", true)
-	_rebuild(path, amount)
 	_showing = true
+	_path = path
+	_power = clampf(power, 0.0, 1.0)
+	_count = _wanted(_power)
+	_place()
 
 
-func _rebuild(path: PackedVector3Array, amount: float) -> void:
-	var width_scale := lerpf(0.98, 1.05, amount)
-	var height_scale := lerpf(0.96, 1.08, amount)
-	var shake := 0.0
-	if amount > 0.84:
-		shake = sin(Time.get_ticks_msec() * 0.028) * (amount - 0.84) * 0.004
-	var rings: Array[PackedVector3Array] = []
-	var ring_uvs: Array[PackedVector2Array] = []
-	for ring in range(RING_COUNT + 1):
-		var t := float(ring) / float(RING_COUNT)
-		var centre := _centre(path, t, shake)
-		var tangent := _tangent(path, t)
+func _process(_delta: float) -> void:
+	if _showing and _path.size() >= 2:
+		_place()
+
+
+func _wanted(power: float) -> int:
+	if power < 0.32:
+		return 3
+	if power < 0.66:
+		return 4
+	return 5
+
+
+func _place() -> void:
+	if _path.size() < 2:
+		return
+	var show_blocks := style == STYLE_BLOCKS or style == STYLE_BOTH
+	var show_rig := style == STYLE_RIGGED or style == STYLE_BOTH
+	# When both sit on the same line, keep the blocks a little smaller so
+	# the rigged shaft is still readable underneath.
+	if show_blocks:
+		_place_blocks()
+	else:
+		_hide_blocks()
+	if show_rig:
+		_place_rigged()
+	else:
+		_hide_rigged()
+
+
+func _hide_parts() -> void:
+	_hide_blocks()
+	_hide_rigged()
+
+
+func _hide_blocks() -> void:
+	for mi in _nodes:
+		mi.visible = false
+
+
+func _hide_rigged() -> void:
+	if _rig != null:
+		_rig.visible = false
+
+
+func _place_blocks() -> void:
+	var amount := _power
+	var wave := float(Time.get_ticks_msec()) * 0.001
+	var length := _path_length()
+	var body := maxf(_local_size.x, 0.16)
+	var fit := (length * 0.78) / maxf(float(_count), 1.0)
+	var scale_l := clampf(fit / body, 0.28, 0.62)
+	var scale_h := lerpf(0.62, 0.88, amount)
+	if style == STYLE_BOTH:
+		scale_l *= 0.90
+	for i in MAX_ARROWS:
+		var mi := _nodes[i]
+		if i >= _count:
+			mi.visible = false
+			continue
+		mi.visible = true
+		var t := 0.34
+		if _count == 1:
+			t = 0.55
+		else:
+			t = lerpf(0.24, 0.88, float(i) / float(_count - 1))
+		var centre := _sample(_path, t)
+		var tangent := _tangent(_path, t)
 		var side := tangent.cross(Vector3.UP)
-		if side.length_squared() < 0.001:
+		if side.length_squared() < 0.0001:
 			side = Vector3.RIGHT
 		else:
 			side = side.normalized()
-		var half_w := _half_width(t) * width_scale
-		var height := HEIGHT * height_scale
-		rings.append(_ring(centre, side, half_w, height))
-		ring_uvs.append(_ring_uvs(t))
-	var tool := SurfaceTool.new()
-	tool.begin(Mesh.PRIMITIVE_TRIANGLES)
-	for ring in range(RING_COUNT):
-		var a: PackedVector3Array = rings[ring]
-		var b: PackedVector3Array = rings[ring + 1]
-		var ua: PackedVector2Array = ring_uvs[ring]
-		var ub: PackedVector2Array = ring_uvs[ring + 1]
-		for i in PROFILE_COUNT:
-			var n := (i + 1) % PROFILE_COUNT
-			_quad(tool, a[i], a[n], b[n], b[i], ua[i], ua[n], ub[n], ub[i])
-	_cap(tool, rings[0], ring_uvs[0], true)
-	_cap(tool, rings[RING_COUNT], ring_uvs[RING_COUNT], false)
-	tool.generate_normals()
-	mesh = tool.commit()
-	if _material != null:
-		material_override = _material
+		var phase := (wave / PERIOD) * TAU - float(i) * (TAU / 5.5)
+		var pulse := 0.5 + 0.5 * sin(phase)
+		var squash := lerpf(1.0, 0.80, pulse)
+		var hop := pulse * 0.02 * scale_h
+		var sx := scale_l * squash
+		var sy := scale_h * lerpf(1.0, 1.08, pulse)
+		var sz := scale_l * 0.92
+		# Pack chevrons point along mesh Z. Put that on the path, not the row axis.
+		var basis := Basis(side, Vector3.UP, tangent)
+		basis = basis.scaled(Vector3(sx, sy, sz))
+		var origin := Vector3(centre.x, SEAT_BLOCK + hop + _local_size.y * 0.45 * sy, centre.z)
+		mi.global_transform = Transform3D(basis, origin)
+		if i < _mats.size() and _mats[i] != null:
+			_mats[i].set_shader_parameter("power", amount)
+			_mats[i].set_shader_parameter("glow_enabled", true)
+			_mats[i].set_shader_parameter("along", t)
 
 
-func _ring(centre: Vector3, side: Vector3, half_w: float, height: float) -> PackedVector3Array:
-	var bevel := half_w * 0.10
-	var top := height
-	var wall := height * 0.92
-	var pts := PackedVector2Array()
-	pts.append(Vector2(-half_w, BOTTOM))
-	pts.append(Vector2(-half_w, wall))
-	pts.append(Vector2(-half_w + bevel, top))
-	pts.append(Vector2(half_w - bevel, top))
-	pts.append(Vector2(half_w, wall))
-	pts.append(Vector2(half_w, BOTTOM))
-	var out := PackedVector3Array()
-	for p in pts:
-		out.append(centre + side * p.x + Vector3.UP * p.y)
-	return out
+func _place_rigged() -> void:
+	if _rig == null or _skel == null or _bone_order.is_empty():
+		return
+	_skel.clear_bones_global_pose_override()
+	_skel.reset_bone_poses()
+	var length := _path_length()
+	var start := _sample(_path, 0.22)
+	var tip := _sample(_path, 0.98)
+	var chord := Vector3(tip.x - start.x, 0.0, tip.z - start.z)
+	if chord.length() < 0.05:
+		chord = _tangent(_path, 0.10)
+	var tan := chord.normalized()
+	var wave := float(Time.get_ticks_msec()) * 0.001
+	var hop := (0.5 + 0.5 * sin((wave / PERIOD) * TAU)) * 0.01
+	var origin := Vector3(start.x, SEAT_RIG + hop, start.z)
+	_rig.visible = true
+	# Mesh rest length is 0.75 along local -Z. look_at points -Z down the path.
+	var rest_len := 0.75
+	var sx := 1.05
+	var sy := 2.8
+	var sz := clampf(length / rest_len, 2.0, 3.6)
+	var xf := Transform3D()
+	xf.origin = origin
+	xf = xf.looking_at(origin + tan * maxf(length, 1.0), Vector3.UP)
+	xf.basis = xf.basis.scaled(Vector3(sx, sy, sz))
+	_rig.global_transform = xf
 
 
-func _ring_uvs(t: float) -> PackedVector2Array:
-	var out := PackedVector2Array()
-	for i in PROFILE_COUNT:
-		out.append(Vector2(float(i) / float(PROFILE_COUNT - 1), t))
-	return out
-
-
-func _half_width(t: float) -> float:
-	# Shaft sits at the bowl. The chevron is the part you see on the grass.
-	if t < 0.50:
-		return SHAFT_HALF
-	if t < 0.62:
-		return lerpf(SHAFT_HALF, HEAD_HALF, smoothstep(0.50, 0.62, t))
-	return lerpf(HEAD_HALF, 0.016, clampf((t - 0.62) / 0.38, 0.0, 1.0))
-
-
-func _quad(tool: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3, ua: Vector2, ub: Vector2, uc: Vector2, ud: Vector2) -> void:
-	_tri(tool, a, b, c, ua, ub, uc)
-	_tri(tool, a, c, d, ua, uc, ud)
-
-
-func _tri(tool: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, ua: Vector2, ub: Vector2, uc: Vector2) -> void:
-	tool.set_uv(ua)
-	tool.add_vertex(a)
-	tool.set_uv(ub)
-	tool.add_vertex(b)
-	tool.set_uv(uc)
-	tool.add_vertex(c)
-
-
-func _cap(tool: SurfaceTool, ring: PackedVector3Array, uvs: PackedVector2Array, rear: bool) -> void:
-	var centre := Vector3.ZERO
-	var uv := Vector2(0.5, 0.0 if rear else 1.0)
-	for p in ring:
-		centre += p
-	centre /= float(ring.size())
-	for i in ring.size():
-		var a := ring[i]
-		var b := ring[(i + 1) % ring.size()]
-		var ua := uvs[i]
-		var ub := uvs[(i + 1) % uvs.size()]
-		if rear:
-			_tri(tool, centre, b, a, uv, ub, ua)
+func _bend_rigged() -> void:
+	if _skel == null:
+		return
+	var n := _bone_order.size()
+	if n < 2:
+		return
+	for i in n:
+		var bone_i: int = _bone_order[i]
+		var t := lerpf(0.10, 0.96, float(i) / float(n - 1))
+		var pos := _sample(_path, t)
+		var tan := _tangent(_path, t)
+		var pos_s := _skel.to_local(Vector3(pos.x, SEAT_RIG, pos.z))
+		var ahead := pos + tan
+		var ahead_s := _skel.to_local(Vector3(ahead.x, SEAT_RIG, ahead.z))
+		var y_axis := ahead_s - pos_s
+		if y_axis.length() < 0.0001:
+			y_axis = Vector3(0.0, 0.0, -1.0)
 		else:
-			_tri(tool, centre, a, b, uv, ua, ub)
+			y_axis = y_axis.normalized()
+		var z_axis := Vector3(0.0, 1.0, 0.0)
+		var x_axis := z_axis.cross(y_axis)
+		if x_axis.length_squared() < 0.0001:
+			x_axis = Vector3(1.0, 0.0, 0.0)
+		else:
+			x_axis = x_axis.normalized()
+		z_axis = y_axis.cross(x_axis).normalized()
+		var pose := Transform3D(Basis(x_axis, y_axis, z_axis), pos_s)
+		_skel.set_bone_global_pose_override(bone_i, pose, 1.0, true)
 
 
-func _centre(path: PackedVector3Array, t: float, shake: float) -> Vector3:
-	var point := _raw_sample(path, t)
-	var tangent := _tangent(path, t)
-	var side := tangent.cross(Vector3.UP)
-	if side.length_squared() < 0.001:
-		side = Vector3.RIGHT
-	else:
-		side = side.normalized()
-	return Vector3(point.x, 0.0, point.z) + side * shake
+func _find_skel(node: Node) -> Skeleton3D:
+	if node is Skeleton3D:
+		return node as Skeleton3D
+	for child in node.get_children():
+		var found := _find_skel(child)
+		if found != null:
+			return found
+	return null
 
 
-func _raw_sample(path: PackedVector3Array, t: float) -> Vector3:
+func _find_mesh_node(node: Node) -> MeshInstance3D:
+	if node is MeshInstance3D and (node as MeshInstance3D).mesh != null:
+		return node as MeshInstance3D
+	for child in node.get_children():
+		var found := _find_mesh_node(child)
+		if found != null:
+			return found
+	return null
+
+
+func _chain_bones(skel: Skeleton3D) -> PackedInt32Array:
+	var ordered := PackedInt32Array()
+	var named := PackedInt32Array()
+	for i in 10:
+		var idx := skel.find_bone("Bone_%02d" % i)
+		if idx >= 0:
+			named.append(idx)
+	if named.size() >= 2:
+		return named
+	var root := -1
+	for i in skel.get_bone_count():
+		if skel.get_bone_parent(i) < 0:
+			root = i
+			break
+	if root < 0:
+		for i in skel.get_bone_count():
+			ordered.append(i)
+		return ordered
+	_walk_bones(skel, root, ordered)
+	return ordered
+
+
+func _walk_bones(skel: Skeleton3D, bone: int, into: PackedInt32Array) -> void:
+	into.append(bone)
+	for i in skel.get_bone_count():
+		if skel.get_bone_parent(i) == bone:
+			_walk_bones(skel, i, into)
+
+
+func _path_length() -> float:
+	var total := 0.0
+	for i in range(1, _path.size()):
+		total += _path[i - 1].distance_to(_path[i])
+	return maxf(total, 0.8)
+
+
+func _sample(path: PackedVector3Array, t: float) -> Vector3:
 	var last := path.size() - 1
 	var index := clampi(int(t * float(last)), 0, last - 1)
 	var local := t * float(last) - float(index)
-	return path[index].lerp(path[index + 1], local)
+	var point := path[index].lerp(path[index + 1], local)
+	return Vector3(point.x, 0.0, point.z)
 
 
 func _tangent(path: PackedVector3Array, t: float) -> Vector3:

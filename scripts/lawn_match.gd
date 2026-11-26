@@ -54,6 +54,10 @@ var rack: Array = []
 var gesture
 var fan
 var cue
+var _cue_compare := false
+var _compare_label: Label
+var _compare_power := 0.85
+var _compare_aim := Vector3(0.10, 0.0, -1.0)
 var distance_play := false
 var solo_play := false
 var solo_index := 0
@@ -134,6 +138,8 @@ func _ready() -> void:
 		call_deferred("_drivetest")
 	elif _wants_solotest():
 		call_deferred("_solotest")
+	elif _wants_cuetest():
+		call_deferred("_cuetest")
 
 
 func _process(delta: float) -> void:
@@ -306,6 +312,9 @@ func _sync_fan() -> void:
 	gesture.camera = cam
 	var placed := Vector3(place_x, 0.05, line_z)
 	gesture.anchor = placed
+	if _cue_compare:
+		_sync_compare_cue()
+		return
 	if gesture.direct:
 		_sync_direct(cam, placed)
 		return
@@ -1101,6 +1110,99 @@ func _solo_ends() -> Array:
 			"bowls": [Vector3(1.2, 0.0, 2.4), Vector3(-0.4, 0.0, -1.2), Vector3(0.9, 0.0, -2.0)],
 		},
 	]
+
+
+func _sync_compare_cue() -> void:
+	if disc == null or cue == null:
+		return
+	disc.global_position = Vector3(place_x, 0.0, line_z)
+	disc.preview_take(_compare_aim, _compare_power)
+	cue.present(disc.grass_cue(_compare_power), _compare_power)
+	ui.set_power_ratio(_compare_power)
+
+
+func _set_compare_banner(title: String) -> void:
+	if _compare_label == null:
+		_compare_label = Label.new()
+		_compare_label.position = Vector2(24.0, 168.0)
+		_compare_label.size = Vector2(492.0, 88.0)
+		_compare_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_compare_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_compare_label.add_theme_font_size_override("font_size", 22)
+		_compare_label.add_theme_color_override("font_color", Color(0.98, 0.99, 0.96))
+		_compare_label.add_theme_color_override("font_outline_color", Color(0.02, 0.05, 0.04, 0.85))
+		_compare_label.add_theme_constant_override("outline_size", 8)
+		ui.add_child(_compare_label)
+	_compare_label.text = title
+	ui.status_label.text = ""
+
+
+func _dump_compare_shot(name: String) -> void:
+	await RenderingServer.frame_post_draw
+	var tex: Texture2D = get_viewport().get_texture()
+	if tex == null:
+		return
+	var img := tex.get_image()
+	if img == null:
+		return
+	DirAccess.make_dir_recursive_absolute("/tmp/cue_compare")
+	DirAccess.make_dir_recursive_absolute("/opt/cursor/artifacts")
+	img.save_png("/tmp/cue_compare/%s.png" % name)
+	img.save_png("/opt/cursor/artifacts/%s.png" % name)
+	print("CUE_SHOT %s" % name)
+
+
+func _cuetest() -> void:
+	# Hold a real delivery on the live green so both purchased cues can be
+	# compared on the same bias path, not on a mock board.
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_cue_compare = true
+	if gesture != null:
+		gesture.busy()
+	delivering_jack = false
+	bias_index = 3
+	hand_sign = -1.0
+	var jack_at := Vector3(0.35, 0.0, line_z - 21.0)
+	jack.rest_at(jack_at)
+	jack.visible = true
+	jack_home = jack_at
+	rink.place_head(Vector2(jack_at.x, jack_at.z))
+	disc.configure_bowl(bias_index, hand_sign)
+	disc.set_palette(0)
+	disc.reset_to_start()
+	disc.obstacles = _table()
+	_place_rack()
+	ui.show_bias(bias_index, 0)
+	ui.show_hand(true, _bowl_name(bias_index))
+	ui.show_match("AIM CUE")
+	_compare_aim = Vector3(0.12, 0.0, -1.0).normalized()
+	var steps := [
+		{"style": 0, "power": 0.22, "file": "cue_blocks_3", "title": "5-BLOCK PACK  •  3 ARROWS"},
+		{"style": 0, "power": 0.50, "file": "cue_blocks_4", "title": "5-BLOCK PACK  •  4 ARROWS"},
+		{"style": 0, "power": 0.90, "file": "cue_blocks_5", "title": "5-BLOCK PACK  •  5 ARROWS"},
+		{"style": 1, "power": 0.90, "file": "cue_rigged", "title": "RIGGED BONE ARROW  •  ON THE AIM LINE"},
+		{"style": 2, "power": 0.90, "file": "cue_both", "title": "BOTH ON THE LIVE AIM LINE"},
+	]
+	for step in steps:
+		_compare_power = float(step["power"])
+		cue.set_style(int(step["style"]))
+		_set_compare_banner(str(step["title"]))
+		_sync_compare_cue()
+		await get_tree().create_timer(2.0).timeout
+		await _dump_compare_shot(str(step["file"]))
+		await get_tree().create_timer(2.8).timeout
+	print("CUETEST done")
+	# Stay on both so a recording can keep watching the live hop.
+	cue.set_style(2)
+	_compare_power = 0.90
+	_set_compare_banner("BOTH ON THE LIVE AIM LINE")
+	await get_tree().create_timer(8.0).timeout
+	get_tree().quit(0)
+
+
+func _wants_cuetest() -> bool:
+	return OS.get_cmdline_user_args().has("--cuetest")
 
 
 func _wants_bowltest() -> bool:
