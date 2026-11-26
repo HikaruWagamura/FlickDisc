@@ -53,7 +53,7 @@ var current_bias := 0.0
 var menu_button: Button
 var cue_button: Button
 var pause_layer: Control
-var _power_home := Vector2(504.0, 108.0)
+var _power_home := Vector2(502.0, 108.0)
 var _power_paint := -1.0
 var _power_cap_box: StyleBoxFlat
 
@@ -128,12 +128,15 @@ func set_power_ratio(power_ratio: float) -> void:
 	if power_fill == null:
 		return
 	var ratio := clampf(power_ratio, 0.0, 1.0)
-	var inner := 500.0
+	var inset := 5.0
+	var inner := 260.0
+	var fill_w := 18.0
 	if power_track != null:
-		inner = power_track.size.y - 20.0
-	var tall := maxf(inner * ratio, 4.0)
-	power_fill.size = Vector2(12.0, tall)
-	power_fill.position = Vector2(7.0, 10.0 + inner - tall)
+		inner = maxf(power_track.size.y - inset * 2.0, 8.0)
+		fill_w = maxf(power_track.size.x - inset * 2.0, 8.0)
+	var tall := maxf(inner * ratio, 6.0)
+	power_fill.size = Vector2(fill_w, tall)
+	power_fill.position = Vector2(inset, inset + inner - tall)
 	if absf(ratio - _power_paint) > 0.006 or ratio >= 0.90:
 		_paint_power_fill(ratio)
 		_power_paint = ratio
@@ -142,14 +145,17 @@ func set_power_ratio(power_ratio: float) -> void:
 		var heat := Color(0.36, 1.0, 0.95).lerp(Color(1.0, 0.12, 0.18), smoothstep(0.35, 1.0, ratio))
 		if _power_cap_box == null:
 			_power_cap_box = StyleBoxFlat.new()
-			_power_cap_box.set_border_width_all(3)
-			_power_cap_box.set_corner_radius_all(14)
-			_power_cap_box.shadow_size = 8
+			_power_cap_box.set_border_width_all(2)
+			_power_cap_box.set_corner_radius_all(11)
+			_power_cap_box.shadow_size = 6
 			power_cap.add_theme_stylebox_override("panel", _power_cap_box)
 		_power_cap_box.bg_color = heat.lerp(Color(1.0, 0.96, 0.94), 0.35)
 		_power_cap_box.border_color = heat
 		_power_cap_box.shadow_color = Color(heat.r, heat.g, heat.b, 0.45)
-		power_cap.position = Vector2(1.0, power_fill.position.y - 6.0)
+		var cap_w := minf(fill_w + 2.0, power_track.size.x - 4.0) if power_track != null else fill_w
+		power_cap.size = Vector2(cap_w, 18.0)
+		power_cap.position = Vector2((power_track.size.x - cap_w) * 0.5 if power_track != null else 4.0, power_fill.position.y - 5.0)
+		power_cap.position.y = clampf(power_cap.position.y, 2.0, maxf(inner - 8.0, 2.0))
 	if power_max != null:
 		power_max.visible = ratio >= 0.94
 		if power_max.visible:
@@ -158,7 +164,7 @@ func set_power_ratio(power_ratio: float) -> void:
 	if power_track != null:
 		var shake := Vector2.ZERO
 		if ratio >= 0.90:
-			var amp := ((ratio - 0.90) / 0.10) * 2.2
+			var amp := ((ratio - 0.90) / 0.10) * 1.6
 			var wave := Time.get_ticks_msec() * 0.001
 			shake = Vector2(sin(wave * 54.0) * amp, cos(wave * 61.0) * amp)
 		power_track.position = _power_home + shake
@@ -426,6 +432,20 @@ func show_bowl_controls(enabled: bool) -> void:
 		fore_button.visible = false
 	for chip in bias_buttons:
 		chip.visible = enabled
+	if not enabled:
+		lock_shot_hud(false)
+
+
+func lock_shot_hud(locked: bool) -> void:
+	var filt := Control.MOUSE_FILTER_IGNORE if locked else Control.MOUSE_FILTER_STOP
+	for chip in bias_buttons:
+		if chip is Control:
+			chip.mouse_filter = filt
+	if hand_switch is Control:
+		hand_switch.mouse_filter = filt
+		for child in hand_switch.get_children():
+			if child is BaseButton:
+				child.mouse_filter = filt
 
 
 func _hand_name() -> String:
@@ -434,64 +454,64 @@ func _hand_name() -> String:
 
 func _build_power_meter() -> void:
 	power_track = Panel.new()
-	power_track.position = Vector2(504.0, 108.0)
-	power_track.size = Vector2(32.0, 300.0)
+	power_track.position = Vector2(502.0, 108.0)
+	power_track.size = Vector2(28.0, 280.0)
 	power_track.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	power_track.clip_contents = true
 	var track := StyleBoxFlat.new()
-	track.bg_color = Color(0.05, 0.03, 0.12, 0.88)
-	track.border_color = Color(0.72, 0.42, 1.0, 0.95)
+	track.bg_color = Color(0.07, 0.02, 0.10, 0.92)
+	track.border_color = Color(1.0, 0.32, 0.62, 0.95)
 	track.set_border_width_all(2)
-	track.set_corner_radius_all(16)
-	track.shadow_color = Color(0.55, 0.18, 1.0, 0.32)
+	track.set_corner_radius_all(14)
+	track.shadow_color = Color(1.0, 0.18, 0.55, 0.28)
 	track.shadow_size = 8
 	power_track.add_theme_stylebox_override("panel", track)
-	power_track.clip_contents = false
 	add_child(power_track)
-	for tick in 5:
-		var mark := ColorRect.new()
-		mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		mark.color = Color(1.0, 1.0, 1.0, 0.18)
-		mark.size = Vector2(12.0, 2.0)
-		mark.position = Vector2(10.0, 18.0 + float(tick) * 56.0)
-		power_track.add_child(mark)
 	power_fill = TextureRect.new()
-	power_fill.position = Vector2(8.0, 10.0)
-	power_fill.size = Vector2(12.0, 4.0)
+	power_fill.position = Vector2(5.0, 5.0)
+	power_fill.size = Vector2(18.0, 6.0)
 	power_fill.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	power_fill.stretch_mode = TextureRect.STRETCH_SCALE
 	power_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	power_track.add_child(power_fill)
 	_paint_power_fill(0.0)
+	for tick in 5:
+		var mark := ColorRect.new()
+		mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		mark.color = Color(1.0, 1.0, 1.0, 0.16)
+		mark.size = Vector2(10.0, 2.0)
+		mark.position = Vector2(9.0, 18.0 + float(tick) * 50.0)
+		power_track.add_child(mark)
 	power_cap = Panel.new()
-	power_cap.size = Vector2(24.0, 24.0)
-	power_cap.position = Vector2(1.0, 138.0)
+	power_cap.size = Vector2(20.0, 18.0)
+	power_cap.position = Vector2(4.0, 248.0)
 	power_cap.visible = true
 	power_cap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var cap := StyleBoxFlat.new()
 	cap.bg_color = Color(0.85, 1.0, 1.0)
 	cap.border_color = Color(0.36, 1.0, 0.95)
-	cap.set_border_width_all(3)
-	cap.set_corner_radius_all(14)
+	cap.set_border_width_all(2)
+	cap.set_corner_radius_all(11)
 	power_cap.add_theme_stylebox_override("panel", cap)
 	power_track.add_child(power_cap)
 	power_label = Label.new()
 	power_label.text = "POWER"
-	power_label.position = Vector2(466.0, 414.0)
-	power_label.size = Vector2(90.0, 16.0)
+	power_label.position = Vector2(478.0, 392.0)
+	power_label.size = Vector2(56.0, 16.0)
 	power_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	power_label.add_theme_font_override("font", HUD_FONT)
-	power_label.add_theme_font_size_override("font_size", 11)
-	power_label.add_theme_color_override("font_color", Color(0.92, 0.82, 1.0, 0.95))
+	power_label.add_theme_font_size_override("font_size", 10)
+	power_label.add_theme_color_override("font_color", Color(1.0, 0.72, 0.88, 0.95))
 	power_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(power_label)
 	power_max = Label.new()
 	power_max.text = "MAX"
-	power_max.position = Vector2(-48.0, -4.0)
-	power_max.size = Vector2(48.0, 20.0)
+	power_max.position = Vector2(-2.0, 4.0)
+	power_max.size = Vector2(32.0, 16.0)
 	power_max.visible = false
 	power_max.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	power_max.add_theme_font_override("font", HUD_FONT)
-	power_max.add_theme_font_size_override("font_size", 14)
+	power_max.add_theme_font_size_override("font_size", 11)
 	power_max.add_theme_color_override("font_color", Color(1.0, 0.22, 0.32))
 	power_max.add_theme_color_override("font_outline_color", Color(0.18, 0.02, 0.06, 0.85))
 	power_max.add_theme_constant_override("outline_size", 4)
@@ -562,10 +582,10 @@ func _layout_hud() -> void:
 	if score_label != null:
 		score_label.position = Vector2(18.0, 150.0 + top)
 	if power_track != null:
-		_power_home = Vector2(504.0, 108.0 + top)
+		_power_home = Vector2(502.0, 108.0 + top)
 		power_track.position = _power_home
 	if power_label != null:
-		power_label.position = Vector2(466.0, 414.0 + top)
+		power_label.position = Vector2(478.0, 392.0 + top)
 	if bias_rail != null:
 		bias_rail.position = Vector2(468.0, 430.0 + top)
 	if hand_switch != null:

@@ -36,6 +36,8 @@ var shot_token := 0
 var delivering_jack := true
 var hand_sign := -1.0
 var bias_index := 1
+var player_hand := -1.0
+var player_bias := 1
 var ditch_mode := true
 var jack_length := 0.0
 var match_index := 1
@@ -232,6 +234,10 @@ func _begin_ready() -> void:
 	if gesture != null:
 		gesture.arm()
 		gesture.anchor = disc.start_position
+	if not delivering_jack and not _computer_turn():
+		bias_index = player_bias
+		hand_sign = player_hand
+		disc.configure_bowl(bias_index, hand_sign)
 	ui.show_bowl_controls(not delivering_jack)
 	if not delivering_jack:
 		ui.show_bias(bias_index, _side())
@@ -383,6 +389,8 @@ func _sync_direct(cam: Camera3D, placed: Vector3) -> void:
 	var live: bool = phase != "busy" and bool(disc.visible) and not bool(disc.shot_in_progress)
 	var pulling: bool = live and phase == "pull"
 	var power: float = gesture.direct_power if pulling else 0.0
+	if ui != null:
+		ui.lock_shot_hud(pulling)
 	if live:
 		if pulling:
 			disc.global_position = gesture.direct_hold
@@ -421,6 +429,10 @@ func _new_match() -> void:
 	them_points = 0
 	match_complete = false
 	match_reported = false
+	player_hand = -1.0
+	player_bias = 1
+	hand_sign = player_hand
+	bias_index = player_bias
 	_begin_end()
 
 
@@ -535,10 +547,9 @@ func _on_disc_aim_changed(_direction: Vector2, power_ratio: float) -> void:
 
 
 func _on_disc_bias_changed(_bias_ratio: float) -> void:
-	if delivering_jack:
+	if delivering_jack or _computer_turn():
 		return
-	hand_sign = disc.hand_sign
-	ui.show_hand(hand_sign < 0.0, _bowl_name(bias_index))
+	ui.show_hand(disc.hand_sign < 0.0, _bowl_name(bias_index))
 
 
 func _on_bias_cycle_requested() -> void:
@@ -547,6 +558,7 @@ func _on_bias_cycle_requested() -> void:
 	feel.tap()
 	disc.toggle_hand()
 	hand_sign = disc.hand_sign
+	player_hand = hand_sign
 	_place_rack()
 
 
@@ -556,6 +568,7 @@ func _on_hand_selected(forehand: bool) -> void:
 	feel.tap()
 	disc.set_hand(-1.0 if forehand else 1.0)
 	hand_sign = disc.hand_sign
+	player_hand = hand_sign
 	_place_rack()
 	ui.show_hand(forehand, _bowl_name(bias_index))
 
@@ -565,6 +578,7 @@ func _on_bias_selected(index: int) -> void:
 		return
 	feel.tap()
 	bias_index = clampi(index, 0, 3)
+	player_bias = bias_index
 	disc.configure_bowl(bias_index, hand_sign)
 	ui.show_bias(bias_index, _side())
 	ui.show_hand(hand_sign < 0.0, _bowl_name(bias_index))
@@ -675,16 +689,18 @@ func _finish_shot(token: int) -> void:
 		respotted = true
 	disc.reset_to_start()
 	if throws_left > 0:
-		var next_hand := hand_sign
 		if _computer_turn():
-			next_hand = -1.0
-			bias_index = 1
-		disc.configure_bowl(bias_index, next_hand)
-		disc.set_palette(_side())
-		hand_sign = disc.hand_sign
-		ui.show_bias(bias_index, _side())
-		ui.show_hand(hand_sign < 0.0, _bowl_name(bias_index))
-		if not _computer_turn():
+			disc.configure_bowl(1, -1.0)
+			disc.set_palette(_side())
+			ui.show_bias(1, _side())
+			ui.show_hand(true, _bowl_name(1))
+		else:
+			bias_index = player_bias
+			hand_sign = player_hand
+			disc.configure_bowl(bias_index, hand_sign)
+			disc.set_palette(_side())
+			ui.show_bias(bias_index, _side())
+			ui.show_hand(hand_sign < 0.0, _bowl_name(bias_index))
 			ui.show_bowl_controls(true)
 	_place_rack()
 	disc.obstacles = _table()
@@ -904,50 +920,92 @@ func _play_computer(token: int) -> void:
 	await get_tree().create_timer(0.7 if fast_play else 0.9).timeout
 	if token != _ai_token or not is_inside_tree() or not _computer_turn() or disc.shot_in_progress:
 		return
-	bias_index = 1
+	var pick: Dictionary = _ai_pick()
+	disc.configure_bowl(int(pick["bias"]), float(pick["hand"]))
+	disc.set_palette(1)
+	ui.show_hand(float(pick["hand"]) < 0.0, _bowl_name(int(pick["bias"])))
+	ui.show_bias(int(pick["bias"]), 1)
+	disc.fire_taken(pick["aim"], float(pick["power"]))
+
+
+func _ai_pick() -> Dictionary:
 	var jack_at: Vector3 = jack.global_position
-	var from := Vector3(randf_range(-0.10, 0.10), 0.0, line_z)
+	var from := Vector3(randf_range(-0.08, 0.08), 0.0, line_z)
 	place_x = from.x
 	disc.start_position = from
 	var along := maxf(from.z - jack_at.z, 8.0)
-	# Better than the last nerf, still beatable. Hard holds a tighter line.
-	var miss := 0.24
+	var miss := 0.18
 	if difficulty == 0:
-		miss = 0.44
+		miss = 0.34
 	elif difficulty >= 2:
-		miss = 0.11
+		miss = 0.09
+	var half: float = rink.HALF_WIDTH
+	var lip: float = half - 0.70
 	var best_aim := Vector3(0.0, 0.0, -1.0)
 	var best_power := 0.55
 	var best_hand := -1.0
+	var best_bias := 1
 	var best_err := 9999.0
-	for hand in [-1.0, 1.0]:
-		disc.configure_bowl(bias_index, hand)
-		var bias: float = disc.bias_ratio
-		var weight: float = disc.weight_for_length(along, bias)
-		for p_off in [-0.04, 0.0, 0.05]:
-			var power: float = clampf(weight + p_off, 0.22, 0.90)
-			for sample in 9:
-				var line := (float(sample) - 4.0) * 0.82
-				var aim := Vector3(line, 0.0, -along).normalized()
-				var rest: Vector3 = disc.predict_rest(from, aim, power, bias)
-				var err := Vector2(rest.x, rest.z).distance_to(Vector2(jack_at.x, jack_at.z))
-				if absf(rest.x) > rink.HALF_WIDTH - 0.45 or rest.z < rink.FAR_Z + 0.6:
-					err += 3.5
-				if err < best_err:
-					best_err = err
-					best_aim = aim
-					best_power = power
-					best_hand = hand
-	disc.configure_bowl(bias_index, best_hand)
-	disc.set_palette(1)
-	hand_sign = disc.hand_sign
-	var scatter := miss * randf_range(0.55, 1.15)
-	var side_miss := randf_range(-scatter, scatter)
-	var long_miss := randf_range(-scatter * 0.55, scatter * 0.85)
-	best_aim = Vector3(best_aim.x + side_miss / along, 0.0, best_aim.z).normalized()
-	best_power = clampf(best_power + long_miss * 0.016, 0.22, 0.90)
-	ui.show_hand(best_hand < 0.0, _bowl_name(bias_index))
-	disc.fire_taken(best_aim, best_power)
+	var found := false
+	# Blaze first, Lazer if the wider bowl cannot stay on the green.
+	for bowl_i in [1, 0]:
+		for hand in [-1.0, 1.0]:
+			disc.configure_bowl(bowl_i, hand)
+			var bias: float = disc.bias_ratio
+			var weight: float = disc.weight_for_length(along, bias)
+			var draw_at: Vector3 = disc.predict_rest(from, Vector3(0.0, 0.0, -1.0), weight, bias)
+			var cancel := jack_at.x - (draw_at.x - from.x)
+			for p_off in [-0.03, 0.0, 0.04]:
+				var power: float = clampf(weight + p_off, 0.22, 0.88)
+				for sample in 11:
+					var wide := (float(sample) - 5.0) * 0.42
+					var line := clampf(cancel + wide, -half + 1.2, half - 1.2)
+					var aim := Vector3(line - from.x, 0.0, jack_at.z - from.z)
+					if aim.length() < 0.01:
+						continue
+					aim = aim.normalized()
+					if disc.will_ditch(from, aim, power, bias):
+						continue
+					var rest: Vector3 = disc.predict_rest(from, aim, power, bias)
+					if absf(rest.x) > lip or rest.z < rink.FAR_Z + 0.8 or rest.z > rink.NEAR_Z - 0.4:
+						continue
+					var err := Vector2(rest.x, rest.z).distance_to(Vector2(jack_at.x, jack_at.z))
+					if err < best_err:
+						best_err = err
+						best_aim = aim
+						best_power = power
+						best_hand = hand
+						best_bias = bowl_i
+						found = true
+		if found:
+			break
+	if not found:
+		best_bias = 0
+		best_hand = -1.0
+		disc.configure_bowl(best_bias, best_hand)
+		var safe_bias: float = disc.bias_ratio
+		best_power = disc.weight_for_length(along, safe_bias)
+		var draw_at: Vector3 = disc.predict_rest(from, Vector3(0.0, 0.0, -1.0), best_power, safe_bias)
+		var cancel := clampf(jack_at.x - (draw_at.x - from.x), -half + 1.4, half - 1.4)
+		best_aim = Vector3(cancel - from.x, 0.0, jack_at.z - from.z)
+		if best_aim.length() < 0.01:
+			best_aim = Vector3(0.0, 0.0, -1.0)
+		else:
+			best_aim = best_aim.normalized()
+	disc.configure_bowl(best_bias, best_hand)
+	var scatter := miss * randf_range(0.40, 1.0)
+	var try_aim := Vector3(best_aim.x + randf_range(-scatter, scatter) / along, 0.0, best_aim.z).normalized()
+	var try_power := clampf(best_power + randf_range(-scatter, scatter) * 0.012, 0.22, 0.88)
+	var try_bias: float = disc.bias_ratio
+	if (not found) or disc.will_ditch(from, try_aim, try_power, try_bias):
+		try_aim = best_aim
+		try_power = best_power
+	else:
+		var rest: Vector3 = disc.predict_rest(from, try_aim, try_power, try_bias)
+		if absf(rest.x) > lip:
+			try_aim = best_aim
+			try_power = best_power
+	return {"aim": try_aim, "power": try_power, "hand": best_hand, "bias": best_bias}
 
 
 func _begin_drive() -> void:
@@ -1454,15 +1512,26 @@ func _pulltest() -> void:
 	_pull_snap(Vector2(150.0, 840.0))
 	for _i in 4:
 		await get_tree().process_frame
-	print("PULLTEST left aim_x=%.3f power=%.2f yaw=%.3f" % [gesture.direct_aim.x if gesture != null else 0.0, gesture.direct_power if gesture != null else 0.0, disc.roll_basis.get_euler().y])
+	var left_x: float = gesture.direct_aim.x if gesture != null else 0.0
+	var left_pow: float = gesture.direct_power if gesture != null else 0.0
+	print("PULLTEST left aim_x=%.3f power=%.2f yaw=%.3f" % [left_x, left_pow, disc.roll_basis.get_euler().y])
 	_set_compare_banner("PULL BOTTOM LEFT • AIM RIGHT")
 	await _dump_compare_shot("pull_bottom_left")
 	_pull_snap(Vector2(390.0, 840.0))
 	for _i in 4:
 		await get_tree().process_frame
-	print("PULLTEST right aim_x=%.3f power=%.2f yaw=%.3f" % [gesture.direct_aim.x if gesture != null else 0.0, gesture.direct_power if gesture != null else 0.0, disc.roll_basis.get_euler().y])
+	var right_x: float = gesture.direct_aim.x if gesture != null else 0.0
+	var right_pow: float = gesture.direct_power if gesture != null else 0.0
+	print("PULLTEST right aim_x=%.3f power=%.2f yaw=%.3f" % [right_x, right_pow, disc.roll_basis.get_euler().y])
+	print("PULLTEST opposite dx=%.3f pow_diff=%.3f" % [absf(left_x + right_x), absf(left_pow - right_pow)])
 	_set_compare_banner("PULL BOTTOM RIGHT • AIM LEFT")
 	await _dump_compare_shot("pull_bottom_right")
+	_pull_snap(Vector2(450.0, 720.0))
+	for _i in 4:
+		await get_tree().process_frame
+	print("PULLTEST far_right aim_x=%.3f power=%.2f fire=%s" % [gesture.direct_aim.x if gesture != null else 0.0, gesture.direct_power if gesture != null else 0.0, str((gesture.direct_power if gesture != null else 0.0) >= 0.07)])
+	_set_compare_banner("PULL FAR RIGHT • STILL FIRES")
+	await _dump_compare_shot("pull_far_right")
 	_pull_snap(Vector2(270.0, 840.0))
 	for _i in 4:
 		await get_tree().process_frame
@@ -1471,8 +1540,8 @@ func _pulltest() -> void:
 	await _dump_compare_shot("pull_straight_full")
 	DirAccess.make_dir_recursive_absolute("/tmp/pull_anim")
 	var frames := 0
-	for i in 20:
-		var t := float(i) / 19.0
+	for i in 8:
+		var t := float(i) / 7.0
 		_pull_snap(Vector2(270.0, 620.0).lerp(Vector2(150.0, 840.0), t))
 		await get_tree().process_frame
 		await RenderingServer.frame_post_draw
@@ -1482,8 +1551,8 @@ func _pulltest() -> void:
 			if img != null:
 				img.save_png("/tmp/pull_anim/%03d.png" % frames)
 				frames += 1
-	for i in 16:
-		var t := float(i) / 15.0
+	for i in 8:
+		var t := float(i) / 7.0
 		_pull_snap(Vector2(150.0, 840.0).lerp(Vector2(390.0, 840.0), t))
 		await get_tree().process_frame
 		await RenderingServer.frame_post_draw
@@ -1494,6 +1563,25 @@ func _pulltest() -> void:
 				img.save_png("/tmp/pull_anim/%03d.png" % frames)
 				frames += 1
 	print("PULLTEST frames=%d" % frames)
+	player_hand = 1.0
+	player_bias = 3
+	hand_sign = player_hand
+	bias_index = player_bias
+	jack.rest_at(Vector3(0.0, 0.0, line_z - 28.0))
+	jack.visible = true
+	var saved_hand := player_hand
+	var pick: Dictionary = _ai_pick()
+	disc.configure_bowl(int(pick["bias"]), float(pick["hand"]))
+	var ai_rest: Vector3 = disc.predict_rest(disc.start_position, pick["aim"], float(pick["power"]), disc.bias_ratio)
+	print("AITEST aim_x=%.3f power=%.2f rest_x=%.2f in_rink=%s ai_hand=%.0f player_hand=%.0f kept=%s" % [
+		pick["aim"].x,
+		float(pick["power"]),
+		ai_rest.x,
+		str(absf(ai_rest.x) < rink.HALF_WIDTH - 0.55),
+		float(pick["hand"]),
+		player_hand,
+		str(is_equal_approx(player_hand, saved_hand)),
+	])
 	print("PULLTEST done")
 	get_tree().quit(0)
 

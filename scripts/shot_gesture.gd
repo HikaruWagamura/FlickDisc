@@ -23,9 +23,9 @@ var _raw_power := 0.0
 var _raw_hold := Vector3.ZERO
 const DIRECT_METRES := 0.78
 const DIRECT_PULL_PX := 235.0
-const DIRECT_SIDE_PX := 155.0
-const DIRECT_AIM_X := 0.34
-const AIM_SMOOTH := 16.0
+## Widest send is about 50° so a right drag still fires up the green.
+const DIRECT_MAX_SIDE := 1.15
+const AIM_SMOOTH := 18.0
 const POWER_SMOOTH := 16.0
 const HOLD_SMOOTH := 14.0
 
@@ -288,38 +288,42 @@ func _direct_input(event: InputEvent) -> void:
 
 
 func _direct_can_start(screen: Vector2) -> bool:
+	if hit_test.is_valid() and bool(hit_test.call(screen)):
+		return true
 	var hovered := get_viewport().gui_get_hovered_control()
 	if hovered != null and hovered.mouse_filter == Control.MOUSE_FILTER_STOP:
 		return false
-	if hit_test.is_valid() and bool(hit_test.call(screen)):
-		return true
 	var view := get_viewport().get_visible_rect().size
-	# The mat sits in the lower half. A press there still takes the bowl.
-	return screen.y > view.y * 0.58 and screen.x > 36.0 and screen.x < view.x - 36.0
+	# The mat sits in the lower half. Keep the right rail open so a
+	# right-hand pull can still take the bowl and fire.
+	return screen.y > view.y * 0.58 and screen.x > 20.0 and screen.x < view.x - 8.0
 
 
 func _apply_direct(screen: Vector2) -> void:
 	finger = screen
 	_travel = maxf(_travel, _from.distance_to(screen))
-	# The green in front of the camera never reaches behind the mat, so the
-	# pull is the finger's own travel. Use the space below the bowl; do not
-	# fill the bar on the first few centimetres of drag.
-	var pull_px := maxf(_pull_pixels(_from, screen), 0.0)
-	var side_px := _side_pixels(_from, screen)
-	if pull_px < 10.0 and absf(side_px) < 6.0:
+	# Screen +x is right, +y is down. World +x is right, -z is up the green.
+	# The send is dead opposite the finger: pull down-left, bowl goes up-right.
+	var pull := screen - _from
+	var dist := pull.length()
+	if dist < 12.0:
 		_raw_power = 0.0
 		_raw_aim = Vector3(0.0, 0.0, -1.0)
 		_raw_hold = anchor
 		return
-	var travel := clampf(pull_px / DIRECT_PULL_PX, 0.0, 1.0)
-	var back := travel * DIRECT_METRES
-	# Slingshot: pull bottom-left, send top-right. Finger left is +side_px.
-	var nudge := 0.0
-	if absf(side_px) > 4.0:
-		nudge = clampf(side_px / DIRECT_SIDE_PX, -1.0, 1.0)
-	_raw_aim = Vector3(nudge * DIRECT_AIM_X, 0.0, -1.0).normalized()
+	var send := Vector3(-pull.x, 0.0, -pull.y)
+	if send.z > -0.08:
+		send.z = -0.08
+	if absf(send.x) > DIRECT_MAX_SIDE * absf(send.z):
+		send.x = signf(send.x) * DIRECT_MAX_SIDE * absf(send.z)
+	if send.length() < 0.001:
+		send = Vector3(0.0, 0.0, -1.0)
+	else:
+		send = send.normalized()
+	var travel := clampf(dist / DIRECT_PULL_PX, 0.0, 1.0)
+	_raw_aim = send
 	_raw_power = pow(travel, 0.84)
-	_raw_hold = anchor + Vector3(-nudge * travel * 0.10, 0.0, back)
+	_raw_hold = anchor + Vector3(-send.x, 0.0, -send.z) * (travel * DIRECT_METRES)
 
 
 func _is_mouse_press(event: InputEvent) -> bool:

@@ -4,13 +4,15 @@ extends CanvasLayer
 
 signal play_requested(setup: Dictionary)
 
-const PINK := Color("#5CFFF2")
+const PINK := Color("#FF3D9A")
 const PINK_DEEP := Color("#FF2E8A")
-const INK := Color("#160824")
-const CARD := Color(0.16, 0.05, 0.28, 0.94)
-const PLUM := Color(0.22, 0.06, 0.38, 0.96)
-const MUTED := Color("#F0D8FF")
+const PINK_GLOW := Color("#FF5CDB")
+const INK := Color("#0A0108")
+const CARD := Color(0.18, 0.04, 0.12, 0.94)
+const PLUM := Color(0.24, 0.04, 0.12, 0.96)
+const MUTED := Color("#F7D4EA")
 const CREAM := Color("#FFF6FF")
+const CHROME := Color("#F0F0F6")
 
 var profile
 var feel
@@ -79,6 +81,7 @@ var friend_code: Label
 var nav: Control
 var nav_icons: Array = []
 var nav_captions: Array = []
+var nav_buttons: Array = []
 var choice_layer: Control
 var choice_box: VBoxContainer
 var online_layer: Control
@@ -249,7 +252,7 @@ func _build_splash() -> void:
 	splash_bar = ColorRect.new()
 	splash_bar.position = Vector2(0, 0)
 	splash_bar.size = Vector2(0, 3)
-	splash_bar.color = Color("#4da3ff")
+	splash_bar.color = PINK
 	splash_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	page.add_child(splash_bar)
 
@@ -596,7 +599,7 @@ func _build_rankings() -> void:
 
 
 func _build_profile() -> void:
-	var built: Dictionary = _column_page(24, 120)
+	var built: Dictionary = _column_page(24, 140)
 	var page := built["page"] as Control
 	var box := built["box"] as VBoxContainer
 	pages["profile"] = page
@@ -644,7 +647,7 @@ func _build_profile() -> void:
 
 
 func _build_customise() -> void:
-	var built: Dictionary = _column_page(24, 120)
+	var built: Dictionary = _column_page(24, 140)
 	var page := built["page"] as Control
 	var box := built["box"] as VBoxContainer
 	pages["customise"] = page
@@ -670,7 +673,7 @@ func _build_customise() -> void:
 
 
 func _build_shop() -> void:
-	var built: Dictionary = _column_page(24, 120)
+	var built: Dictionary = _column_page(24, 140)
 	var page := built["page"] as Control
 	var box := built["box"] as VBoxContainer
 	pages["shop"] = page
@@ -684,7 +687,7 @@ func _build_shop() -> void:
 
 
 func _build_settings() -> void:
-	var built: Dictionary = _column_page(24, 120)
+	var built: Dictionary = _column_page(24, 140)
 	var page := built["page"] as Control
 	var box := built["box"] as VBoxContainer
 	pages["settings"] = page
@@ -708,40 +711,47 @@ func _build_settings() -> void:
 
 func _build_nav() -> void:
 	nav = Panel.new()
-	nav.position = Vector2(0, 868)
-	nav.size = Vector2(540, 92)
-	nav.add_theme_stylebox_override("panel", _flat(Color("#0c0a10"), Color(1, 0.3, 0.55, 0.45), 1, 0, 0))
+	nav.position = Vector2(14, 842)
+	nav.size = Vector2(512, 104)
+	nav.add_theme_stylebox_override("panel", _flat(Color(0.08, 0.01, 0.05, 0.96), PINK, 2, 28, 0))
 	root.add_child(nav)
+	var glow := ColorRect.new()
+	glow.position = Vector2(28, 2)
+	glow.size = Vector2(456, 3)
+	glow.color = PINK_GLOW
+	glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	nav.add_child(glow)
 	var row := HBoxContainer.new()
-	row.position = Vector2(0, 8)
-	row.size = Vector2(540, 80)
-	row.add_theme_constant_override("separation", 0)
+	row.position = Vector2(8, 10)
+	row.size = Vector2(496, 86)
+	row.add_theme_constant_override("separation", 4)
 	nav.add_child(row)
 	_nav_item(row, "home", "HOME")
-	_nav_item(row, "profile", "PROFILE")
-	_nav_item(row, "customise", "CUSTOMISE")
+	_nav_item(row, "profile", "ME")
+	_nav_item(row, "customise", "BOWLS")
 	_nav_item(row, "shop", "SHOP")
-	_nav_item(row, "settings", "SETTINGS")
+	_nav_item(row, "settings", "GEAR")
 
 
 func _nav_item(row: HBoxContainer, ident: String, caption: String) -> void:
 	var button := Button.new()
 	button.text = ""
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	button.custom_minimum_size = Vector2(0, 78)
-	_paint_button(button, Color(0, 0, 0, 0), Color(0, 0, 0, 0), CREAM, 8, 0)
+	button.custom_minimum_size = Vector2(0, 86)
+	_paint_button(button, Color(0, 0, 0, 0), Color(0, 0, 0, 0), CREAM, 18, 0)
 	var icon := Mark.new()
 	icon.kind = ident
-	icon.custom_minimum_size = Vector2(26, 26)
+	icon.custom_minimum_size = Vector2(44, 44)
+	icon.size = Vector2(44, 44)
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	var label := _label(caption, 10, MUTED, bold_font)
+	var label := _label(caption, 11, MUTED, bold_font)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var box := VBoxContainer.new()
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
 	box.set_anchors_preset(Control.PRESET_FULL_RECT)
-	box.add_theme_constant_override("separation", 4)
+	box.add_theme_constant_override("separation", 6)
 	box.add_child(icon)
 	box.add_child(label)
 	button.add_child(box)
@@ -749,6 +759,7 @@ func _nav_item(row: HBoxContainer, ident: String, caption: String) -> void:
 	row.add_child(button)
 	nav_icons.append(icon)
 	nav_captions.append(label)
+	nav_buttons.append(button)
 
 
 func _build_choice_layer() -> void:
@@ -1198,7 +1209,11 @@ func _paint_nav(current: String) -> void:
 		var caption := nav_captions[i] as Label
 		var lit := icon.kind == current
 		icon.set_lit(lit)
-		caption.add_theme_color_override("font_color", PINK if lit else Color("#8d7d88"))
+		caption.add_theme_color_override("font_color", CREAM if lit else Color("#C48AA8"))
+		if i < nav_buttons.size():
+			var fill := Color(1.0, 0.22, 0.55, 0.28) if lit else Color(0, 0, 0, 0)
+			var border := PINK if lit else Color(0, 0, 0, 0)
+			_paint_button(nav_buttons[i], fill, border, CREAM, 18, 0)
 
 
 func _initial() -> String:
@@ -1498,30 +1513,61 @@ class Mark extends Control:
 		queue_redraw()
 
 	func _draw() -> void:
-		var color := Color("#ff3d8a") if lit else Color("#8d7d88")
 		var box := size
 		if box.x < 2.0:
-			box = Vector2(26, 26)
+			box = Vector2(44, 44)
 		var mid := box * 0.5
+		var pink := Color("#FF3D9A")
+		var chrome := Color("#F4F4FA")
+		var dim := Color(0.72, 0.42, 0.56, 0.95)
+		var ink := chrome if lit else dim
+		draw_circle(mid, mid.x - 1.0, Color(pink.r, pink.g, pink.b, 0.22 if lit else 0.08))
+		if lit:
+			draw_circle(mid, mid.x - 5.0, Color(1.0, 0.28, 0.58, 0.42))
+			draw_arc(mid, mid.x - 2.0, 0.0, TAU, 36, pink, 2.4, true)
 		if kind == "home":
-			draw_colored_polygon(PackedVector2Array([
-				Vector2(mid.x, 3),
-				Vector2(box.x - 2, mid.y + 1),
-				Vector2(box.x - 6, mid.y + 1),
-				Vector2(box.x - 6, box.y - 3),
-				Vector2(6, box.y - 3),
-				Vector2(6, mid.y + 1),
-				Vector2(2, mid.y + 1),
-			]), color)
+			var roof := PackedVector2Array([
+				Vector2(mid.x, 6),
+				Vector2(box.x - 6, 18),
+				Vector2(box.x - 12, 18),
+				Vector2(mid.x, 10),
+				Vector2(12, 18),
+				Vector2(6, 18),
+			])
+			draw_colored_polygon(roof, ink)
+			draw_rect(Rect2(12, 18, box.x - 24, 18), ink, true)
+			draw_rect(Rect2(mid.x - 4, 24, 8, 12), Color("#1A0610") if lit else Color(0.12, 0.04, 0.08, 0.85), true)
 		elif kind == "profile":
-			draw_arc(Vector2(mid.x, 8), 4.2, 0, TAU, 16, color, 1.7, true)
-			draw_arc(Vector2(mid.x, 24), 8, PI + 0.4, TAU - 0.4, 16, color, 1.7, true)
+			draw_circle(Vector2(mid.x, 14), 7.0, ink)
+			draw_colored_polygon(PackedVector2Array([
+				Vector2(mid.x, 22),
+				Vector2(box.x - 8, 38),
+				Vector2(8, 38),
+			]), ink)
 		elif kind == "customise":
-			draw_arc(mid, 8, 0, TAU, 24, color, 1.7, true)
-			draw_circle(mid, 2.4, color)
+			draw_circle(mid, 14.0, ink)
+			draw_circle(mid, 9.0, Color("#1A0610") if lit else Color(0.12, 0.04, 0.08, 0.9))
+			draw_circle(mid, 3.2, pink)
+			draw_arc(mid, 14.0, -0.4, 2.2, 16, Color("#FFF6FF") if lit else Color(1, 1, 1, 0.35), 2.4, true)
 		elif kind == "shop":
-			draw_rect(Rect2(6, 10, box.x - 12, box.y - 14), color, false, 1.7)
-			draw_arc(Vector2(mid.x, 10), 4, PI, TAU, 12, color, 1.7, true)
+			var bag := PackedVector2Array([
+				Vector2(12, 16),
+				Vector2(box.x - 12, 16),
+				Vector2(box.x - 9, 38),
+				Vector2(9, 38),
+			])
+			draw_colored_polygon(bag, ink)
+			draw_arc(Vector2(mid.x, 16), 8.0, PI, TAU, 14, ink, 2.6, true)
+			draw_circle(Vector2(mid.x, 26), 3.0, pink)
 		else:
-			draw_arc(mid, 7, 0, TAU, 20, color, 1.7, true)
-			draw_circle(mid, 2.2, color)
+			_gear(mid, 13.0, ink)
+			draw_circle(mid, 4.2, Color("#1A0610") if lit else Color(0.12, 0.04, 0.08, 0.9))
+			draw_circle(mid, 2.0, pink)
+
+	func _gear(mid: Vector2, radius: float, color: Color) -> void:
+		var pts := PackedVector2Array()
+		for i in 16:
+			var ang := float(i) * TAU / 16.0 - PI * 0.5
+			var r := radius if i % 2 == 0 else radius * 0.62
+			pts.append(mid + Vector2(cos(ang), sin(ang)) * r)
+		draw_colored_polygon(pts, color)

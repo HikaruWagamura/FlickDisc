@@ -18,9 +18,9 @@ const CRUISE_SPEED := 16.0
 const FIRE_SPEED := 19.6
 const MAX_SPEED := FIRE_SPEED
 const AIM_RESPONSE := 10.5
-## The send is only ~15° even on a wide pull. Scale the facing so the
-## painted equator follows the 5+3 on camera.
-const AIM_YAW_SCALE := 2.8
+## Face the actual send. The pull is already dead opposite, so do not
+## exaggerate the equator past the 5+3.
+const AIM_YAW_SCALE := 1.0
 const DIAL_POWER_PIXELS := 148.0
 const DIAL_SIDE_PIXELS := 132.0
 const LINE_LOCK_PIXELS := 36.0
@@ -849,7 +849,9 @@ func grass_cue(power: float) -> PackedVector3Array:
 	var out := PackedVector3Array()
 	var lean := 0.0
 	if (not delivering_jack) and absf(bias_ratio) > 0.04:
-		lean = clampf(bias_ratio * 0.26, -0.70, 0.70)
+		# A hint of hand only. The blocks sit on the send, which is
+		# dead opposite the pull.
+		lean = clampf(bias_ratio * 0.08, -0.18, 0.18)
 	var perp := Vector3(-flat.z, 0.0, flat.x)
 	for step in 28:
 		var t := float(step) / 27.0
