@@ -56,13 +56,14 @@ func guide_points() -> PackedVector3Array:
 
 
 func cue_points(_power: float) -> PackedVector3Array:
-	# Crokinole is a straight flick. The eight heads sit on the aim line.
+	# Crokinole is a straight flick. Five heads on a short line so the
+	# cue does not run the full board.
 	var dir := Vector3(aim_direction.x, 0.0, aim_direction.z)
 	if dir.length() < 0.001:
 		dir = Vector3(0.0, 0.0, -1.0)
 	dir = dir.normalized()
 	var start := Vector3(global_position.x, 0.0, global_position.z)
-	var length := 1.05
+	var length := 0.52
 	var out := PackedVector3Array()
 	for step in 16:
 		var t := float(step) / 15.0

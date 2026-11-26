@@ -144,6 +144,8 @@ func _ready() -> void:
 		call_deferred("_solotest")
 	elif _wants_cuetest():
 		call_deferred("_cuetest")
+	elif OS.get_cmdline_user_args().has("--handtest"):
+		call_deferred("_handtest")
 
 
 func _process(delta: float) -> void:
@@ -521,6 +523,7 @@ func _on_disc_aim_changed(_direction: Vector2, power_ratio: float) -> void:
 func _on_disc_bias_changed(_bias_ratio: float) -> void:
 	if delivering_jack:
 		return
+	hand_sign = disc.hand_sign
 	ui.show_hand(hand_sign < 0.0, _bowl_name(bias_index))
 
 
@@ -1207,6 +1210,7 @@ func _cuetest() -> void:
 	disc.obstacles = _table()
 	_place_rack()
 	ui.show_bias(bias_index, 0)
+	ui.show_bowl_controls(true)
 	ui.show_hand(true, _bowl_name(bias_index))
 	ui.show_match("AIM CUE")
 	_use_cue_kind(0)
@@ -1216,6 +1220,7 @@ func _cuetest() -> void:
 		{"power": 0.18, "bias": 3, "hand": -1.0, "aim": Vector3(0.22, 0.0, -1.0), "file": "blocks_light", "title": "5 + 3  •  LIGHT  •  ICE", "kind": 0},
 		{"power": 0.52, "bias": 3, "hand": -1.0, "aim": Vector3(0.22, 0.0, -1.0), "file": "blocks_mid", "title": "5 + 3  •  MID  •  PINK", "kind": 0},
 		{"power": 0.92, "bias": 3, "hand": -1.0, "aim": Vector3(0.22, 0.0, -1.0), "file": "blocks_heavy", "title": "5 + 3  •  FULL  •  RED", "kind": 0},
+		{"power": 0.92, "bias": 3, "hand": 1.0, "aim": Vector3(0.22, 0.0, -1.0), "file": "blocks_backhand", "title": "5 + 3  •  BACKHAND", "kind": 0},
 		{"power": 0.90, "bias": 3, "hand": 1.0, "aim": Vector3(-0.22, 0.0, -1.0), "file": "blocks_left", "title": "5 + 3  •  AIM LEFT", "kind": 0},
 		{"power": 0.90, "bias": 1, "hand": -1.0, "aim": Vector3(0.0, 0.0, -1.0), "file": "blocks_jack", "title": "JACK  •  STRAIGHT", "kind": 0, "jack": true},
 		{"power": 0.96, "bias": 3, "hand": -1.0, "aim": Vector3(0.22, 0.0, -1.0), "file": "solid_heavy", "title": "SOLID  •  FULL WEIGHT", "kind": 1},
@@ -1225,10 +1230,15 @@ func _cuetest() -> void:
 		_compare_power = float(step["power"])
 		var aim: Vector3 = step["aim"]
 		_compare_aim = aim.normalized()
-		disc.configure_bowl(int(step["bias"]), float(step["hand"]))
-		disc.set_palette(0)
 		delivering_jack = bool(step.get("jack", false))
-		disc.delivering_jack = delivering_jack
+		if delivering_jack:
+			disc.configure_jack()
+			ui.show_bowl_controls(false)
+		else:
+			disc.configure_bowl(int(step["bias"]), float(step["hand"]))
+			disc.set_palette(0)
+			ui.show_bowl_controls(true)
+			ui.show_hand(float(step["hand"]) < 0.0, _bowl_name(int(step["bias"])))
 		_set_compare_banner(str(step["title"]))
 		_sync_compare_cue()
 		await get_tree().create_timer(1.8).timeout
@@ -1244,6 +1254,34 @@ func _cuetest() -> void:
 	_set_compare_banner("5 + 3  •  FULL  •  RED")
 	_sync_compare_cue()
 	await get_tree().create_timer(2.0).timeout
+	get_tree().quit(0)
+
+
+func _handtest() -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if gesture != null:
+		gesture.busy()
+	delivering_jack = false
+	disc.configure_bowl(3, -1.0)
+	disc.set_palette(0)
+	ui.show_bowl_controls(true)
+	ui.show_hand(true, "HOOK")
+	_set_compare_banner("FOREHAND")
+	_compare_power = 0.9
+	_compare_aim = Vector3(0.22, 0.0, -1.0).normalized()
+	_cue_compare = true
+	_sync_compare_cue()
+	await get_tree().create_timer(0.8).timeout
+	await _dump_compare_shot("hand_fore")
+	disc.set_hand(1.0)
+	hand_sign = disc.hand_sign
+	ui.show_hand(false, "HOOK")
+	_set_compare_banner("BACKHAND")
+	_sync_compare_cue()
+	await get_tree().create_timer(0.6).timeout
+	await _dump_compare_shot("hand_back")
+	print("HANDTEST done")
 	get_tree().quit(0)
 
 

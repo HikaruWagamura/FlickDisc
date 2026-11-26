@@ -21,12 +21,15 @@ const STYLE_BOTH := 2
 ## First two stay full size so they still read on the grass. The third
 ## sits 5% smaller, then 90, 90, 85, 80, and 70 at the tip.
 const TAPER := [1.00, 1.00, 0.95, 0.90, 0.90, 0.85, 0.80, 0.70]
-## Start where the old second head sat, so the first block clears the bowl.
+## Bowls start where the old second head sat, so the first block clears
+## the stone. Crokinole pulls path_start in because the disc is smaller.
 const T_START := 0.223
 const T_END := 0.96
 
 var style := STYLE_BLOCKS
 var size_scale := 1.0
+var head_count := MAX_ARROWS
+var path_start := T_START
 var _material: ShaderMaterial
 var _chevron: ArrayMesh
 var _local_centre := Vector3.ZERO
@@ -96,6 +99,18 @@ func set_style(which: int) -> void:
 
 func set_size_scale(value: float) -> void:
 	size_scale = clampf(value, 0.15, 2.5)
+	if _showing:
+		_place()
+
+
+func set_heads(count: int) -> void:
+	head_count = clampi(count, 1, MAX_ARROWS)
+	if _showing:
+		_place()
+
+
+func set_path_start(t: float) -> void:
+	path_start = clampf(t, 0.0, 0.6)
 	if _showing:
 		_place()
 
@@ -251,7 +266,7 @@ func present(path: PackedVector3Array, power: float, _facing: Vector3 = Vector3.
 	_showing = true
 	_path = path
 	_power = clampf(power, 0.0, 1.0)
-	_count = MAIN_ARROWS
+	_count = head_count
 	_place()
 
 
@@ -296,7 +311,8 @@ func _place_blocks() -> void:
 	var amount := _power
 	var wave := float(Time.get_ticks_msec()) * 0.001
 	var length := _path_length()
-	var total := MAX_ARROWS
+	var total := head_count
+	var start_t := path_start
 	var body := maxf(_local_size.z, 0.18)
 	var fit := (length * 0.88) / maxf(float(total), 1.0)
 	var scale_l := clampf(fit / body, 0.10, 0.60) * size_scale
@@ -312,9 +328,9 @@ func _place_blocks() -> void:
 			mi.visible = false
 			continue
 		mi.visible = true
-		var t := T_START
+		var t := start_t
 		if total > 1:
-			t = lerpf(T_START, T_END, float(i) / float(total - 1))
+			t = lerpf(start_t, T_END, float(i) / float(total - 1))
 		var taper := 0.70
 		if i < TAPER.size():
 			taper = float(TAPER[i])

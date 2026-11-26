@@ -339,7 +339,9 @@ func _wire_shot() -> void:
 	ui.add_child(fan)
 	cue = preload("res://scripts/aim_cue.gd").new()
 	cue.name = "AimCue"
-	cue.set_size_scale(0.62)
+	cue.set_heads(5)
+	cue.set_path_start(0.07)
+	cue.set_size_scale(0.70)
 	add_child(cue)
 
 
