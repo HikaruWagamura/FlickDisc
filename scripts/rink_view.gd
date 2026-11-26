@@ -26,7 +26,7 @@ func prepare_span(next_length: float, next_half: float) -> void:
 var head: Node3D
 var _camera: Camera3D
 ## Chase rides behind the running bowl. Behind stays on the mat and looks up the green.
-var chase := false
+var chase := true
 var _aiming := false
 var _shot_pos := Vector3(0.0, 0.0, -4.0)
 var _shot_vel := Vector3.ZERO
@@ -566,7 +566,7 @@ func _build_surrounds() -> void:
 			_tree(self, Vector3(-9.6, 0.0, z + 1.6), rng.randf_range(1.05, 1.35), rng)
 
 	var banner_x := HALF_WIDTH + DITCH_W + 0.35
-	var near_banner := "THE LONG\nGREEN" if LENGTH > 200.0 else "FLICK\nBOWLS"
+	var near_banner := "THE LONG\nGREEN" if LENGTH > 200.0 else "FLICK\nDISC"
 	var far_banner := "FIND THE\nMARK" if LENGTH > 200.0 else "DRAW\nTHE LINE"
 	_banner(self, Vector3(banner_x, 0.0, -LENGTH * 0.18), near_banner, Color(0.10, 0.32, 0.18))
 	_banner(self, Vector3(-banner_x, 0.0, -LENGTH * 0.18), near_banner, Color(0.10, 0.32, 0.18))
@@ -629,7 +629,7 @@ func _build_clubhouse() -> void:
 
 	var plaque := _lit(Color(0.10, 0.22, 0.38), 0.45, 0.1)
 	_box(club, Vector3(0.0, 3.15, front_z + 0.02), Vector3(4.4, 0.62, 0.08), plaque, Vector3.ZERO, false)
-	var sign := _label("FLICK BOWLS", 0.42)
+	var sign := _label("FLICKDISC", 0.42)
 	sign.position = Vector3(0.0, 3.15, front_z + 0.1)
 	club.add_child(sign)
 

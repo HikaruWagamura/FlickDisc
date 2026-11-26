@@ -146,6 +146,8 @@ func _ready() -> void:
 		call_deferred("_cuetest")
 	elif OS.get_cmdline_user_args().has("--handtest"):
 		call_deferred("_handtest")
+	elif OS.get_cmdline_user_args().has("--fixtest"):
+		call_deferred("_fixtest")
 
 
 func _process(delta: float) -> void:
@@ -861,32 +863,46 @@ func _play_computer(token: int) -> void:
 	if token != _ai_token or not is_inside_tree() or not _computer_turn() or disc.shot_in_progress:
 		return
 	bias_index = 1
-	var hand := -1.0
-	disc.configure_bowl(bias_index, hand)
-	disc.set_palette(1)
-	hand_sign = disc.hand_sign
-	var miss := 0.55
-	if difficulty == 0:
-		miss = 1.15
-	elif difficulty >= 2:
-		miss = 0.18
-	var target: Vector3 = jack.global_position + Vector3(randf_range(-miss, miss), 0.0, 0.7)
-	var from := Vector3(randf_range(-0.25, 0.25), 0.0, line_z)
+	var jack_at: Vector3 = jack.global_position
+	var from := Vector3(randf_range(-0.10, 0.10), 0.0, line_z)
 	place_x = from.x
 	disc.start_position = from
-	var along := maxf(from.z - target.z, 6.0)
-	var power: float = disc.weight_for_length(along, disc.bias_ratio)
-	var best_aim := Vector3(0.4, 0.0, -1.0).normalized()
+	var along := maxf(from.z - jack_at.z, 8.0)
+	var miss := 0.24
+	if difficulty == 0:
+		miss = 0.48
+	elif difficulty >= 2:
+		miss = 0.11
+	var best_aim := Vector3(0.0, 0.0, -1.0)
+	var best_power := 0.55
+	var best_hand := -1.0
 	var best_err := 9999.0
-	for sample in 7:
-		var aim_x: float = target.x - from.x + 1.35 + (float(sample) - 3.0) * 0.4
-		var aim := Vector3(aim_x, 0.0, -along).normalized()
-		var rest: Vector3 = disc.predict_rest(from, aim, power, disc.bias_ratio)
-		var err := Vector2(rest.x, rest.z).distance_to(Vector2(target.x, target.z))
-		if err < best_err:
-			best_err = err
-			best_aim = aim
-	disc.fire_taken(best_aim, power)
+	for hand in [-1.0, 1.0]:
+		disc.configure_bowl(bias_index, hand)
+		var bias: float = disc.bias_ratio
+		var weight: float = disc.weight_for_length(along, bias)
+		for p_off in [-0.03, 0.0, 0.04]:
+			var power: float = clampf(weight + p_off, 0.22, 0.92)
+			for sample in 13:
+				var line := (float(sample) - 6.0) * 0.32
+				var aim := Vector3(line, 0.0, -along).normalized()
+				var rest: Vector3 = disc.predict_rest(from, aim, power, bias)
+				var err := Vector2(rest.x, rest.z).distance_to(Vector2(jack_at.x, jack_at.z))
+				if absf(rest.x) > rink.HALF_WIDTH - 0.45 or rest.z < rink.FAR_Z + 0.6:
+					err += 3.5
+				if err < best_err:
+					best_err = err
+					best_aim = aim
+					best_power = power
+					best_hand = hand
+	disc.configure_bowl(bias_index, best_hand)
+	disc.set_palette(1)
+	hand_sign = disc.hand_sign
+	var noise := miss * 0.045
+	best_aim = (best_aim + Vector3(randf_range(-noise, noise), 0.0, 0.0)).normalized()
+	best_power = clampf(best_power + randf_range(-miss, miss) * 0.035, 0.22, 0.92)
+	ui.show_hand(best_hand < 0.0, _bowl_name(bias_index))
+	disc.fire_taken(best_aim, best_power)
 
 
 func _begin_drive() -> void:
@@ -1254,6 +1270,55 @@ func _cuetest() -> void:
 	_set_compare_banner("5 + 3  •  FULL  •  RED")
 	_sync_compare_cue()
 	await get_tree().create_timer(2.0).timeout
+	get_tree().quit(0)
+
+
+func _fixtest() -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if gesture != null:
+		gesture.busy()
+	print("FIXTEST rink=%.1fx%.1f chase=%s" % [rink.LENGTH, rink.HALF_WIDTH * 2.0, rink.chase])
+	ui.show_camera_mode(rink.chase)
+	await _dump_compare_shot("fix_follow_idle")
+	disc.configure_jack()
+	disc.reset_to_start()
+	disc.fire_taken(Vector3(0.0, 0.0, -1.0), disc.weight_for_length(23.0, 0.0))
+	var low := 999.0
+	var high := -999.0
+	for _i in 36:
+		await get_tree().process_frame
+		var bottom: float = disc.visual_bottom()
+		low = minf(low, bottom)
+		high = maxf(high, bottom)
+		if _i == 8:
+			await _dump_compare_shot("fix_jack_roll")
+	print("FIXTEST jack_bottom min=%.3f max=%.3f span=%.3f" % [low, high, high - low])
+	await _wait_jack()
+	ui._open_pause()
+	await get_tree().create_timer(0.25).timeout
+	await _dump_compare_shot("fix_pause")
+	ui._resume_game()
+	var from := Vector3(0.0, 0.0, line_z)
+	var jack_at: Vector3 = jack.global_position
+	var along := maxf(from.z - jack_at.z, 8.0)
+	var best := 999.0
+	for hand in [-1.0, 1.0]:
+		disc.configure_bowl(1, hand)
+		var bias: float = disc.bias_ratio
+		var power: float = disc.weight_for_length(along, bias)
+		for sample in 13:
+			var aim := Vector3((float(sample) - 6.0) * 0.32, 0.0, -along).normalized()
+			var rest: Vector3 = disc.predict_rest(from, aim, power, bias)
+			best = minf(best, Vector2(rest.x, rest.z).distance_to(Vector2(jack_at.x, jack_at.z)))
+	print("FIXTEST ai_draw=%.2f chase=%s cam=%s" % [best, rink.chase, ui.camera_button.text])
+	ui.show_bowl_controls(true)
+	ui.show_hand(true, "HOOK")
+	await _dump_compare_shot("fix_hand_fore")
+	disc.set_hand(1.0)
+	ui.show_hand(false, "HOOK")
+	await _dump_compare_shot("fix_hand_back")
+	print("FIXTEST done")
 	get_tree().quit(0)
 
 

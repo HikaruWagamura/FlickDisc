@@ -82,6 +82,8 @@ var _shadow: MeshInstance3D
 var _guide: Node3D
 var _dots: Array[MeshInstance3D] = []
 var _jack_visual: Node3D
+var _jack_spin: Node3D
+var _jack_sit := 0.162
 var _bias_pip: Node3D
 var _stone: Node3D
 var _bowl_index := -1
@@ -134,6 +136,27 @@ func _physics_process(delta: float) -> void:
 			body.present(body.velocity.length())
 	if _impact_speed > 0.45:
 		impacted.emit(_impact_speed, _impact_jack, _impact_bank)
+
+
+func visual_bottom() -> float:
+	var root := _jack_visual if delivering_jack else _visual
+	if root == null:
+		return global_position.y
+	return _mesh_bottom(root)
+
+
+func _mesh_bottom(node: Node) -> float:
+	var bottom := INF
+	var mi := node as MeshInstance3D
+	if mi != null and mi.mesh != null:
+		var aabb: AABB = mi.mesh.get_aabb()
+		var xf: Transform3D = mi.global_transform
+		for i in 8:
+			var corner := aabb.position + aabb.size * Vector3(i & 1, (i >> 1) & 1, (i >> 2) & 1)
+			bottom = minf(bottom, (xf * corner).y)
+	for child in node.get_children():
+		bottom = minf(bottom, _mesh_bottom(child))
+	return bottom if bottom < INF else node.global_position.y
 
 
 func configure_jack() -> void:
@@ -680,12 +703,15 @@ func _apply_visual(speed: float) -> void:
 	if delivering_jack:
 		if _visual != null:
 			_visual.visible = false
-		if _jack_visual != null:
-			_jack_visual.visible = true
 			_visual.position = Vector3.ZERO
 			_visual.basis = Basis.IDENTITY
-			_jack_visual.position = Vector3(0.0, BowlScript.GROUND_CLEAR + hop, 0.0)
-			_jack_visual.transform.basis = _aim_basis(speed) * roll_basis
+		if _jack_visual != null:
+			_jack_visual.visible = true
+			# Sit on the grass at the jack's centre so roll cannot dip it.
+			_jack_visual.position = Vector3(0.0, _jack_sit, 0.0)
+			_jack_visual.basis = Basis.IDENTITY
+			if _jack_spin != null:
+				_jack_spin.basis = _aim_basis(speed) * roll_basis
 			_seat_shadow(BowlScript.JACK_RADIUS)
 	else:
 		if _visual != null:
@@ -853,7 +879,7 @@ func _build_visual() -> void:
 	_jack_visual.visible = false
 	add_child(_jack_visual)
 	_mount_pack_jack()
-	_jack_visual.position = Vector3(0.0, BowlScript.GROUND_CLEAR, 0.0)
+	_jack_visual.position = Vector3(0.0, _jack_sit, 0.0)
 
 
 func _mount_pack_jack() -> void:
@@ -864,10 +890,12 @@ func _mount_pack_jack() -> void:
 	jack_mat.emission_energy_multiplier = 0.18
 	var mesh: Mesh = BowlScript.jack_mesh()
 	var ball := MeshInstance3D.new()
+	_jack_sit = BowlScript.JACK_RADIUS + BowlScript.GROUND_CLEAR
 	if mesh != null:
 		ball.mesh = mesh
 		BowlScript._fit_mesh(ball, BowlScript.JACK_RADIUS * 2.0, true)
-		_seat_mesh_on_grass(ball)
+		var aabb := ball.mesh.get_aabb()
+		_jack_sit = aabb.size.y * absf(ball.scale.y) * 0.5 + BowlScript.GROUND_CLEAR
 	else:
 		var sphere := SphereMesh.new()
 		sphere.radius = BowlScript.JACK_RADIUS
@@ -875,23 +903,11 @@ func _mount_pack_jack() -> void:
 		sphere.radial_segments = 24
 		sphere.rings = 12
 		ball.mesh = sphere
-		ball.position = Vector3(0.0, BowlScript.JACK_RADIUS, 0.0)
 	ball.material_override = jack_mat
 	ball.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	_jack_visual.add_child(ball)
-
-
-func _seat_mesh_on_grass(mi: MeshInstance3D) -> void:
-	if mi.mesh == null:
-		return
-	var aabb := mi.mesh.get_aabb()
-	var xf := mi.transform
-	var bottom := INF
-	for i in 8:
-		var corner := aabb.position + aabb.size * Vector3(i & 1, (i >> 1) & 1, (i >> 2) & 1)
-		bottom = minf(bottom, (xf * corner).y)
-	if bottom < INF:
-		mi.position.y -= bottom
+	_jack_spin = Node3D.new()
+	_jack_visual.add_child(_jack_spin)
+	_jack_spin.add_child(ball)
 
 
 func _redress_bowl(index: int) -> void:

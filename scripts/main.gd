@@ -28,6 +28,9 @@ func _ready() -> void:
 
 
 func _apply_host() -> void:
+	if OS.get_cmdline_user_args().has("--menutest"):
+		_menutest()
+		return
 	if OS.has_feature("web"):
 		menu.rink = "lawn"
 		menu.open_screen("setup")
@@ -114,6 +117,31 @@ func _play(setup: Dictionary) -> void:
 		ui.leave_requested.connect(_leave)
 
 
+func _menutest() -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	_dump_menu("menu_splash")
+	menu.open_screen("home")
+	await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	_dump_menu("menu_home")
+	print("MENUTEST done")
+	get_tree().quit(0)
+
+
+func _dump_menu(name: String) -> void:
+	var tex: Texture2D = get_viewport().get_texture()
+	if tex == null:
+		return
+	var img := tex.get_image()
+	if img == null:
+		return
+	DirAccess.make_dir_recursive_absolute("/opt/cursor/artifacts")
+	img.save_png("/opt/cursor/artifacts/%s.png" % name)
+	print("MENU_SHOT %s" % name)
+
+
 func _leave() -> void:
 	_close_game()
 	menu.open_screen(return_screen)
@@ -136,6 +164,7 @@ func _on_solo(end_number: int) -> void:
 
 
 func _close_game() -> void:
+	get_tree().paused = false
 	if current == null:
 		return
 	var old_camera := current.find_child("Camera3D", true, false) as Camera3D

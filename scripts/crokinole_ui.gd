@@ -23,14 +23,16 @@ var overview_title: Label
 var overview_rules: Label
 var overview_body: RichTextLabel
 var _count_token := 0
+var pause_layer: Control
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	_make_scrim(Rect2(0.0, 0.0, 540.0, 108.0), Color(0.03, 0.02, 0.04, 0.72))
 
 	var menu_button := _make_button("MENU", Vector2(16.0, 10.0), Vector2(104.0, 32.0))
 	menu_button.add_theme_stylebox_override("normal", _button_style(Color("#ff4d9a"), Color("#ffd0e8")))
 	menu_button.add_theme_color_override("font_color", Color("#1a0a12"))
-	menu_button.pressed.connect(func() -> void: leave_requested.emit())
+	menu_button.pressed.connect(_open_pause)
 	level_label = _make_label(Vector2(300.0, 10.0), Vector2(216.0, 22.0), 16, Color("#f7fbff"), "LEVEL 01")
 	level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	throws_label = _make_label(Vector2(300.0, 34.0), Vector2(216.0, 18.0), 12, Color("#8fd7ea"), "8 DISCS")
@@ -58,6 +60,7 @@ func _ready() -> void:
 	stop_button.visible = false
 	next_button.text = "NEXT END"
 	_build_overview()
+	_build_pause()
 
 func show_touch(level_number: int, discs_left: int, you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0) -> void:
 	hide_overview()
@@ -282,6 +285,59 @@ func _bias_name() -> String:
 	if current_bias > 0.5:
 		return "RIGHT"
 	return "CENTER"
+
+func _build_pause() -> void:
+	pause_layer = Control.new()
+	pause_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	pause_layer.visible = false
+	pause_layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	pause_layer.process_mode = Node.PROCESS_MODE_ALWAYS
+	pause_layer.z_index = 40
+	add_child(pause_layer)
+	var dim := ColorRect.new()
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0.04, 0.02, 0.08, 0.82)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	pause_layer.add_child(dim)
+	var resume := Button.new()
+	resume.text = "RESUME"
+	resume.position = Vector2(70.0, 380.0)
+	resume.size = Vector2(400.0, 64.0)
+	resume.add_theme_font_size_override("font_size", 20)
+	resume.add_theme_stylebox_override("normal", _button_style(Color("#ff4d9a"), Color("#ffd0e8")))
+	resume.add_theme_color_override("font_color", Color("#1a0a12"))
+	resume.pressed.connect(_resume_game)
+	pause_layer.add_child(resume)
+	var hub := Button.new()
+	hub.text = "HUB"
+	hub.position = Vector2(70.0, 460.0)
+	hub.size = Vector2(400.0, 64.0)
+	hub.add_theme_font_size_override("font_size", 20)
+	hub.add_theme_stylebox_override("normal", _button_style(Color("#123849"), Color("#397d88")))
+	hub.add_theme_color_override("font_color", Color("#e9fbff"))
+	hub.pressed.connect(_leave_to_hub)
+	pause_layer.add_child(hub)
+
+
+func _open_pause() -> void:
+	if pause_layer != null and pause_layer.visible:
+		_resume_game()
+		return
+	if pause_layer != null:
+		pause_layer.visible = true
+	get_tree().paused = true
+
+
+func _resume_game() -> void:
+	if pause_layer != null:
+		pause_layer.visible = false
+	get_tree().paused = false
+
+
+func _leave_to_hub() -> void:
+	_resume_game()
+	leave_requested.emit()
+
 
 func _make_scrim(rect: Rect2, color: Color) -> void:
 	var panel := ColorRect.new()

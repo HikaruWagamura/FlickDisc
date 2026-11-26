@@ -239,8 +239,8 @@ func _draw_dots() -> void:
 			half.append(lerpf(lerpf(5.0, 10.0, power_w), lerpf(12.0, 28.0, power_w), t))
 	var time := Time.get_ticks_msec() * 0.001
 	var power := clampf(_power, 0.0, 1.0)
-	if power > 0.78:
-		var amp := (power - 0.78) * 5.5
+	if power > 0.90:
+		var amp := (power - 0.90) * 8.0
 		var shake := sin(time * 42.0) * amp
 		var shaken := PackedVector2Array()
 		for index in pts.size():

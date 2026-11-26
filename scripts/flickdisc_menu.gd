@@ -124,12 +124,14 @@ func setup(player_profile) -> void:
 
 func set_open(is_open: bool) -> void:
 	root.visible = is_open
-	if is_open and starting != null:
+	if starting != null:
 		starting.visible = false
 
 
 func open_screen(screen_name: String) -> void:
 	root.visible = true
+	if starting != null:
+		starting.visible = false
 	_show(screen_name)
 	refresh()
 
@@ -166,7 +168,7 @@ func _prepare_fonts() -> void:
 		face.fallbacks = stack
 
 
-const LOGO := preload("res://assets/flick_bowls_logo.jpg")
+const LOGO := preload("res://assets/flick_disc_logo.png")
 
 
 func _logo_texture() -> Texture2D:
@@ -230,14 +232,19 @@ func _build_splash() -> void:
 	)
 	page.add_child(hit)
 	var mark := _mark_rect()
-	mark.position = Vector2(70, 230)
-	mark.size = Vector2(400, 400)
+	mark.position = Vector2(50, 180)
+	mark.size = Vector2(440, 360)
 	page.add_child(mark)
-	var tag := _label("FLICK BOWLS", 28, CREAM, title_font)
-	tag.position = Vector2(30, 660)
-	tag.size = Vector2(480, 48)
+	var tag := _label("FLICKDISC", 40, CREAM, title_font)
+	tag.position = Vector2(30, 560)
+	tag.size = Vector2(480, 56)
 	tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	page.add_child(tag)
+	var line := _label("Draw. Flick. Win.", 22, PINK, script_font)
+	line.position = Vector2(30, 618)
+	line.size = Vector2(480, 36)
+	line.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	page.add_child(line)
 	splash_bar = ColorRect.new()
 	splash_bar.position = Vector2(0, 0)
 	splash_bar.size = Vector2(0, 3)
@@ -296,19 +303,12 @@ func _build_home() -> void:
 	_paint_button(gear, PLUM, PINK, CREAM, 12, 0)
 	gear.pressed.connect(_show.bind("settings"))
 
-	var server := _label("FLICK BOWLS", 11, PINK, bold_font)
-	_place(page, server, Vector2(20, 80), Vector2(220, 16))
-
-	var plate := Panel.new()
-	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_place(page, plate, Vector2(90, 78), Vector2(360, 112))
-	plate.add_theme_stylebox_override("panel", _flat(Color(0.05, 0.12, 0.08, 0.2), Color(0, 0, 0, 0), 0, 18, 0))
 	var mark := _mark_rect()
-	_place(page, mark, Vector2(90, 78), Vector2(360, 112))
+	_place(page, mark, Vector2(40, 72), Vector2(460, 156))
 
-	var play := _button("★    BOWL A MATCH", 20)
-	_place(page, play, Vector2(20, 202), Vector2(500, 54))
-	_paint_button(play, PINK_DEEP, PINK, CREAM, 16, 0)
+	var play := _button("★    PLAY A MATCH", 22)
+	_place(page, play, Vector2(20, 238), Vector2(500, 62))
+	_paint_button(play, PINK_DEEP, Color("#FFE4F6"), CREAM, 18, 0)
 	home_play = play
 	play.pressed.connect(func() -> void:
 		_tap()
@@ -316,35 +316,35 @@ func _build_home() -> void:
 	)
 
 	var drive := _button("▲  LONG GREEN", 18)
-	_place(page, drive, Vector2(20, 266), Vector2(245, 50))
-	_paint_button(drive, CARD, PINK, CREAM, 14, 0)
+	_place(page, drive, Vector2(20, 310), Vector2(245, 52))
+	_paint_button(drive, CARD, PINK, CREAM, 16, 0)
 	drive.pressed.connect(_launch_drive)
 	var solo := _button("◎  SOLO ENDS", 18)
-	_place(page, solo, Vector2(275, 266), Vector2(245, 50))
-	_paint_button(solo, CARD, PINK, CREAM, 14, 0)
+	_place(page, solo, Vector2(275, 310), Vector2(245, 52))
+	_paint_button(solo, CARD, PINK, CREAM, 16, 0)
 	solo.pressed.connect(_launch_solo)
 
-	home_record = _label("0W  ·  0L", 15, CREAM, bold_font)
-	_place(page, home_record, Vector2(20, 326), Vector2(500, 20))
+	home_record = _label("0W  ·  0L", 16, CREAM, bold_font)
+	_place(page, home_record, Vector2(20, 372), Vector2(500, 22))
 	home_record.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	home_tally = _label("ENDS 0  ·  NO DRIVE YET", 13, PINK, bold_font)
-	_place(page, home_tally, Vector2(20, 348), Vector2(500, 18))
+	_place(page, home_tally, Vector2(20, 394), Vector2(500, 18))
 	home_tally.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
-	_home_card(page, Rect2(16, 378, 164, 88), "★", "MATCH", "Two players", "classic")
-	_home_card(page, Rect2(188, 378, 164, 88), "◆", "PASS & PLAY", "One phone", "duo")
-	_home_card(page, Rect2(360, 378, 164, 88), "●", "VERSUS AI", "Take them on", "classic")
-	_home_card(page, Rect2(16, 476, 249, 84), "◎", "SOLO ENDS", "One bowl. Be the shot.", "solo")
-	_home_card(page, Rect2(275, 476, 249, 84), "▲", "LONG GREEN", "How far can it go?", "drive")
-	_home_card(page, Rect2(16, 570, 249, 84), "✦", "PRACTICE", "Just the shot", "practice")
-	_home_card(page, Rect2(275, 570, 249, 84), "♛", "THE BOARD", "Wins and records", "rankings")
+	_home_card(page, Rect2(16, 424, 164, 92), "★", "MATCH", "Two players", "classic")
+	_home_card(page, Rect2(188, 424, 164, 92), "◆", "PASS & PLAY", "One phone", "duo")
+	_home_card(page, Rect2(360, 424, 164, 92), "●", "VERSUS AI", "Take them on", "classic")
+	_home_card(page, Rect2(16, 526, 249, 88), "◎", "SOLO ENDS", "One bowl. Be the shot.", "solo")
+	_home_card(page, Rect2(275, 526, 249, 88), "▲", "LONG GREEN", "How far can it go?", "drive")
+	_home_card(page, Rect2(16, 624, 249, 88), "✦", "PRACTICE", "Just the shot", "practice")
+	_home_card(page, Rect2(275, 624, 249, 88), "♛", "THE BOARD", "Wins and records", "rankings")
 
 
 func _home_card(page: Control, rect: Rect2, kicker: String, title: String, body: String, target: String) -> void:
 	var button := Button.new()
 	button.text = ""
 	_place(page, button, rect.position, rect.size)
-	_paint_button(button, CARD, Color("#FF4FA3"), CREAM, 16, 14)
+	_paint_button(button, PLUM, Color("#FF4FA3"), CREAM, 18, 14, 2)
 	var y := 6.0
 	if kicker != "":
 		var kick := _label(kicker, 18, PINK, bold_font)
@@ -974,7 +974,7 @@ func _build_starting() -> void:
 	dim.color = Color("#160824")
 	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	starting.add_child(dim)
-	var label := _label("OPENING THE GREEN", 22, CREAM, title_font)
+	var label := _label("LOADING", 22, CREAM, title_font)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_place(starting, label, Vector2(20, 430), Vector2(500, 48))
@@ -983,7 +983,7 @@ func _build_starting() -> void:
 func _launch(channel: String) -> void:
 	var setup := {
 		"channel": channel,
-		"back": "setup",
+		"back": "home",
 		"rink": rink,
 		"goal": "",
 		"challenge": "",

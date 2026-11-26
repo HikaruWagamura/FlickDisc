@@ -393,8 +393,9 @@ func present(speed: float) -> void:
 	if _spin == null:
 		return
 	punch = move_toward(punch, 0.0, 0.08)
-	var lift := clampf(speed / 21.5, 0.0, 1.0)
-	_spin.position.y = radius - SIT_NEST + GROUND_CLEAR + lift * 0.03 + punch * 0.06
+	var lift := 0.0 if is_jack else clampf(speed / 21.5, 0.0, 1.0)
+	var hop := 0.0 if is_jack else (lift * 0.03 + punch * 0.06)
+	_spin.position.y = radius - SIT_NEST + GROUND_CLEAR + hop
 	_spin.transform.basis = roll_basis
 	_seat_shadow(radius)
 

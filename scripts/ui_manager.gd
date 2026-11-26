@@ -52,11 +52,14 @@ var power_max: Label
 var current_bias := 0.0
 var menu_button: Button
 var cue_button: Button
+var pause_layer: Control
+var _power_home := Vector2(506.0, 172.0)
 
 const POWER_WIDTH := 250.0
 
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	var scrim := ColorRect.new()
 	scrim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	scrim.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -69,7 +72,7 @@ func _ready() -> void:
 	menu_button = _make_button("MENU", Vector2(16.0, 24.0), Vector2(96.0, 40.0))
 	menu_button.add_theme_font_size_override("font_size", 14)
 	_paint_sync(menu_button, true)
-	menu_button.pressed.connect(func() -> void: leave_requested.emit())
+	menu_button.pressed.connect(_open_pause)
 
 	level_label = _make_label(Vector2(340.0, 28.0), Vector2(180.0, 26.0), 16, Color(0.96, 0.99, 0.97))
 	level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
@@ -89,7 +92,7 @@ func _ready() -> void:
 	camera_button = _make_button("FOLLOW", Vector2(144.0, 72.0), Vector2(124.0, 40.0))
 	camera_button.add_theme_font_size_override("font_size", 13)
 	camera_button.pressed.connect(func() -> void: camera_requested.emit())
-	show_camera_mode(false)
+	show_camera_mode(true)
 	_build_summary()
 
 	status_label = _make_label(Vector2(18.0, 126.0), Vector2(504.0, 22.0), 14, Color(0.95, 0.99, 0.96))
@@ -99,6 +102,7 @@ func _ready() -> void:
 	_build_power_meter()
 	_build_bias_row()
 	_build_hand_bar()
+	_build_pause()
 
 	reset_button = _make_button("RESET", Vector2(122.0, 24.0), Vector2(96.0, 40.0))
 	reset_button.add_theme_font_size_override("font_size", 14)
@@ -146,6 +150,13 @@ func set_power_ratio(power_ratio: float) -> void:
 		if power_max.visible:
 			var pulse := 0.72 + 0.28 * sin(Time.get_ticks_msec() * 0.012)
 			power_max.self_modulate = Color(1.0, 0.22, 0.28, pulse)
+	if power_track != null:
+		var shake := Vector2.ZERO
+		if ratio >= 0.90:
+			var amp := ((ratio - 0.90) / 0.10) * 2.2
+			var wave := Time.get_ticks_msec() * 0.001
+			shake = Vector2(sin(wave * 54.0) * amp, cos(wave * 61.0) * amp)
+		power_track.position = _power_home + shake
 
 
 func show_jack_prompt(end_number: int, match_label: String, score_line: String) -> void:
@@ -183,7 +194,7 @@ func show_camera_mode(chase: bool) -> void:
 	camera_chase = chase
 	if camera_button == null:
 		return
-	camera_button.text = "FOLLOWING" if chase else "FOLLOW"
+	camera_button.text = "FOLLOWING" if chase else "BEHIND"
 	if chase:
 		_paint_selected(camera_button)
 	else:
@@ -542,7 +553,8 @@ func _layout_hud() -> void:
 	if score_label != null:
 		score_label.position = Vector2(18.0, 150.0 + top)
 	if power_track != null:
-		power_track.position = Vector2(506.0, 172.0 + top)
+		_power_home = Vector2(506.0, 172.0 + top)
+		power_track.position = _power_home
 	if power_label != null:
 		power_label.position = Vector2(468.0, 344.0 + top)
 	if bias_rail != null:
@@ -591,6 +603,7 @@ func _build_hand_bar() -> void:
 	hand_switch.position = Vector2(372.0, 742.0)
 	hand_switch.size = Vector2(152.0, 168.0)
 	hand_switch.visible = false
+	hand_switch.z_index = 8
 	hand_switch.chosen.connect(func(fore: bool) -> void: hand_selected.emit(fore))
 	add_child(hand_switch)
 	fore_button = _make_button("FORE", Vector2(448.0, 900.0), Vector2(76.0, 40.0))
@@ -606,6 +619,80 @@ func _style_arrow(button: Button, selected: bool) -> void:
 	var font := Color("#1a1408") if selected else Color("#e9fbff")
 	button.add_theme_stylebox_override("normal", _button_style(fill, border))
 	button.add_theme_color_override("font_color", font)
+
+
+func _build_pause() -> void:
+	pause_layer = Control.new()
+	pause_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	pause_layer.visible = false
+	pause_layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	pause_layer.process_mode = Node.PROCESS_MODE_ALWAYS
+	pause_layer.z_index = 40
+	add_child(pause_layer)
+	var dim := ColorRect.new()
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0.04, 0.02, 0.08, 0.82)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	pause_layer.add_child(dim)
+	var card := Panel.new()
+	card.position = Vector2(48.0, 280.0)
+	card.size = Vector2(444.0, 280.0)
+	var box := StyleBoxFlat.new()
+	box.bg_color = Color(0.14, 0.05, 0.24, 0.96)
+	box.border_color = Color("#5CFFF2")
+	box.set_border_width_all(2)
+	box.set_corner_radius_all(22)
+	box.shadow_color = Color(0.0, 0.0, 0.0, 0.45)
+	box.shadow_size = 18
+	card.add_theme_stylebox_override("panel", box)
+	pause_layer.add_child(card)
+	var title := Label.new()
+	title.text = "PAUSED"
+	title.position = Vector2(24.0, 22.0)
+	title.size = Vector2(396.0, 42.0)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_override("font", HUD_FONT)
+	title.add_theme_font_size_override("font_size", 28)
+	title.add_theme_color_override("font_color", Color("#FFF6FF"))
+	card.add_child(title)
+	var resume := _pause_button("RESUME", Vector2(36.0, 88.0), Vector2(372.0, 64.0), true)
+	resume.pressed.connect(_resume_game)
+	card.add_child(resume)
+	var hub := _pause_button("HUB", Vector2(36.0, 168.0), Vector2(372.0, 64.0), false)
+	hub.pressed.connect(_leave_to_hub)
+	card.add_child(hub)
+
+
+func _open_pause() -> void:
+	if pause_layer != null and pause_layer.visible:
+		_resume_game()
+		return
+	if pause_layer != null:
+		pause_layer.visible = true
+	get_tree().paused = true
+
+
+func _resume_game() -> void:
+	if pause_layer != null:
+		pause_layer.visible = false
+	get_tree().paused = false
+
+
+func _leave_to_hub() -> void:
+	_resume_game()
+	leave_requested.emit()
+
+
+func _pause_button(caption: String, pos: Vector2, box: Vector2, hot: bool) -> Button:
+	var button := Button.new()
+	button.text = caption
+	button.position = pos
+	button.size = box
+	button.add_theme_font_override("font", HUD_FONT)
+	button.add_theme_font_size_override("font_size", 20)
+	button.action_mode = BaseButton.ACTION_MODE_BUTTON_PRESS
+	_paint_sync(button, hot)
+	return button
 
 
 func _build_summary() -> void:

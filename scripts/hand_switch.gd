@@ -31,7 +31,17 @@ func _ready() -> void:
 	_caption.add_theme_color_override("font_color", Color("#fff6ff"))
 	_caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_caption)
-	gui_input.connect(_on_gui_input)
+	var hit := Button.new()
+	hit.set_anchors_preset(Control.PRESET_FULL_RECT)
+	hit.flat = true
+	hit.focus_mode = Control.FOCUS_NONE
+	hit.mouse_filter = Control.MOUSE_FILTER_STOP
+	hit.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
+	hit.add_theme_stylebox_override("hover", StyleBoxEmpty.new())
+	hit.add_theme_stylebox_override("pressed", StyleBoxEmpty.new())
+	hit.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	hit.pressed.connect(_toggle)
+	add_child(hit)
 	_apply_hand()
 
 
@@ -40,10 +50,8 @@ func set_forehand(on: bool) -> void:
 	_apply_hand()
 
 
-func _on_gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		chosen.emit(not forehand)
-		accept_event()
+func _toggle() -> void:
+	chosen.emit(not forehand)
 
 
 func _draw_plate() -> void:
@@ -142,7 +150,7 @@ func _arrow_mat() -> StandardMaterial3D:
 
 func _apply_hand() -> void:
 	if _pivot != null:
-		# Forehand hooks right on the green. Flip around the centre for backhand.
-		_pivot.scale = Vector3(1.0 if forehand else -1.0, 1.0, 1.0)
+		# Forehand (negative bias) bends to the player's left on the green.
+		_pivot.scale = Vector3(-1.0 if forehand else 1.0, 1.0, 1.0)
 	if _caption != null:
 		_caption.text = "FOREHAND" if forehand else "BACKHAND"

@@ -621,15 +621,24 @@ func _begin_opponent_shot() -> void:
 	if token != _ai_token or not is_inside_tree():
 		return
 	opponent_left = maxi(0, opponent_left - 1)
-	var spread := Metrics.LANE_HALF * 0.65
+	var spread := Metrics.LANE_HALF * 0.55
 	var x := randf_range(-spread, spread)
 	var spot := Vector2(x, -Metrics.PLAYER_START_Z)
 	var puck = _spawn_puck(false, spot)
-	var aim := Vector3(-x * 0.35, 0.0, -spot.y)
+	var miss := 0.10
+	if start_level <= 0:
+		miss = 0.20
+	elif start_level >= 4:
+		miss = 0.045
+	var aim := Vector3(-spot.x + randf_range(-miss, miss), 0.0, -spot.y)
 	if aim.length() < 0.001:
 		aim = Vector3(0.0, 0.0, 1.0)
-	aim = aim.normalized().rotated(Vector3.UP, randf_range(-0.11, 0.11))
-	var power := randf_range(0.58, 0.86)
+	aim = aim.normalized()
+	var power := randf_range(0.70, 0.82)
+	if start_level >= 4:
+		power = randf_range(0.74, 0.80)
+	elif start_level <= 0:
+		power = randf_range(0.62, 0.84)
 	puck.velocity = aim * lerpf(Metrics.MIN_SPEED, Metrics.MAX_SPEED, power)
 	puck.velocity.y = 0.0
 	puck.moving = true
