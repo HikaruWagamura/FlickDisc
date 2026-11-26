@@ -227,7 +227,7 @@ func _blocked(flat: Vector2) -> bool:
 		if node == active_puck:
 			continue
 		var puck := node as Node3D
-		if puck == null or bool(puck.get("sunk")):
+		if puck == null or bool(puck.get("sunk")) or bool(puck.get("banked")):
 			continue
 		if flat.distance_to(Vector2(puck.position.x, puck.position.z)) <= Metrics.DISC_RADIUS * 1.9:
 			return true

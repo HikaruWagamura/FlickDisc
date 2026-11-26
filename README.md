@@ -8,7 +8,7 @@ A finished match writes the win or loss onto this device. Challenges clear when 
 
 ### FlickDisc
 
-The paid crokinole club board, pins, and discs. Touch the disc and drag the dots to aim, then tap to lock. Pull back and release on the line. Eight discs each. 20 is only the hole. 15, 10 and 5 need the disc clear of that line. A disc on the line scores the lower ring. The ditch is nothing. Only the difference is added. First to the race wins.
+The paid crokinole club board, pins, and discs. Touch the disc and drag the dots to aim, then tap to lock. Pull back and release on the line. Eight discs each. 20 is the centre hole, and that disc is lifted onto the score. 15, 10 and 5 need the disc clear of that line. A disc on the line scores the lower ring. If an opponent is on the board you must hit one; if the board is empty you must finish in the 15. The ditch is nothing. Only the difference is added. First to the race wins.
 
 ### Flick Bowls
 

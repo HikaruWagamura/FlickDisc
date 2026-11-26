@@ -3,9 +3,10 @@ extends Node3D
 signal goal_cleared
 signal match_decided(you_won: bool)
 
-## Crokinole match. Buttons stay on the table and bounce off the eight pegs.
-## An end is eight discs. Both colors count, a disc on a line scores the
-## lower ring, and only the difference is added to the match.
+## Crokinole match. NCA rings: 20 in the hole, 15 inside the pegs, 10 outside
+## the pegs, 5 in the outer ring. A disc on a line scores the lower region.
+## After each turn, 20s leave the hole and sit on the score. An end is eight
+## discs each. Only the difference is added to the match.
 
 const Metrics = preload("res://scripts/table_metrics.gd")
 const LevelScript = preload("res://scripts/crokinole_levels.gd")
@@ -45,6 +46,8 @@ var aim_lock := 0.0
 var opponent_left := 0
 var ai_turn := false
 var _ai_token := 0
+var _shot_start := {}
+var _shooter = null
 const PULL_BACK := 0.42
 const AIM_CONE := 0.58
 const CURSOR_SPAN := 0.09
@@ -81,17 +84,17 @@ func _process(delta: float) -> void:
 func _setup_view() -> void:
 	var environment := Environment.new()
 	environment.background_mode = Environment.BG_COLOR
-	environment.background_color = Color("#7eb6e8")
+	environment.background_color = Color("#080719")
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.ambient_light_color = Color("#c4b49a")
-	environment.ambient_light_energy = 0.62
+	environment.ambient_light_color = Color("#C4AEFF")
+	environment.ambient_light_energy = 0.42
 	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	environment.tonemap_exposure = 0.92
 	environment.glow_enabled = true
-	environment.glow_intensity = 0.18
-	environment.glow_strength = 0.45
-	environment.glow_bloom = 0.02
-	environment.glow_hdr_threshold = 1.25
+	environment.glow_intensity = 0.22
+	environment.glow_strength = 0.5
+	environment.glow_bloom = 0.03
+	environment.glow_hdr_threshold = 1.2
 	var world := WorldEnvironment.new()
 	world.environment = environment
 	add_child(world)
@@ -110,8 +113,8 @@ func _setup_view() -> void:
 
 	var key := DirectionalLight3D.new()
 	key.rotation_degrees = Vector3(-52.0, -28.0, 0.0)
-	key.light_color = Color("#fff3e4")
-	key.light_energy = 0.95
+	key.light_color = Color("#F7F4FF")
+	key.light_energy = 0.88
 	key.shadow_enabled = true
 	key.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
 	key.directional_shadow_max_distance = 8.0
@@ -121,8 +124,8 @@ func _setup_view() -> void:
 
 	var fill := OmniLight3D.new()
 	fill.position = Vector3(0.2, 1.5, 0.9)
-	fill.light_color = Color("#ffe8d0")
-	fill.light_energy = 0.22
+	fill.light_color = Color("#7A3BFF")
+	fill.light_energy = 0.18
 	fill.omni_range = 4.5
 	add_child(fill)
 
@@ -141,7 +144,7 @@ func _physics_process(delta: float) -> void:
 
 func _substep(delta: float) -> void:
 	for puck in pucks:
-		if puck.sunk or not puck.moving:
+		if puck.sunk or puck.banked or not puck.moving:
 			continue
 		var speed: float = Vector2(puck.velocity.x, puck.velocity.z).length()
 		if speed > Metrics.STOP_SPEED and absf(puck.shot_bias) > 0.01:
@@ -162,17 +165,17 @@ func _substep(delta: float) -> void:
 				puck.shot_bias = 0.0
 		else:
 			puck.stop_timer = 0.0
-	for _iteration in 4:
+	for _iteration in 6:
 		_solve_pegs()
 		_solve_pucks()
 		_solve_rail()
 	_solve_holes()
 
 func _update_surface(puck) -> void:
-	if puck.sunk:
+	if puck.sunk or puck.banked:
 		return
 	var distance: float = puck.flat().length()
-	if not puck.in_ditch and distance > Metrics.SURFACE_RADIUS - Metrics.DISC_RADIUS * 0.25:
+	if not puck.in_ditch and Metrics.in_ditch(distance):
 		puck.in_ditch = true
 	if puck.in_ditch:
 		puck.position.y = Metrics.sit_y(true)
@@ -181,7 +184,7 @@ func _update_surface(puck) -> void:
 
 func _solve_pegs() -> void:
 	for puck in pucks:
-		if puck.sunk or puck.in_ditch:
+		if puck.sunk or puck.banked or puck.in_ditch:
 			continue
 		var spot: Vector2 = puck.flat()
 		for peg in Metrics.peg_positions():
@@ -206,11 +209,11 @@ func _solve_pegs() -> void:
 func _solve_pucks() -> void:
 	for index in pucks.size():
 		var first = pucks[index]
-		if first.sunk:
+		if first.sunk or first.banked:
 			continue
 		for other_index in range(index + 1, pucks.size()):
 			var second = pucks[other_index]
-			if second.sunk:
+			if second.sunk or second.banked:
 				continue
 			if first.in_ditch != second.in_ditch:
 				continue
@@ -238,7 +241,7 @@ func _solve_pucks() -> void:
 func _solve_rail() -> void:
 	var limit := Metrics.DITCH_OUTER - Metrics.DISC_RADIUS
 	for puck in pucks:
-		if puck.sunk:
+		if puck.sunk or puck.banked:
 			continue
 		var spot: Vector2 = puck.flat()
 		if spot.length() <= limit or spot.length() <= 0.0001:
@@ -258,16 +261,15 @@ func _solve_rail() -> void:
 
 func _solve_holes() -> void:
 	for puck in pucks:
-		if puck.sunk or puck.in_ditch:
+		if puck.sunk or puck.banked or puck.in_ditch:
 			continue
 		var speed: float = Vector2(puck.velocity.x, puck.velocity.z).length()
-		# The cup is only a little wider than the disc, so the centre has to be over it.
-		if puck.flat().length() + Metrics.DISC_RADIUS * 0.62 <= Metrics.HOLE_RADIUS and speed < 1.05:
+		if Metrics.in_twenty_hole(puck.flat().length(), speed):
 			puck.sink_into_hole()
 
 func _all_stopped() -> bool:
 	for puck in pucks:
-		if puck.moving and not puck.sunk:
+		if puck.moving and not puck.sunk and not puck.banked:
 			return false
 	return true
 
@@ -290,6 +292,16 @@ func _side_items(player_side: bool) -> Array:
 	items.sort()
 	items.reverse()
 	return items
+
+
+func _twenty_count(player_side: bool) -> int:
+	var total := 0
+	for puck in pucks:
+		if bool(puck.is_player) != player_side:
+			continue
+		if puck.sunk or puck.banked:
+			total += 1
+	return total
 
 func _sum(items: Array) -> int:
 	var total := 0
@@ -468,7 +480,7 @@ func _spot_free(spot: Vector2) -> bool:
 		if spot.distance_to(Vector2(peg.x, peg.z)) < Metrics.PEG_RADIUS + Metrics.DISC_RADIUS + 0.02:
 			return false
 	for puck in pucks:
-		if puck.sunk:
+		if puck.sunk or puck.banked:
 			continue
 		if spot.distance_to(puck.flat()) < Metrics.DISC_RADIUS * 2.15:
 			return false
@@ -496,7 +508,7 @@ func _begin_ready() -> void:
 	if gesture != null:
 		gesture.arm()
 		gesture.anchor = Vector3(0.0, 0.02, Metrics.PLAYER_START_Z)
-	ui.show_touch(int(current_level["number"]), discs_left, _side_total(true), _side_total(false), match_you, match_them)
+	ui.show_touch(int(current_level["number"]), discs_left, _side_total(true), _side_total(false), match_you, match_them, _twenty_count(true), _twenty_count(false))
 
 
 func _arm_next_disc(_announce := true) -> void:
@@ -551,6 +563,7 @@ func _on_disc_shot_started() -> void:
 		gesture.busy()
 	discs_left -= 1
 	resolving = true
+	_remember_shot(active_puck)
 	if feel != null:
 		feel.release(disc.power_ratio)
 	ui.show_power(0.0)
@@ -559,8 +572,12 @@ func _on_disc_shot_started() -> void:
 
 func _on_table_settled() -> void:
 	disc.mark_shot_finished()
+	var illegal := _apply_shot_rules()
+	_bank_twenties()
 	if ai_turn:
 		ai_turn = false
+		_shooter = null
+		_shot_start.clear()
 		if discs_left > 0:
 			_arm_next_disc(false)
 		else:
@@ -573,14 +590,16 @@ func _on_table_settled() -> void:
 	var ditched := false
 	if active_puck != null and bool(active_puck.is_player):
 		shot_points = int(active_puck.ring_points())
-		sunk = bool(active_puck.sunk)
+		sunk = bool(active_puck.sunk) or bool(active_puck.banked)
 		ditched = bool(active_puck.in_ditch)
 	active_puck = null
 	disc.bind_puck(null)
+	_shooter = null
+	_shot_start.clear()
 	if opponent_left > 0:
 		if feel != null:
 			feel.settled(0.2 if sunk or shot_points >= 15 else 2.5)
-		ui.show_landed(shot_points, sunk, ditched)
+		ui.show_landed(shot_points, sunk, ditched, illegal)
 		_show_board(int(current_level["number"]), discs_left)
 		_check_shot_goal()
 		_begin_opponent_shot()
@@ -606,11 +625,8 @@ func _begin_opponent_shot() -> void:
 	var x := randf_range(-spread, spread)
 	var spot := Vector2(x, -Metrics.PLAYER_START_Z)
 	var puck = _spawn_puck(false, spot)
-	var aim := Vector3(-x * 0.35, 0.0, -spot.y)
-	if aim.length() < 0.001:
-		aim = Vector3(0.0, 0.0, 1.0)
-	aim = aim.normalized().rotated(Vector3.UP, randf_range(-0.11, 0.11))
-	var power := randf_range(0.58, 0.86)
+	var aim := _ai_aim(spot)
+	var power := randf_range(0.62, 0.88)
 	puck.velocity = aim * lerpf(Metrics.MIN_SPEED, Metrics.MAX_SPEED, power)
 	puck.velocity.y = 0.0
 	puck.moving = true
@@ -618,9 +634,112 @@ func _begin_opponent_shot() -> void:
 	puck.shot_bias = 0.0
 	puck.stop_timer = 0.0
 	resolving = true
+	_remember_shot(puck)
+
+
+func _ai_aim(from: Vector2) -> Vector3:
+	var target := Vector2.ZERO
+	var best := 99.0
+	var found := false
+	for puck in pucks:
+		if not bool(puck.is_player) or puck.sunk or puck.banked or puck.in_ditch:
+			continue
+		var delta: Vector2 = puck.flat() - from
+		var distance := delta.length()
+		if distance < best:
+			best = distance
+			target = puck.flat()
+			found = true
+	if not found:
+		target = Vector2(0.0, 0.0)
+	var aim := Vector3(target.x - from.x, 0.0, target.y - from.y)
+	if aim.length() < 0.001:
+		aim = Vector3(0.0, 0.0, 1.0)
+	return aim.normalized().rotated(Vector3.UP, randf_range(-0.08, 0.08))
+
+
+func _remember_shot(shooter) -> void:
+	_shooter = shooter
+	_shot_start.clear()
+	if shooter == null:
+		return
+	var live: Array = []
+	var had_opponent := false
+	for puck in pucks:
+		if puck.banked or puck.in_ditch or puck.sunk:
+			continue
+		var entry := {
+			"id": puck.get_instance_id(),
+			"pos": puck.flat(),
+			"player": bool(puck.is_player),
+		}
+		live.append(entry)
+		if bool(puck.is_player) != bool(shooter.is_player):
+			had_opponent = true
+	_shot_start = {
+		"shooter_id": shooter.get_instance_id(),
+		"had_opponent": had_opponent,
+		"live": live,
+	}
+
+
+func _apply_shot_rules() -> bool:
+	if _shot_start.is_empty() or _shooter == null:
+		return false
+	var had_opponent: bool = bool(_shot_start.get("had_opponent", false))
+	var struck_opponent := false
+	var struck: Array = []
+	for entry in _shot_start.get("live", []):
+		var puck = _puck_by_id(int(entry["id"]))
+		if puck == null:
+			continue
+		var moved: bool = puck.flat().distance_to(entry["pos"]) > 0.008
+		var gone: bool = puck.sunk or puck.in_ditch or puck.banked
+		if not moved and not gone:
+			continue
+		struck.append(puck)
+		if bool(puck.is_player) != bool(_shooter.is_player):
+			struck_opponent = true
+	var in_fifteen := bool(_shooter.sunk) or Metrics.in_fifteen(_shooter.flat().length())
+	if Metrics.shot_is_valid(had_opponent, struck_opponent, in_fifteen):
+		return false
+	_shooter.ditch_off()
+	for puck in struck:
+		if puck == _shooter:
+			continue
+		puck.ditch_off()
+	return true
+
+
+func _puck_by_id(id: int):
+	for puck in pucks:
+		if puck.get_instance_id() == id:
+			return puck
+	return null
+
+
+func _bank_twenties() -> void:
+	var you_index := 0
+	var them_index := 0
+	for puck in pucks:
+		if puck.banked:
+			if puck.is_player:
+				you_index += 1
+			else:
+				them_index += 1
+	for puck in pucks:
+		if not puck.sunk or puck.banked:
+			continue
+		var slot: int = you_index if puck.is_player else them_index
+		puck.seat_on_score(Metrics.twenty_rack_slot(bool(puck.is_player), slot))
+		if puck.is_player:
+			you_index += 1
+		else:
+			them_index += 1
+
 
 func _show_board(level_number: int, remaining: int) -> void:
-	ui.show_match_status(level_number, remaining, _side_total(true), _side_total(false), match_you, match_them)
+	ui.show_match_status(level_number, remaining, _side_total(true), _side_total(false), match_you, match_them, _twenty_count(true), _twenty_count(false))
 
 func _present_end() -> void:
 	var you_items := _side_items(true)
@@ -661,7 +780,7 @@ func _check_shot_goal() -> void:
 		if not bool(puck.is_player):
 			continue
 		var met := false
-		if goal == "hole" and bool(puck.sunk):
+		if goal == "hole" and (bool(puck.sunk) or bool(puck.banked)):
 			met = true
 		elif goal == "fifteen" and int(puck.ring_points()) >= 15:
 			met = true

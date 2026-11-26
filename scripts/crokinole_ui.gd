@@ -59,10 +59,10 @@ func _ready() -> void:
 	next_button.text = "NEXT END"
 	_build_overview()
 
-func show_touch(level_number: int, discs_left: int, you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0) -> void:
+func show_touch(level_number: int, discs_left: int, you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0, you_20: int = 0, them_20: int = 0) -> void:
 	hide_overview()
 	status_label.text = "TOUCH TO AIM  •  TAP THE DISC TO LOCK"
-	show_match_status(level_number, discs_left, you_board, far_board, match_you, match_them)
+	show_match_status(level_number, discs_left, you_board, far_board, match_you, match_them, you_20, them_20)
 	reset_button.text = "RESET"
 	reset_button.visible = true
 	next_button.visible = false
@@ -80,8 +80,8 @@ func show_take() -> void:
 	status_label.text = "PULL THE PUCK  •  RELEASE ON THE GREEN"
 	_show_stop(false)
 
-func show_lane(level_number: int, discs_left: int, difficulty: String = "", you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0) -> void:
-	show_touch(level_number, discs_left, you_board, far_board, match_you, match_them)
+func show_lane(level_number: int, discs_left: int, difficulty: String = "", you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0, you_20: int = 0, them_20: int = 0) -> void:
+	show_touch(level_number, discs_left, you_board, far_board, match_you, match_them, you_20, them_20)
 
 func show_stopped() -> void:
 	show_take()
@@ -90,22 +90,22 @@ func _show_stop(_rolling: bool) -> void:
 	if stop_button != null:
 		stop_button.visible = false
 
-func show_ready(level_number: int, discs_left: int, difficulty: String = "", you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0) -> void:
+func show_ready(level_number: int, discs_left: int, difficulty: String = "", you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0, you_20: int = 0, them_20: int = 0) -> void:
 	hide_overview()
 	var layout := difficulty.to_upper() if difficulty != "" else "FLICKDISC"
 	status_label.text = "LEVEL %02d  •  %s  •  TAP YOUR DISC" % [level_number, layout]
-	show_match_status(level_number, discs_left, you_board, far_board, match_you, match_them)
+	show_match_status(level_number, discs_left, you_board, far_board, match_you, match_them, you_20, them_20)
 	reset_button.text = "RESET"
 	reset_button.visible = true
 	next_button.visible = false
 
-func show_match_status(level_number: int, discs_left: int, you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0) -> void:
+func show_match_status(level_number: int, discs_left: int, you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0, you_20: int = 0, them_20: int = 0) -> void:
 	level_label.text = "LEVEL %02d" % level_number
 	if discs_left <= 0:
 		throws_label.text = "END"
 	else:
 		throws_label.text = "%d LEFT" % discs_left
-	score_label.text = "BOARD %d–%d    MATCH %d–%d" % [you_board, far_board, match_you, match_them]
+	score_label.text = "20s %d–%d    BOARD %d–%d    MATCH %d–%d" % [you_20, them_20, you_board, far_board, match_you, match_them]
 
 func show_aiming(_power_ratio: float) -> void:
 	status_label.text = "RELEASE ON THE GREEN"
@@ -117,9 +117,11 @@ func show_in_motion() -> void:
 	_show_stop(false)
 	status_label.text = "IN FLIGHT  •  PEGS AND DISCS ARE LIVE"
 
-func show_landed(shot_points: int, sunk: bool, ditched: bool) -> void:
-	if sunk:
-		status_label.text = "20 IN THE HOLE"
+func show_landed(shot_points: int, sunk: bool, ditched: bool, invalid: bool = false) -> void:
+	if invalid:
+		status_label.text = "NOT A VALID SHOT  •  THOSE DISCS COME OFF"
+	elif sunk:
+		status_label.text = "20 IN THE HOLE  •  ON THE SCORE"
 	elif shot_points > 0:
 		status_label.text = "LANDED FOR %d" % shot_points
 	elif ditched:
@@ -139,7 +141,7 @@ func show_end_overview(end_number: int, layout_name: String, you_items: Array, t
 	_show_stop(false)
 	overview.visible = true
 	overview_title.text = "END %d" % end_number
-	overview_rules.text = "%s\n20 IN THE HOLE   •   15   •   10   •   5\nA DISC ON A LINE SCORES THE LOWER RING.\nTHE END SCORES THE DIFFERENCE." % layout_name.to_upper()
+	overview_rules.text = "%s\n20 IN THE HOLE GOES ON THE SCORE   •   15   •   10   •   5\nA DISC ON A LINE SCORES THE LOWER RING.\nHIT AN OPPONENT IF ONE IS ON THE BOARD. NO HIDING.\nTHE END SCORES THE DIFFERENCE." % layout_name.to_upper()
 	overview_body.text = ""
 	_set_overview_height(230.0)
 	status_label.text = "END %d  •  COUNTING THE BOARD" % end_number
@@ -240,11 +242,11 @@ func _build_overview() -> void:
 	overview.add_child(accent)
 
 	overview_title = _owned_label(overview, Vector2(20.0, 16.0), Vector2(452.0, 36.0), 28, Color("#f7fbff"))
-	overview_rules = _owned_label(overview, Vector2(20.0, 56.0), Vector2(452.0, 78.0), 12, Color("#C4AEFF"))
+	overview_rules = _owned_label(overview, Vector2(20.0, 56.0), Vector2(452.0, 96.0), 12, Color("#C4AEFF"))
 	overview_rules.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
 	overview_body = RichTextLabel.new()
-	overview_body.position = Vector2(20.0, 142.0)
+	overview_body.position = Vector2(20.0, 158.0)
 	overview_body.size = Vector2(452.0, 520.0)
 	overview_body.bbcode_enabled = true
 	overview_body.scroll_active = false

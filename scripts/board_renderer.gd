@@ -7,6 +7,7 @@ const Metrics = preload("res://scripts/table_metrics.gd")
 const CLUB_BOARD := preload("res://assets/board/crokinole.fbx")
 
 const LOGO_PATH := "res://assets/flick_disc_logo.png"
+const MARK_PATH := "res://assets/flickdisc_mark.png"
 const COURSE_PATH := "res://assets/course_background.png"
 
 func _ready() -> void:
@@ -17,6 +18,8 @@ func _ready() -> void:
 		_build_surface()
 		_build_rail()
 		_build_pegs()
+		_place_board_logos()
+		_build_twenty_racks()
 	_build_lane()
 
 
@@ -59,6 +62,8 @@ func _mount_club() -> bool:
 		var disc_box := _world_aabb(disc)
 		Metrics.club_center_y = disc_box.size.y * 0.5
 		Metrics.club_ditch_y = -0.012
+	_place_board_logos()
+	_build_twenty_racks()
 	return true
 
 
@@ -245,13 +250,25 @@ func _world_aabb(node: Node) -> AABB:
 
 func _build_room() -> void:
 	var floor_material := StandardMaterial3D.new()
-	floor_material.albedo_color = Color("#1a241c")
+	floor_material.albedo_color = Color("#080719")
 	floor_material.roughness = 0.92
 	Metrics.add_mesh(self, _box(Vector3(18.0, 0.04, 22.0)), floor_material, Vector3(0.0, -0.64, -4.0))
 	var rug := StandardMaterial3D.new()
-	rug.albedo_color = Color("#241018")
-	rug.roughness = 0.9
+	rug.albedo_color = Color("#1A1028")
+	rug.roughness = 0.86
 	Metrics.add_mesh(self, Metrics.cylinder(Metrics.DITCH_OUTER + 0.55, 0.02, 64), rug, Vector3(0.0, -0.595, 0.0))
+	var wash := OmniLight3D.new()
+	wash.position = Vector3(0.0, 2.4, 0.6)
+	wash.light_color = Color("#C4AEFF")
+	wash.light_energy = 0.55
+	wash.omni_range = 8.0
+	add_child(wash)
+	var gold := OmniLight3D.new()
+	gold.position = Vector3(0.0, 1.6, 1.4)
+	gold.light_color = Color("#E8C56A")
+	gold.light_energy = 0.28
+	gold.omni_range = 5.0
+	add_child(gold)
 
 func _build_body() -> void:
 	var body := StandardMaterial3D.new()
@@ -365,6 +382,86 @@ func _build_pegs() -> void:
 		Metrics.add_mesh(peg, cap, Metrics.plastic(Color("#8d5a32"), 0.32, 0.04), Vector3(0.0, 0.038, 0.0))
 		var foot := Metrics.cylinder(Metrics.PEG_RADIUS * 1.25, 0.008, 20)
 		Metrics.add_mesh(peg, foot, Metrics.plastic(Color("#3a2218"), 0.45, 0.0), Vector3(0.0, -0.028, 0.0))
+
+func _place_board_logos() -> void:
+	var tex := _logo_decal()
+	if tex == null:
+		return
+	# Sit in the 10-ring on both shooting sides so the 20, pegs, and lines stay clear.
+	var along := (Metrics.RING_10 + Metrics.RING_5) * 0.5
+	_logo_plate(Vector3(0.0, 0.0028, along), 0.0, tex)
+	_logo_plate(Vector3(0.0, 0.0028, -along), 180.0, tex)
+
+
+func _logo_plate(at: Vector3, yaw: float, tex: Texture2D) -> void:
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.24, 0.24)
+	var mi := MeshInstance3D.new()
+	mi.mesh = quad
+	mi.position = at
+	mi.rotation_degrees = Vector3(-90.0, yaw, 0.0)
+	var mat := StandardMaterial3D.new()
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_texture = tex
+	mat.albedo_color = Color(1, 1, 1, 0.92)
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	mi.material_override = mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+
+
+func _logo_decal() -> Texture2D:
+	var image: Image = _image(MARK_PATH)
+	if image == null or image.is_empty():
+		image = _image(LOGO_PATH)
+	if image == null or image.is_empty():
+		return null
+	if image.is_compressed():
+		image.decompress()
+	if image.get_width() > 512 or image.get_height() > 512:
+		image.resize(512, 512, Image.INTERPOLATE_LANCZOS)
+	image.convert(Image.FORMAT_RGBA8)
+	var width := image.get_width()
+	var height := image.get_height()
+	var cx := float(width) * 0.5
+	var cy := float(height) * 0.5
+	var radius := minf(cx, cy) * 0.98
+	for y in height:
+		for x in width:
+			var pixel: Color = image.get_pixel(x, y)
+			var dx := (float(x) + 0.5 - cx) / radius
+			var dy := (float(y) + 0.5 - cy) / radius
+			var radial := sqrt(dx * dx + dy * dy)
+			var luma := pixel.r * 0.3 + pixel.g * 0.59 + pixel.b * 0.11
+			var chroma := maxf(pixel.r, maxf(pixel.g, pixel.b)) - minf(pixel.r, minf(pixel.g, pixel.b))
+			if radial > 1.0 or (luma < 0.08 and chroma < 0.07):
+				pixel.a = 0.0
+			else:
+				pixel.a = 1.0 if radial < 0.92 else clampf((1.0 - radial) / 0.08, 0.0, 1.0)
+			image.set_pixel(x, y, pixel)
+	return ImageTexture.create_from_image(image)
+
+
+func _build_twenty_racks() -> void:
+	var tray := Metrics.plastic(Color("#1A1028"), 0.32, 0.0)
+	tray.metallic = 0.35
+	var lip := Metrics.plastic(Color("#E8C56A"), 0.28, 0.35)
+	for player_side in [true, false]:
+		var root := Node3D.new()
+		root.name = "TwentyRackYou" if player_side else "TwentyRackFar"
+		add_child(root)
+		var first: Vector3 = Metrics.twenty_rack_slot(player_side, 0)
+		var last: Vector3 = Metrics.twenty_rack_slot(player_side, 7)
+		root.position = Vector3((first.x + last.x) * 0.5, 0.0, (first.z + last.z) * 0.5)
+		var plank := BoxMesh.new()
+		plank.size = Vector3(0.20, 0.01, 0.56)
+		Metrics.add_mesh(root, plank, tray, Vector3(0.0, 0.018, 0.0))
+		var edge := BoxMesh.new()
+		edge.size = Vector3(0.206, 0.004, 0.566)
+		Metrics.add_mesh(root, edge, lip, Vector3(0.0, 0.025, 0.0))
+
 
 func _build_lane() -> void:
 	var rail := StandardMaterial3D.new()

@@ -16,6 +16,7 @@ var stop_timer := 0.0
 var played := false
 
 var tint := Color("#7A3BFF")
+var banked := false
 var _kit_index := 0
 var _visual: Node3D
 
@@ -65,8 +66,38 @@ func sink_into_hole() -> void:
 	shot_bias = 0.0
 	var drop := create_tween()
 	drop.set_parallel(true)
-	drop.tween_property(self, "position:y", -0.045, 0.22)
-	drop.tween_property(self, "scale", Vector3(0.62, 0.62, 0.62), 0.22)
+	drop.tween_property(self, "position:y", -0.045, 0.18)
+	drop.tween_property(self, "scale", Vector3(0.72, 0.72, 0.72), 0.18)
+
+
+func seat_on_score(spot: Vector3) -> void:
+	banked = true
+	moving = false
+	in_ditch = false
+	velocity = Vector3.ZERO
+	shot_bias = 0.0
+	var lift := create_tween()
+	lift.set_trans(Tween.TRANS_CUBIC)
+	lift.set_ease(Tween.EASE_OUT)
+	lift.set_parallel(true)
+	lift.tween_property(self, "global_position", spot, 0.38)
+	lift.tween_property(self, "scale", Vector3.ONE, 0.38)
+	lift.tween_property(self, "rotation_degrees", Vector3(-18.0, 0.0, 0.0), 0.38)
+
+
+func ditch_off() -> void:
+	sunk = false
+	banked = false
+	in_ditch = true
+	moving = false
+	velocity = Vector3.ZERO
+	shot_bias = 0.0
+	scale = Vector3.ONE
+	rotation = Vector3.ZERO
+	var spot := flat()
+	if spot.length() < 0.001:
+		spot = Vector2(0.0, 1.0)
+	set_flat(spot.normalized() * (Metrics.SURFACE_RADIUS + Metrics.DISC_RADIUS * 0.55))
 
 func _build_visual() -> void:
 	_visual = Node3D.new()
