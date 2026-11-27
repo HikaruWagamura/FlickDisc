@@ -743,7 +743,7 @@ func _aim_face() -> Vector3:
 		face = _cue_face()
 	elif velocity.length() > 0.2:
 		face = Vector3(velocity.x, 0.0, velocity.z)
-		travel_facing = velocity
+		travel_facing = face.normalized()
 	else:
 		face = Vector3(travel_facing.x, 0.0, travel_facing.z)
 	if face.length() < 0.001:
@@ -791,7 +791,7 @@ func _apply_visual(_speed: float) -> void:
 		return
 	punch = move_toward(punch, 0.0, 0.08)
 	if velocity.length() > 0.2:
-		travel_facing = velocity
+		travel_facing = Vector3(velocity.x, 0.0, velocity.z).normalized()
 	if delivering_jack:
 		if _visual != null:
 			_visual.visible = false
@@ -1030,23 +1030,27 @@ func _spin_body(body, moved: Vector3) -> void:
 
 
 func _roll_facing(body, moved: Vector3) -> Vector3:
-	# Roll on the equator around the send. Instant velocity at the finish
-	# can hook sideways; following that yaws the faces into the camera.
-	if body == self:
-		var axis := Vector3(shot_axis.x, 0.0, shot_axis.y)
-		if axis.length() > 0.001:
-			travel_facing = axis
-			return axis
-		if travel_facing.length() > 0.01:
-			return travel_facing
-		return Vector3(0.0, 0.0, -1.0)
+	# Face the run. The equator stays the rolling surface, so the bowl
+	# yaws with the draw instead of sliding sideways at the finish, and
+	# it cannot fall onto a face.
 	var vel := Vector3(body.velocity.x, 0.0, body.velocity.z)
-	if vel.length() >= 0.4:
-		body.travel = vel
-		return vel
-	var prev: Vector3 = body.travel
-	if prev.length() > 0.01:
-		return prev
+	var stored: Vector3 = travel_facing if body == self else body.travel
+	if vel.length() >= 0.12:
+		var want := vel.normalized()
+		var current := Vector3(stored.x, 0.0, stored.z)
+		if current.length() < 0.01:
+			current = want
+		else:
+			current = current.normalized()
+		var mix := clampf(vel.length() * 0.14, 0.22, 0.62)
+		var next := current.slerp(want, mix)
+		if body == self:
+			travel_facing = next
+		else:
+			body.travel = next
+		return next
+	if stored.length() > 0.01:
+		return stored
 	var step := Vector3(moved.x, 0.0, moved.z)
 	if step.length() > 0.0001:
 		return step

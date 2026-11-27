@@ -449,49 +449,58 @@ func _build_setup() -> void:
 		rink = "crokinole"
 		_sync_setup()
 	)
-	_place(page, crokin_card, Vector2(20, 148), Vector2(244, 148))
-	_place(page, lawn_card, Vector2(276, 148), Vector2(244, 148))
+	_place(page, crokin_card, Vector2(20, 152), Vector2(244, 200))
+	_place(page, lawn_card, Vector2(276, 152), Vector2(244, 200))
 
 	hint_label = _label("", 13, MUTED, body_font)
 	hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_place(page, hint_label, Vector2(20, 312), Vector2(500, 18))
+	hint_label.visible = false
+	_place(page, hint_label, Vector2(20, 360), Vector2(500, 18))
 
-	customize_button = _row_button("CUSTOMIZE BOWLS", func() -> void:
+	customize_button = _button("CUSTOMIZE", 11)
+	customize_button.focus_mode = Control.FOCUS_NONE
+	customize_button.action_mode = BaseButton.ACTION_MODE_BUTTON_PRESS
+	customize_button.position = Vector2(12, 156)
+	customize_button.size = Vector2(220, 36)
+	customize_button.custom_minimum_size = Vector2(220, 36)
+	_paint_button(customize_button, PINK_DEEP, Color("#ffe4f4"), CREAM, 10, 8, 2)
+	customize_button.pressed.connect(func() -> void:
 		_tap()
+		rink = "lawn"
 		_open_kit(kind if kind != "" else "classic")
 	)
-	_place(page, customize_button, Vector2(20, 332), Vector2(500, 48))
+	lawn_card.add_child(customize_button)
 
 	guide_kicker = _kicker("AIM GUIDE")
-	_place(page, guide_kicker, Vector2(28, 388), Vector2(240, 16))
-	guide_chips = _chip_row(page, Vector2(20, 406), PackedStringArray(["5 + 3", "5", "3", "NONE"]), func(i: int) -> void:
+	_place(page, guide_kicker, Vector2(28, 372), Vector2(240, 16))
+	guide_chips = _chip_row(page, Vector2(20, 394), PackedStringArray(["5 + 3", "5", "3", "NONE"]), func(i: int) -> void:
 		guide = i
 		_sync_setup()
 	)
 	ditch_kicker = _kicker("DITCH")
-	_place(page, ditch_kicker, Vector2(28, 460), Vector2(200, 16))
-	ditch_chips = _chip_row(page, Vector2(20, 478), PackedStringArray(["ON", "OFF"]), func(i: int) -> void:
+	_place(page, ditch_kicker, Vector2(28, 468), Vector2(200, 16))
+	ditch_chips = _chip_row(page, Vector2(20, 490), PackedStringArray(["ON", "OFF"]), func(i: int) -> void:
 		ditch_on = i == 0
 		_sync_setup()
 	)
 
 	match_kicker = _kicker("MATCH")
-	_place(page, match_kicker, Vector2(28, 532), Vector2(200, 16))
-	match_chips = _chip_row(page, Vector2(20, 550), PackedStringArray(["1 END", "4 ENDS", "TO 10", "TO 21"]), func(i: int) -> void:
+	_place(page, match_kicker, Vector2(28, 564), Vector2(200, 16))
+	match_chips = _chip_row(page, Vector2(20, 586), PackedStringArray(["1 END", "4 ENDS", "TO 10", "TO 21"]), func(i: int) -> void:
 		race = i
 		_sync_setup()
 	)
 	skill_kicker = _kicker("AI")
-	_place(page, skill_kicker, Vector2(28, 604), Vector2(200, 16))
-	skill_chips = _chip_row(page, Vector2(20, 622), PackedStringArray(["EASY", "MEDIUM", "HARD"]), func(i: int) -> void:
+	_place(page, skill_kicker, Vector2(28, 660), Vector2(200, 16))
+	skill_chips = _chip_row(page, Vector2(20, 682), PackedStringArray(["EASY", "MEDIUM", "HARD"]), func(i: int) -> void:
 		difficulty = i
 		_sync_setup()
 	)
 
 	big_play = _primary("PLAY VERSUS AI", func() -> void: _launch("ai"))
-	_place(page, big_play, Vector2(20, 680), Vector2(500, 64))
+	_place(page, big_play, Vector2(20, 772), Vector2(500, 64))
 	friend_button = _row_button("PLAY A FRIEND", func() -> void: _launch("local"))
-	_place(page, friend_button, Vector2(20, 752), Vector2(500, 56))
+	_place(page, friend_button, Vector2(20, 852), Vector2(500, 56))
 
 	duo_note = _label("Both teams play on this device. Pass the phone each shot.", 13, MUTED, body_font)
 	duo_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -988,7 +997,8 @@ func _sync_setup() -> void:
 	duo_note.visible = not classic
 	if friend_button != null:
 		friend_button.visible = classic
-	hint_label.text = "Round board. First to the target." if rink == "crokinole" else "Four bowls each. Closest to the jack."
+	if hint_label != null:
+		hint_label.visible = false
 	if difficulty_button != null:
 		difficulty_button.text = _difficulty_options()[difficulty]
 	var match_captions := PackedStringArray(["1 END", "4 ENDS", "TO 10", "TO 21"])
@@ -998,38 +1008,66 @@ func _sync_setup() -> void:
 		race = mini(1, match_captions.size() - 1)
 	if race_button != null:
 		race_button.text = _race_options()[race]
-	if customize_button != null:
-		customize_button.text = "CUSTOMIZE BOWLS" if rink == "lawn" else "CUSTOMIZE DISCS"
 	var lawn := rink == "lawn"
+	if customize_button != null:
+		customize_button.visible = lawn
+		customize_button.text = "CUSTOMIZE"
+		_paint_button(customize_button, PINK_DEEP, Color("#ffe4f4"), CREAM, 10, 8, 2)
+	_layout_setup_rows(lawn, classic, match_captions)
+	_paint_rinks()
+	if code_label != null:
+		code_label.text = room_code
+	if join_edit != null and join_edit.text == "":
+		join_edit.text = room_code
+
+
+func _layout_setup_rows(lawn: bool, classic: bool, match_captions: PackedStringArray) -> void:
+	var match_y := 564.0 if lawn else 372.0
+	var skill_y := 660.0 if lawn else 468.0
+	var lawn_art := lawn_card.get_node_or_null("Art") as Control if lawn_card != null else null
+	if lawn_art != null:
+		if lawn:
+			lawn_art.position = Vector2(62, 88)
+			lawn_art.size = Vector2(120, 64)
+		else:
+			lawn_art.position = Vector2(62, 88)
+			lawn_art.size = Vector2(120, 96)
 	if guide_kicker != null:
 		guide_kicker.visible = lawn
+		guide_kicker.position = Vector2(28, 372)
 	if ditch_kicker != null:
 		ditch_kicker.visible = lawn
+		ditch_kicker.position = Vector2(28, 468)
 	if lawn:
-		_layout_chips(guide_chips, PackedStringArray(["5 + 3", "5", "3", "NONE"]), Vector2(20, 406))
+		_layout_chips(guide_chips, PackedStringArray(["5 + 3", "5", "3", "NONE"]), Vector2(20, 394))
 		_paint_chips(guide_chips, guide)
-		_layout_chips(ditch_chips, PackedStringArray(["ON", "OFF"]), Vector2(20, 478))
+		_layout_chips(ditch_chips, PackedStringArray(["ON", "OFF"]), Vector2(20, 490))
 		_paint_chips(ditch_chips, 0 if ditch_on else 1)
 	else:
 		for chip in guide_chips:
 			chip.visible = false
 		for chip in ditch_chips:
 			chip.visible = false
-	_layout_chips(match_chips, match_captions, Vector2(20, 550))
+	if match_kicker != null:
+		match_kicker.visible = true
+		match_kicker.position = Vector2(28, match_y)
+	_layout_chips(match_chips, match_captions, Vector2(20, match_y + 22.0))
 	_paint_chips(match_chips, race)
 	if skill_kicker != null:
 		skill_kicker.visible = classic
+		skill_kicker.position = Vector2(28, skill_y)
 	if classic:
-		_layout_chips(skill_chips, PackedStringArray(["EASY", "MEDIUM", "HARD"]), Vector2(20, 622))
+		_layout_chips(skill_chips, PackedStringArray(["EASY", "MEDIUM", "HARD"]), Vector2(20, skill_y + 22.0))
 		_paint_chips(skill_chips, difficulty)
 	else:
 		for chip in skill_chips:
 			chip.visible = false
-	_paint_rinks()
-	if code_label != null:
-		code_label.text = room_code
-	if join_edit != null and join_edit.text == "":
-		join_edit.text = room_code
+	if big_play != null:
+		big_play.position = Vector2(20, 772)
+	if friend_button != null:
+		friend_button.position = Vector2(20, 852)
+	if duo_note != null:
+		duo_note.position = Vector2(20, 852)
 
 
 func _paint_rinks() -> void:
@@ -1607,16 +1645,18 @@ func _rink_card(title: String, body: String, stamp_kind: String, show_logo: bool
 	button.add_child(detail)
 	if show_logo:
 		var mark := _mark_rect()
-		mark.position = Vector2(64, 100)
-		mark.size = Vector2(116, 96)
+		mark.name = "Art"
+		mark.position = Vector2(64, 88)
+		mark.size = Vector2(116, 88)
 		button.add_child(mark)
 	else:
 		var art := TextureRect.new()
+		art.name = "Art"
 		art.texture = _bowl_portrait()
 		art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		art.position = Vector2(62, 98)
-		art.size = Vector2(120, 98)
+		art.position = Vector2(62, 88)
+		art.size = Vector2(120, 64)
 		art.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		art.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 		button.add_child(art)

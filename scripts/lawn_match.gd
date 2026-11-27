@@ -2087,19 +2087,50 @@ func _rollshot() -> void:
 	disc.fire_taken(Vector3(0.22, 0.0, -1.0).normalized(), power)
 	DirAccess.make_dir_recursive_absolute("/tmp/roll_anim")
 	var frames := 0
-	for i in 36:
-		await get_tree().create_timer(0.04).timeout
+	var ticks := 0
+	while (disc.shot_in_progress or ticks < 8) and ticks < 90:
+		await get_tree().create_timer(0.08).timeout
 		await RenderingServer.frame_post_draw
 		var tex: Texture2D = get_viewport().get_texture()
 		if tex != null:
 			var img := tex.get_image()
 			if img != null:
 				img.save_png("/tmp/roll_anim/%03d.png" % frames)
-				if i == 0 or i == 4 or i == 10 or i == 20 or i == 28 or i == 30:
-					img.save_png("/opt/cursor/artifacts/roll_%02d.png" % i)
+				if ticks == 2 or ticks == 12 or ticks == 28 or ticks == 48 or ticks == 70:
+					img.save_png("/opt/cursor/artifacts/roll_%02d.png" % ticks)
+					_print_roll_facing("roll_%02d" % ticks)
 				frames += 1
+		ticks += 1
 	print("ROLLSHOT frames=%d pos=%.2f,%.2f" % [frames, disc.global_position.x, disc.global_position.z])
+	_print_roll_facing("roll_rest")
+	var cam: Camera3D = rink.view_camera() if rink != null else null
+	if cam != null and disc != null:
+		rink.pose_lock = true
+		var at: Vector3 = disc.global_position
+		cam.fov = 40.0
+		cam.position = at + Vector3(1.15, 0.42, 0.85)
+		cam.look_at(at + Vector3(0.0, 0.08, 0.0), Vector3.UP)
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		await _dump_compare_shot("roll_face_late")
+		cam.position = at + Vector3(0.0, 2.4, 0.15)
+		cam.look_at(at, Vector3.FORWARD)
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		await _dump_compare_shot("roll_face_top")
 	get_tree().quit(0)
+
+
+func _print_roll_facing(tag: String) -> void:
+	if disc == null:
+		return
+	var vel := Vector3(disc.velocity.x, 0.0, disc.velocity.z)
+	var vel_yaw := -atan2(vel.x, -vel.z) if vel.length() > 0.05 else -atan2(disc.travel_facing.x, -disc.travel_facing.z)
+	var face := disc.travel_facing
+	var face_yaw := -atan2(face.x, -face.z) if face.length() > 0.01 else 0.0
+	print("ROLLFACE %s pos=%.2f,%.2f speed=%.2f vel_yaw=%.3f face_yaw=%.3f" % [
+		tag, disc.global_position.x, disc.global_position.z, vel.length(), vel_yaw, face_yaw
+	])
 
 
 func _aitest() -> void:
