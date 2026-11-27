@@ -39,6 +39,7 @@ const JACK_MESH_PATH := "res://assets/bowls/club/jack.obj"
 const CLUB_FINISH_SHADER := preload("res://shaders/bowl_kit.gdshader")
 
 static var _club_meshes: Array[Mesh] = []
+static var _club_unpose: Array[Basis] = []
 static var _jack_mesh: Mesh
 static var _next_club_variant := 0
 static var _maps_cache: Dictionary = {}
@@ -668,6 +669,7 @@ static func _ensure_club_meshes() -> void:
 		if jack is Mesh:
 			_jack_mesh = jack
 	if not _club_meshes.is_empty():
+		_fill_club_unposes()
 		_log_club_meshes("obj")
 		return
 	if CLUB_SCENE == null:
@@ -684,6 +686,49 @@ static func _ensure_club_meshes() -> void:
 		_collect_club_meshes(root, jack_mi)
 	root.free()
 	_log_club_meshes("fbx")
+
+
+static func _fill_club_unposes() -> void:
+	# C4D parent nodes hold the scene lean. Inverse that so the smooth
+	# OBJ sits on the same pole as the polygon cage (short Z).
+	_club_unpose.clear()
+	for i in _club_meshes.size():
+		_club_unpose.append(Basis.IDENTITY)
+	if CLUB_SCENE == null:
+		return
+	var root: Node = CLUB_SCENE.instantiate()
+	for i in mini(CLUB_NAMES.size(), _club_unpose.size()):
+		var mi := _named_mesh(root, PackedStringArray([CLUB_NAMES[i]]))
+		if mi == null:
+			continue
+		var posed: Node = mi.get_parent()
+		if posed != null:
+			posed = posed.get_parent()
+		if posed is Node3D:
+			_club_unpose[i] = (posed as Node3D).transform.basis.inverse().orthonormalized()
+	root.free()
+
+
+static func _unpose_of(mesh: Mesh) -> Basis:
+	_ensure_club_meshes()
+	for i in _club_meshes.size():
+		if _club_meshes[i] == mesh and i < _club_unpose.size():
+			return _club_unpose[i]
+	return Basis.IDENTITY
+
+
+static func _unposed_aabb(mesh: Mesh, unpose: Basis) -> AABB:
+	if mesh == null:
+		return AABB()
+	if mesh.get_surface_count() < 1:
+		return Transform3D(unpose, Vector3.ZERO) * mesh.get_aabb()
+	var verts: PackedVector3Array = mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	if verts.is_empty():
+		return Transform3D(unpose, Vector3.ZERO) * mesh.get_aabb()
+	var box := AABB(unpose * verts[0], Vector3.ZERO)
+	for i in range(1, verts.size()):
+		box = box.expand(unpose * verts[i])
+	return box
 
 
 static func _log_club_meshes(source: String) -> void:
@@ -762,12 +807,13 @@ static func _mesh_pole(aabb: AABB) -> Vector3:
 
 
 static func _seat_running_surface(mi: MeshInstance3D, target_span: float) -> void:
-	# Pack bowls were posed in C4D, so the short pole (the two grip faces)
-	# is not always X. Map that pole onto +X, scale by the wide equator
-	# between the hand grooves, and sit the running surface on the grass.
+	# The Drive OBJ baked the C4D scene pose, so Blaze leans ~74°. Undo
+	# that pose back to the cage's local pole (short Z, square equator),
+	# then map that pole onto +X so the bowl sits upright on the grass.
 	if mi.mesh == null:
 		return
-	var aabb := mi.mesh.get_aabb()
+	var unpose := _unpose_of(mi.mesh)
+	var aabb := _unposed_aabb(mi.mesh, unpose)
 	var pole := _mesh_pole(aabb)
 	var s := aabb.size
 	var running := s.x
@@ -795,16 +841,21 @@ static func _seat_running_surface(mi: MeshInstance3D, target_span: float) -> voi
 		Vector3(pole.y, eq_up.y, eq_fwd.y),
 		Vector3(pole.z, eq_up.z, eq_fwd.z)
 	)
-	mi.basis = rot * Basis.from_scale(Vector3.ONE * scale)
+	mi.basis = rot * Basis.from_scale(Vector3.ONE * scale) * unpose
 	mi.position = rot * (-aabb.get_center() * scale)
 	var pole_half := 0.5 * absf(pole.x * s.x + pole.y * s.y + pole.z * s.z)
 	if pole_half < 0.0001:
 		pole_half = 0.5 * maxf(s.x, maxf(s.y, s.z))
-	mi.set_meta("pole_axis", pole)
-	mi.set_meta("mesh_center", aabb.get_center())
+	# Shader VERTEX is still the posed OBJ, so the pole and centre stay
+	# in that space. The instance transform has already unposed + seated.
+	var posed_pole := unpose.inverse() * pole
+	if posed_pole.length() > 0.001:
+		posed_pole = posed_pole.normalized()
+	else:
+		posed_pole = pole
+	mi.set_meta("pole_axis", posed_pole)
+	mi.set_meta("mesh_center", unpose.inverse() * aabb.get_center())
 	mi.set_meta("pole_half", pole_half)
-	# Inner grip is the shoulder where the face meets the running surface.
-	# Same fraction on both faces, so the equator is the midpoint.
 	mi.set_meta("groove_inner", 0.55)
 
 

@@ -2008,6 +2008,13 @@ func _kitshot() -> void:
 		await get_tree().process_frame
 		await RenderingServer.frame_post_draw
 		await _dump_compare_shot("kit_bowl_player")
+		# Same aiming camera as play: bowl at the feet, looking down the green.
+		cam.fov = 42.0
+		cam.position = Vector3(0.0, 0.96, at.z + 2.55)
+		cam.look_at(Vector3(0.0, 0.08, at.z - 12.5), Vector3.UP)
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		await _dump_compare_shot("kit_bowl_aim")
 	print("KITSHOT done")
 	get_tree().quit(0)
 
