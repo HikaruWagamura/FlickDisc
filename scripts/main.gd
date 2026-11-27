@@ -129,6 +129,20 @@ func _menutest() -> void:
 	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
 	_dump_menu("menu_home")
+	DisplayServer.window_set_size(Vector2i(540, 1170))
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if menu.has_method("_layout_shell"):
+		menu._layout_shell()
+	await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	_dump_menu("menu_home_tall")
+	DisplayServer.window_set_size(Vector2i(540, 960))
+	await get_tree().process_frame
+	if menu.has_method("_layout_shell"):
+		menu._layout_shell()
+	await get_tree().process_frame
+	await RenderingServer.frame_post_draw
 	menu.open_screen("profile")
 	await get_tree().process_frame
 	await RenderingServer.frame_post_draw

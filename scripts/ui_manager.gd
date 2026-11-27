@@ -565,18 +565,22 @@ func _paint_power_fill(ratio: float) -> void:
 
 
 func _safe_pad() -> Vector2:
-	# Top and bottom insets in 540x960 viewport pixels, after letterboxing.
+	# Top and bottom insets in viewport pixels. Width stays 540; height grows.
+	var min_top := 0.0
+	var min_bottom := 0.0
+	if OS.get_name() == "Android":
+		min_top = 28.0
+		min_bottom = 48.0
 	var safe := DisplayServer.get_display_safe_area()
 	var win := DisplayServer.window_get_size()
 	if win.x < 1 or win.y < 1:
-		return Vector2.ZERO
-	var scale := minf(float(win.x) / 540.0, float(win.y) / 960.0)
+		return Vector2(min_top, min_bottom)
+	var scale := float(win.x) / 540.0
 	if scale <= 0.001:
-		return Vector2.ZERO
-	var letter_y := (float(win.y) - 960.0 * scale) * 0.5
-	var top := maxf(0.0, (float(safe.position.y) - letter_y) / scale)
+		return Vector2(min_top, min_bottom)
+	var top := maxf(min_top, float(safe.position.y) / scale)
 	var bottom_px := float(win.y) - float(safe.position.y + safe.size.y)
-	var bottom := maxf(0.0, (bottom_px - letter_y) / scale)
+	var bottom := maxf(min_bottom, bottom_px / scale)
 	return Vector2(top, bottom)
 
 
@@ -613,11 +617,14 @@ func _layout_hud() -> void:
 		power_label.position = Vector2(478.0, 392.0 + top)
 	if bias_rail != null:
 		bias_rail.position = Vector2(468.0, 430.0 + top)
+	var tall := 960.0
+	if is_inside_tree():
+		tall = get_viewport().get_visible_rect().size.y
 	if hand_switch != null:
-		hand_switch.position = Vector2(446.0, 852.0 - bottom)
+		hand_switch.position = Vector2(446.0, tall - 108.0 - bottom)
 		hand_switch.size = Vector2(86.0, 92.0)
 	if next_button != null:
-		next_button.position = Vector2(150.0, 888.0 - bottom)
+		next_button.position = Vector2(150.0, tall - 72.0 - bottom)
 
 
 func _build_aim_dial() -> void:

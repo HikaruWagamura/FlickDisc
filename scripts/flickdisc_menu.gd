@@ -47,6 +47,12 @@ var home_letter: Label
 var home_record: Label
 var home_tally: Label
 var home_play: Button
+var home_mark: TextureRect
+var home_pill: Button
+var home_gear: Button
+var home_cards: Array = []
+var splash_mark: TextureRect
+var splash_line: Label
 var starting: Control
 var home_xp: ColorRect
 var chip_wins: Label
@@ -84,6 +90,8 @@ var board_mark: Label
 var board_recent: Label
 var friend_code: Label
 var nav: Control
+var nav_row: HBoxContainer
+var nav_glow: ColorRect
 var nav_icons: Array = []
 var nav_captions: Array = []
 var nav_buttons: Array = []
@@ -159,6 +167,8 @@ func setup(player_profile) -> void:
 	_build_online_layer()
 	_build_toast()
 	_build_starting()
+	get_viewport().size_changed.connect(_layout_shell)
+	call_deferred("_layout_shell")
 	_show("splash")
 
 
@@ -242,6 +252,124 @@ func _show(next: String) -> void:
 			studio.refresh()
 		_paint_kit()
 	_sync_identity()
+	_layout_shell()
+
+
+func _view_size() -> Vector2:
+	var size := Vector2(540, 960)
+	if is_inside_tree():
+		size = get_viewport().get_visible_rect().size
+	if size.x < 2.0:
+		size.x = 540.0
+	if size.y < 2.0:
+		size.y = 960.0
+	return size
+
+
+func _safe_pad() -> Vector2:
+	# Keep chrome out of the notch and the tab bar above the Android
+	# taskbar, including when a swipe brings the bar back on screen.
+	var min_top := 8.0
+	var min_bottom := 12.0
+	if OS.get_name() == "Android":
+		min_top = 28.0
+		min_bottom = 48.0
+	var safe := DisplayServer.get_display_safe_area()
+	var win := DisplayServer.window_get_size()
+	if win.x < 1 or win.y < 1:
+		return Vector2(min_top, min_bottom)
+	var scale := float(win.x) / 540.0
+	if scale <= 0.001:
+		return Vector2(min_top, min_bottom)
+	var top := maxf(min_top, float(safe.position.y) / scale)
+	var bottom_px := float(win.y) - float(safe.position.y + safe.size.y)
+	var bottom := maxf(min_bottom, bottom_px / scale)
+	return Vector2(top, bottom)
+
+
+func _layout_shell() -> void:
+	if root == null:
+		return
+	var view := _view_size()
+	var pad := _safe_pad()
+	var wide := view.x
+	var tall := view.y
+	if splash_bar != null:
+		splash_bar.position = Vector2(0, pad.x)
+	if splash_mark != null:
+		var mark_h := minf(360.0, tall * 0.38)
+		splash_mark.position = Vector2(40.0, pad.x + (tall - pad.x - pad.y - mark_h) * 0.28)
+		splash_mark.size = Vector2(wide - 80.0, mark_h)
+	if splash_line != null and splash_mark != null:
+		splash_line.position = Vector2(30.0, splash_mark.position.y + splash_mark.size.y + 8.0)
+		splash_line.size = Vector2(wide - 60.0, 36.0)
+	if nav != null:
+		nav.size = Vector2(wide - 28.0, 104.0)
+		nav.position = Vector2(14.0, tall - pad.y - 104.0)
+		if nav_glow != null:
+			nav_glow.position = Vector2(28.0, 2.0)
+			nav_glow.size = Vector2(nav.size.x - 56.0, 3.0)
+		if nav_row != null:
+			nav_row.position = Vector2(8.0, 8.0)
+			nav_row.size = Vector2(nav.size.x - 16.0, 90.0)
+	if toast != null:
+		toast.position = Vector2(40.0, maxf(80.0, nav.position.y - 56.0))
+		toast.size = Vector2(wide - 80.0, 48.0)
+	_layout_home(view, pad)
+
+
+func _layout_home(view: Vector2, pad: Vector2) -> void:
+	if home_pill == null or home_mark == null or home_play == null:
+		return
+	var wide := view.x
+	var chrome_y := pad.x + 4.0
+	home_pill.position = Vector2(16.0, chrome_y)
+	if chip_wins != null and chip_wins.get_parent() is Control:
+		(chip_wins.get_parent() as Control).position = Vector2(wide - 148.0, chrome_y + 10.0)
+	if chip_losses != null and chip_losses.get_parent() is Control:
+		(chip_losses.get_parent() as Control).position = Vector2(wide - 104.0, chrome_y + 10.0)
+	if home_gear != null:
+		home_gear.position = Vector2(wide - 56.0, chrome_y + 8.0)
+	var y := chrome_y + 58.0 + 8.0
+	var floor := view.y - pad.y - 12.0
+	if nav != null:
+		floor = nav.position.y - 12.0
+	var play_h := 64.0
+	var rec_h := 48.0
+	var gap := 10.0
+	var inner := floor - y - play_h - rec_h - 8.0 - gap * 3.0
+	var logo_h := clampf(inner * 0.42, 176.0, 320.0)
+	var card_h := clampf((inner - logo_h) * 0.5, 112.0, 156.0)
+	if logo_h + card_h * 2.0 > inner:
+		logo_h = clampf(inner - card_h * 2.0, 160.0, logo_h)
+	if logo_h + card_h * 2.0 > inner:
+		card_h = maxf(108.0, (inner - logo_h) * 0.5)
+	var after_cards := gap + maxf(0.0, inner - logo_h - card_h * 2.0)
+	home_mark.position = Vector2(40.0, y)
+	home_mark.size = Vector2(wide - 80.0, logo_h)
+	y += logo_h + 8.0
+	home_play.position = Vector2(28.0, y)
+	home_play.size = Vector2(wide - 56.0, play_h)
+	y += play_h + gap
+	var card_w := (wide - 28.0 - 16.0 - 12.0) * 0.5
+	if home_cards.size() >= 4:
+		_place_home_card(home_cards[0] as Button, Vector2(28.0, y), Vector2(card_w, card_h))
+		_place_home_card(home_cards[1] as Button, Vector2(28.0 + card_w + 12.0, y), Vector2(card_w, card_h))
+		_place_home_card(home_cards[2] as Button, Vector2(28.0, y + card_h + gap), Vector2(card_w, card_h))
+		_place_home_card(home_cards[3] as Button, Vector2(28.0 + card_w + 12.0, y + card_h + gap), Vector2(card_w, card_h))
+	y += card_h + gap + card_h + after_cards
+	if home_record != null:
+		home_record.position = Vector2(20.0, minf(y, floor - rec_h))
+		home_record.size = Vector2(wide - 40.0, 24.0)
+	if home_tally != null:
+		home_tally.position = Vector2(20.0, minf(y + 24.0, floor - 22.0))
+		home_tally.size = Vector2(wide - 40.0, 18.0)
+
+
+func _place_home_card(card: Button, pos: Vector2, box: Vector2) -> void:
+	card.position = pos
+	card.size = box
+	card.custom_minimum_size = box
 
 
 func _process(_delta: float) -> void:
@@ -255,7 +383,7 @@ func _arm_splash() -> void:
 	var token := splash_token
 	splash_bar.size = Vector2(0, 3)
 	var tween := create_tween()
-	tween.tween_property(splash_bar, "size:x", 540.0, 2.05)
+	tween.tween_property(splash_bar, "size:x", _view_size().x, 2.05)
 	get_tree().create_timer(2.15).timeout.connect(func() -> void:
 		if screen == "splash" and token == splash_token:
 			_show("home")
@@ -281,15 +409,15 @@ func _build_splash() -> void:
 			_show("home")
 	)
 	page.add_child(hit)
-	var mark := _mark_rect()
-	mark.position = Vector2(40, 150)
-	mark.size = Vector2(460, 360)
-	page.add_child(mark)
-	var line := _label("Pick the table. Then bowl.", 22, CREAM, script_font)
-	line.position = Vector2(30, 530)
-	line.size = Vector2(480, 36)
-	line.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	page.add_child(line)
+	splash_mark = _mark_rect()
+	splash_mark.position = Vector2(40, 150)
+	splash_mark.size = Vector2(460, 360)
+	page.add_child(splash_mark)
+	splash_line = _label("Pick the table. Then bowl.", 22, CREAM, script_font)
+	splash_line.position = Vector2(30, 530)
+	splash_line.size = Vector2(480, 36)
+	splash_line.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	page.add_child(splash_line)
 	splash_bar = ColorRect.new()
 	splash_bar.position = Vector2(0, 0)
 	splash_bar.size = Vector2(0, 3)
@@ -305,51 +433,51 @@ func _build_home() -> void:
 	pages["home"] = page
 	root.add_child(page)
 
-	var pill := Button.new()
-	_place(page, pill, Vector2(16, 16), Vector2(250, 58))
-	_paint_button(pill, PLUM, GOLD, CREAM, 28, 12)
-	pill.pressed.connect(_show.bind("profile"))
+	home_pill = Button.new()
+	_place(page, home_pill, Vector2(16, 16), Vector2(250, 58))
+	_paint_button(home_pill, PLUM, GOLD, CREAM, 28, 12)
+	home_pill.pressed.connect(_show.bind("profile"))
 	var avatar := Panel.new()
 	avatar.position = Vector2(8, 10)
 	avatar.size = Vector2(38, 38)
 	avatar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	avatar.add_theme_stylebox_override("panel", _flat(GOLD, GOLD, 0, 19, 0))
-	pill.add_child(avatar)
+	home_pill.add_child(avatar)
 	home_letter = _label("B", 18, Color("#07101C"), bold_font)
 	home_letter.position = Vector2(8, 16)
 	home_letter.size = Vector2(38, 26)
 	home_letter.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	pill.add_child(home_letter)
+	home_pill.add_child(home_letter)
 	home_name = _label("Flicker", 16, CREAM, bold_font)
 	home_name.position = Vector2(54, 8)
 	home_name.size = Vector2(180, 22)
-	pill.add_child(home_name)
+	home_pill.add_child(home_name)
 	home_level = _label("Level 1", 12, CREAM, bold_font)
 	home_level.position = Vector2(54, 30)
 	home_level.size = Vector2(180, 16)
-	pill.add_child(home_level)
+	home_pill.add_child(home_level)
 	var track := ColorRect.new()
 	track.position = Vector2(54, 48)
 	track.size = Vector2(150, 3)
 	track.color = Color(1, 1, 1, 0.14)
 	track.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	pill.add_child(track)
+	home_pill.add_child(track)
 	home_xp = ColorRect.new()
 	home_xp.position = Vector2(54, 48)
 	home_xp.size = Vector2(8, 3)
 	home_xp.color = GOLD
 	home_xp.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	pill.add_child(home_xp)
+	home_pill.add_child(home_xp)
 
 	chip_wins = _chip(page, Vector2(392, 26))
 	chip_losses = _chip(page, Vector2(436, 26))
-	var gear := _button("⚙", 18)
-	_place(page, gear, Vector2(484, 24), Vector2(40, 40))
-	_paint_button(gear, PLUM, GOLD, CREAM, 12, 0)
-	gear.pressed.connect(_show.bind("settings"))
+	home_gear = _button("⚙", 18)
+	_place(page, home_gear, Vector2(484, 24), Vector2(40, 40))
+	_paint_button(home_gear, PLUM, GOLD, CREAM, 12, 0)
+	home_gear.pressed.connect(_show.bind("settings"))
 
-	var mark := _mark_rect()
-	_place(page, mark, Vector2(40, 36), Vector2(460, 320))
+	home_mark = _mark_rect()
+	_place(page, home_mark, Vector2(40, 82), Vector2(460, 220))
 
 	var play := _button("▶  PLAY A MATCH", 22)
 	_place(page, play, Vector2(28, 360), Vector2(484, 64))
@@ -360,10 +488,12 @@ func _build_home() -> void:
 		_open_setup("classic")
 	)
 
-	_home_card(page, Rect2(28, 444, 236, 124), "LONG GREEN", "A full match rink.", "green", "🌿", "drive")
-	_home_card(page, Rect2(276, 444, 236, 124), "SOLO ENDS", "One bowl. The jack.", "solo", "🎯", "solo")
-	_home_card(page, Rect2(28, 584, 236, 124), "PRACTICE", "You and the jack.", "practice", "🔥", "practice")
-	_home_card(page, Rect2(276, 584, 236, 124), "THE BOARD", "Wins. Ends. Runs.", "board", "🏆", "rankings")
+	home_cards = [
+		_home_card(page, Rect2(28, 444, 236, 124), "LONG GREEN", "A full match rink.", "green", "🌿", "drive"),
+		_home_card(page, Rect2(276, 444, 236, 124), "SOLO ENDS", "One bowl. The jack.", "solo", "🎯", "solo"),
+		_home_card(page, Rect2(28, 584, 236, 124), "PRACTICE", "You and the jack.", "practice", "🔥", "practice"),
+		_home_card(page, Rect2(276, 584, 236, 124), "THE BOARD", "Wins. Ends. Runs.", "board", "🏆", "rankings"),
+	]
 
 	home_record = _label("0W  ·  0L", 18, CREAM, bold_font)
 	_place(page, home_record, Vector2(20, 720), Vector2(500, 24))
@@ -373,7 +503,7 @@ func _build_home() -> void:
 	home_tally.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
 
-func _home_card(page: Control, rect: Rect2, title: String, body: String, stamp_kind: String, glyph: String, target: String) -> void:
+func _home_card(page: Control, rect: Rect2, title: String, body: String, stamp_kind: String, glyph: String, target: String) -> Button:
 	var button := Button.new()
 	button.text = ""
 	button.clip_contents = true
@@ -414,6 +544,7 @@ func _home_card(page: Control, rect: Rect2, title: String, body: String, stamp_k
 			else:
 				_show(target)
 	)
+	return button
 
 
 func _build_setup() -> void:
@@ -836,22 +967,22 @@ func _build_nav() -> void:
 	nav.size = Vector2(512, 104)
 	nav.add_theme_stylebox_override("panel", _flat(Color(0.04, 0.08, 0.16, 0.96), GOLD, 2, 28, 0))
 	root.add_child(nav)
-	var glow := ColorRect.new()
-	glow.position = Vector2(28, 2)
-	glow.size = Vector2(456, 3)
-	glow.color = GOLD_GLOW
-	glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	nav.add_child(glow)
-	var row := HBoxContainer.new()
-	row.position = Vector2(8, 8)
-	row.size = Vector2(496, 90)
-	row.add_theme_constant_override("separation", 2)
-	nav.add_child(row)
-	_nav_item(row, "home", "HOME", "🏠")
-	_nav_item(row, "profile", "ME", "😎")
-	_nav_item(row, "customise", "BOWLS", "🎳")
-	_nav_item(row, "shop", "SHOP", "🛍️")
-	_nav_item(row, "settings", "GEAR", "⚙️")
+	nav_glow = ColorRect.new()
+	nav_glow.position = Vector2(28, 2)
+	nav_glow.size = Vector2(456, 3)
+	nav_glow.color = GOLD_GLOW
+	nav_glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	nav.add_child(nav_glow)
+	nav_row = HBoxContainer.new()
+	nav_row.position = Vector2(8, 8)
+	nav_row.size = Vector2(496, 90)
+	nav_row.add_theme_constant_override("separation", 2)
+	nav.add_child(nav_row)
+	_nav_item(nav_row, "home", "HOME", "🏠")
+	_nav_item(nav_row, "profile", "ME", "😎")
+	_nav_item(nav_row, "customise", "BOWLS", "🎳")
+	_nav_item(nav_row, "shop", "SHOP", "🛍️")
+	_nav_item(nav_row, "settings", "GEAR", "⚙️")
 
 
 func _nav_item(row: HBoxContainer, ident: String, caption: String, glyph: String) -> void:
