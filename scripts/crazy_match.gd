@@ -445,19 +445,56 @@ func _sync_fan() -> void:
 func _crazytest() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
+	await get_tree().create_timer(0.35).timeout
+	await RenderingServer.frame_post_draw
+	_dump("crazy_hero_tee")
+	if green != null:
+		green.pose_lock = true
+		var cam: Camera3D = green.view_camera()
+		if cam != null:
+			cam.current = true
+			cam.position = Vector3(1.2, 16.0, 7.5)
+			cam.look_at(Vector3(0.6, 0.0, -15.0), Vector3.UP)
+			cam.fov = 46.0
+	await get_tree().process_frame
+	await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	_dump("crazy_hero_overview")
+	if green != null:
+		var cup_cam: Camera3D = green.view_camera()
+		if cup_cam != null:
+			cup_cam.position = Vector3(green.cup.x + 2.6, 5.4, green.cup.z + 2.8)
+			cup_cam.look_at(Vector3(green.cup.x, 0.04, green.cup.z), Vector3.UP)
+			cup_cam.fov = 34.0
+	await get_tree().process_frame
+	await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	_dump("crazy_hero_cup")
+	if green != null:
+		var water_cam: Camera3D = green.view_camera()
+		if water_cam != null:
+			var pond_at := Vector3(3.85, 0.0, -14.8)
+			if green.water_spots.size() > 0:
+				pond_at = green.water_spots[0]["pos"]
+			water_cam.position = pond_at + Vector3(-2.2, 4.4, 3.4)
+			water_cam.look_at(pond_at + Vector3(0.0, 0.08, 0.0), Vector3.UP)
+			water_cam.fov = 42.0
+	await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	_dump("crazy_hero_water")
+	if green != null:
+		green.pose_lock = false
+		green.reset_view()
+	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
 	_dump("crazy_hole1")
-	disc.fire_taken(Vector3(0.04, 0.0, -1.0), 0.72)
+	disc.fire_taken(Vector3(-0.18, 0.0, -1.0), 0.78)
 	var waited := 0.0
 	while disc.shot_in_progress and waited < 14.0:
 		await get_tree().process_frame
 		waited += get_process_delta_time()
 	await RenderingServer.frame_post_draw
 	_dump("crazy_hole1_rest")
-	_open_hole(mini(9, course.size() - 1))
-	await get_tree().process_frame
-	await RenderingServer.frame_post_draw
-	_dump("crazy_hole10")
 	print("CRAZYTEST done")
 	get_tree().quit(0)
 

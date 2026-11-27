@@ -72,10 +72,12 @@ func height_at(x: float, z: float) -> float:
 		var radius: float = float(pond["radius"])
 		var u := Vector2(x - at.x, z - at.z).length() / maxf(radius, 0.4)
 		if u < 1.0:
-			h -= 0.28 * (1.0 - u * u)
-	var cup_u := Vector2(x - cup.x, z - cup.z).length() / maxf(cup_radius * 1.7, 0.5)
-	if cup_u < 1.0:
-		h -= 0.07 * (1.0 - cup_u * cup_u)
+			h -= 0.12 * (1.0 - u * u)
+	var cup_u := Vector2(x - cup.x, z - cup.z).length() / maxf(cup_radius * 1.85, 0.5)
+	if cup_u < 0.52:
+		h -= 0.38
+	elif cup_u < 1.0:
+		h -= 0.16 * (1.0 - cup_u * cup_u)
 	return h
 
 
@@ -168,9 +170,9 @@ func _process(delta: float) -> void:
 		goal_fov = 42.0
 		response = 5.4
 	else:
-		goal_pos = Vector3(tee.x, 0.78, tee.z + 2.35)
-		goal_look = Vector3(cup.x * 0.18, 0.14, tee.z - minf(18.0, LENGTH * 0.48))
-		goal_fov = 44.0
+		goal_pos = Vector3(tee.x, 1.72, tee.z + 3.8)
+		goal_look = Vector3(cup.x * 0.55, 0.04, lerpf(tee.z, cup.z, 0.78))
+		goal_fov = 48.0
 		response = 7.0
 	if not _cam_ready:
 		_cam_pos = goal_pos
@@ -246,8 +248,8 @@ func _build_outfield() -> void:
 
 
 func _build_fairway() -> void:
-	var nx := 52
-	var nz := 70
+	var nx := 64
+	var nz := 88
 	var min_x := -HALF_WIDTH
 	var max_x := HALF_WIDTH
 	var min_z := FAR_Z
@@ -277,6 +279,15 @@ func _build_fairway() -> void:
 			var b := a + 1
 			var c := a + nx + 1
 			var d := c + 1
+			# Punch a real cup: skip grass faces inside the hole so the well shows.
+			var cut := cup_radius * 0.90
+			var inside := true
+			for idx in [a, b, c, d]:
+				if Vector2(verts[idx].x - cup.x, verts[idx].z - cup.z).length() >= cut:
+					inside = false
+					break
+			if inside:
+				continue
 			idxs.append_array(PackedInt32Array([a, c, b, b, c, d]))
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
@@ -314,24 +325,31 @@ func _build_rails() -> void:
 
 
 func _build_cup() -> void:
-	var well := _lit(Color(0.06, 0.04, 0.03), 0.95)
-	var y := height_at(cup.x, cup.z)
-	_cylinder(self, Vector3(cup.x, y - CUP_DEPTH * 0.45, cup.z), cup_radius * 0.96, CUP_DEPTH, well, Vector3.ZERO, 24, false)
-	_ring(Vector3(cup.x, y + 0.02, cup.z), cup_radius * 1.14, cup_radius * 0.92, _white_line)
+	var well := _lit(Color(0.04, 0.02, 0.01), 0.98)
+	# Rings sit on the grass. A solid collar would hide the hole.
+	var y := SURFACE_Y
+	_cylinder(self, Vector3(cup.x, y - 0.24, cup.z), cup_radius * 0.98, 0.40, well, Vector3.ZERO, 28, false, true, true)
+	_ring(Vector3(cup.x, y + 0.04, cup.z), cup_radius * 1.18, cup_radius * 0.96, _white_line)
+	_ring(Vector3(cup.x, y + 0.03, cup.z), cup_radius * 1.32, cup_radius * 1.16, _gold)
 	var flag := Node3D.new()
 	flag.position = Vector3(cup.x, y, cup.z)
 	add_child(flag)
-	_cylinder(flag, Vector3(0.0, 0.85, 0.0), 0.018, 1.7, _gold, Vector3.ZERO, 8, false)
-	_box(flag, Vector3(0.28, 1.55, 0.0), Vector3(0.52, 0.28, 0.02), _lit(Color(0.88, 0.16, 0.18), 0.48))
+	_cylinder(flag, Vector3(0.0, 0.95, 0.0), 0.022, 1.9, _gold, Vector3.ZERO, 8, false)
+	_box(flag, Vector3(0.34, 1.72, 0.0), Vector3(0.62, 0.32, 0.03), _lit(Color(0.88, 0.16, 0.18), 0.48))
 
 
 func _build_water() -> void:
-	var water := _lit(Color(0.18, 0.42, 0.62, 0.86), 0.12, 0.08, Color(0.25, 0.55, 0.72), 0.18)
+	var bank := _lit(Color(0.62, 0.52, 0.28), 0.82)
+	var water := _lit(Color(0.14, 0.38, 0.58, 0.92), 0.08, 0.18, Color(0.22, 0.52, 0.70), 0.22)
 	water.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	var lip := _lit(Color(0.78, 0.86, 0.90, 0.55), 0.22)
+	lip.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	for pond in water_spots:
 		var at: Vector3 = pond["pos"]
 		var radius: float = float(pond["radius"])
-		_cylinder(self, Vector3(at.x, -0.04, at.z), radius, 0.08, water, Vector3.ZERO, 22, false)
+		_cylinder(self, Vector3(at.x, 0.01, at.z), radius * 1.18, 0.12, bank, Vector3.ZERO, 28, false)
+		_cylinder(self, Vector3(at.x, 0.05, at.z), radius * 0.98, 0.08, water, Vector3.ZERO, 28, false)
+		_ring(Vector3(at.x, 0.10, at.z), radius * 1.04, radius * 0.90, lip)
 
 
 func _build_trees() -> void:
@@ -341,9 +359,15 @@ func _build_trees() -> void:
 		var at: Vector3 = tree["pos"]
 		var scale: float = float(tree.get("scale", 1.0))
 		var leaf: StandardMaterial3D = _leaf_mats[rng.randi() % _leaf_mats.size()]
+		var shade: StandardMaterial3D = _leaf_mats[(rng.randi() + 1) % _leaf_mats.size()]
 		var y := height_at(at.x, at.z)
-		_cylinder(self, Vector3(at.x, y + 0.7 * scale, at.z), 0.09 * scale, 1.35 * scale, _trunk_mat, Vector3.ZERO, 8)
-		_sphere(self, Vector3(at.x, y + 1.6 * scale, at.z), 0.84 * scale, leaf, 12)
+		var trunk_h := 1.28 * scale
+		_cylinder(self, Vector3(at.x, y + trunk_h * 0.5, at.z), 0.10 * scale, trunk_h, _trunk_mat, Vector3.ZERO, 10, true)
+		var crown := y + trunk_h + 0.18 * scale
+		_sphere(self, Vector3(at.x, crown + 0.55 * scale, at.z), 0.78 * scale, leaf, 14, true)
+		_sphere(self, Vector3(at.x, crown + 0.28 * scale, at.z), 0.96 * scale, leaf, 14, true)
+		_sphere(self, Vector3(at.x + 0.4 * scale, crown + 0.22 * scale, at.z + 0.12 * scale), 0.58 * scale, leaf, 12, true)
+		_sphere(self, Vector3(at.x - 0.38 * scale, crown + 0.26 * scale, at.z - 0.08 * scale), 0.55 * scale, shade, 12, true)
 
 
 func _build_markings() -> void:
@@ -403,13 +427,15 @@ func _box(parent: Node3D, pos: Vector3, size: Vector3, mat: Material, rot: Vecto
 	parent.add_child(mi)
 
 
-func _cylinder(parent: Node3D, pos: Vector3, radius: float, height: float, mat: Material, rot: Vector3 = Vector3.ZERO, segments: int = 16, shadows: bool = false) -> void:
+func _cylinder(parent: Node3D, pos: Vector3, radius: float, height: float, mat: Material, rot: Vector3 = Vector3.ZERO, segments: int = 16, shadows: bool = false, cap_top: bool = true, cap_bottom: bool = true) -> void:
 	var mi := MeshInstance3D.new()
 	var mesh := CylinderMesh.new()
 	mesh.top_radius = radius
 	mesh.bottom_radius = radius
 	mesh.height = height
 	mesh.radial_segments = segments
+	mesh.cap_top = cap_top
+	mesh.cap_bottom = cap_bottom
 	mi.mesh = mesh
 	mi.position = pos
 	mi.rotation = rot
@@ -419,7 +445,7 @@ func _cylinder(parent: Node3D, pos: Vector3, radius: float, height: float, mat: 
 	parent.add_child(mi)
 
 
-func _sphere(parent: Node3D, pos: Vector3, radius: float, mat: Material, segments: int = 12) -> void:
+func _sphere(parent: Node3D, pos: Vector3, radius: float, mat: Material, segments: int = 12, shadows: bool = false) -> void:
 	var mi := MeshInstance3D.new()
 	var mesh := SphereMesh.new()
 	mesh.radius = radius
@@ -429,7 +455,8 @@ func _sphere(parent: Node3D, pos: Vector3, radius: float, mat: Material, segment
 	mi.mesh = mesh
 	mi.position = pos
 	mi.material_override = mat
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	if not shadows:
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	parent.add_child(mi)
 
 

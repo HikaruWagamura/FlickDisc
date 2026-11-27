@@ -25,6 +25,8 @@ static func deal(round_seed: int) -> Array:
 
 
 static func _make(index: int, rng: RandomNumberGenerator) -> Dictionary:
+	if index == 0:
+		return _hero_hole()
 	var par := _par_for(index)
 	var length := _length_for(par, rng)
 	var half := 7.6 + rng.randf_range(0.2, 1.4)
@@ -47,6 +49,45 @@ static func _make(index: int, rng: RandomNumberGenerator) -> Dictionary:
 		"bumps": _bumps(length, half, tee, cup, rng),
 		"waters": _waters(index, length, half, tee, cup, rng),
 		"trees": _trees(length, half, tee, cup, rng),
+	}
+
+
+static func _hero_hole() -> Dictionary:
+	# One readable par 3: clean left fairway, water on the right,
+	# a collecting green, and a cup you can see. Same grass as the rink.
+	var tee := Vector3(0.0, 0.0, -1.55)
+	var cup := Vector3(-1.15, 0.0, -24.6)
+	var half := 8.4
+	var length := 28.0
+	return {
+		"index": 0,
+		"number": 1,
+		"name": "Opening Green",
+		"par": 3,
+		"length": length,
+		"half": half,
+		"tee": tee,
+		"cup": cup,
+		"cup_radius": 0.92,
+		"bumps": [
+			{"pos": Vector3(2.15, 0.0, -12.4), "radius": 4.6, "height": 0.20},
+			{"pos": Vector3(-3.35, 0.0, -16.2), "radius": 3.8, "height": 0.12},
+			{"pos": Vector3(-0.4, 0.0, -21.0), "radius": 4.4, "height": -0.14},
+			{"pos": cup, "radius": 4.2, "height": -0.08},
+		],
+		"waters": [
+			{"pos": Vector3(3.85, 0.0, -14.8), "radius": 3.55},
+		],
+		"trees": [
+			{"pos": Vector3(-9.2, 0.0, -6.5), "radius": 0.42, "scale": 1.18},
+			{"pos": Vector3(-9.6, 0.0, -13.2), "radius": 0.46, "scale": 1.32},
+			{"pos": Vector3(-9.0, 0.0, -21.4), "radius": 0.40, "scale": 1.08},
+			{"pos": Vector3(9.4, 0.0, -5.8), "radius": 0.44, "scale": 1.22},
+			{"pos": Vector3(9.8, 0.0, -18.6), "radius": 0.48, "scale": 1.36},
+			{"pos": Vector3(9.1, 0.0, -25.2), "radius": 0.40, "scale": 1.12},
+			{"pos": Vector3(-4.6, 0.0, -10.8), "radius": 0.36, "scale": 0.92},
+			{"pos": Vector3(5.9, 0.0, -22.4), "radius": 0.38, "scale": 1.02},
+		],
 	}
 
 

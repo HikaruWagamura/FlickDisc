@@ -40,12 +40,14 @@ var body_font: Font
 var bold_font: Font
 var logo_tex: Texture2D
 var bowl_tex: Texture2D
+var _home_art := {}
 
 var home_name: Label
 var home_level: Label
 var home_letter: Label
 var home_record: Label
 var home_tally: Label
+var home_record_box: Panel
 var home_play: Button
 var home_mark: TextureRect
 var home_pill: Button
@@ -151,6 +153,12 @@ func setup(player_profile) -> void:
 	room_code = _make_code()
 	_prepare_fonts()
 	logo_tex = _logo_texture()
+	_home_art = {
+		"crazy": _tex("res://assets/home_crazy.png"),
+		"solo": _tex("res://assets/home_solo.png"),
+		"practice": _tex("res://assets/home_practice.png"),
+		"board": _tex("res://assets/home_board.png"),
+	}
 	root = Control.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -235,6 +243,16 @@ const StudioScript := preload("res://scripts/bowl_studio.gd")
 func _logo_texture() -> Texture2D:
 	# preload packs the mark into the phone export. Image.load does not.
 	return LOGO
+
+
+func _tex(path: String) -> Texture2D:
+	var packed := load(path)
+	if packed is Texture2D:
+		return packed
+	var img := Image.new()
+	if img.load(path) == OK:
+		return ImageTexture.create_from_image(img)
+	return null
 
 
 func _show(next: String) -> void:
@@ -350,12 +368,12 @@ func _layout_home(view: Vector2, pad: Vector2) -> void:
 	var play_h := clampf(64.0 + extra * 0.04, 64.0, 72.0)
 	var rec_h := 48.0
 	var gap := 10.0
-	var logo_h := clampf(220.0 + extra * 0.22, 208.0, 272.0)
-	var card_h := clampf(128.0 + extra * 0.30, 128.0, 188.0)
+	var logo_h := clampf(216.0 + extra * 0.18, 200.0, 260.0)
+	var card_h := clampf(136.0 + extra * 0.34, 136.0, 204.0)
 	var inner := floor - y - play_h - rec_h - 8.0 - gap * 3.0
 	var slack := inner - logo_h - card_h * 2.0 - gap
-	if extra > 0.0 and slack > 20.0:
-		var bump := minf(slack * 0.50, 36.0)
+	if extra > 0.0 and slack > 16.0:
+		var bump := minf(slack * 0.55, 40.0)
 		card_h += bump
 		slack -= bump
 	if logo_h + card_h * 2.0 + gap > inner:
@@ -375,55 +393,56 @@ func _layout_home(view: Vector2, pad: Vector2) -> void:
 		_place_home_card(home_cards[2] as Button, Vector2(28.0, y + card_h + gap), Vector2(card_w, card_h))
 		_place_home_card(home_cards[3] as Button, Vector2(28.0 + card_w + 12.0, y + card_h + gap), Vector2(card_w, card_h))
 	y += card_h + gap + card_h + after_cards
+	if home_record_box != null:
+		home_record_box.position = Vector2(48.0, minf(y, floor - rec_h))
+		home_record_box.size = Vector2(wide - 96.0, rec_h)
 	if home_record != null:
-		home_record.position = Vector2(20.0, minf(y, floor - rec_h))
-		home_record.size = Vector2(wide - 40.0, 24.0)
+		home_record.position = Vector2(12.0, 4.0)
+		home_record.size = Vector2(wide - 120.0, 22.0)
 	if home_tally != null:
-		home_tally.position = Vector2(20.0, minf(y + 24.0, floor - 22.0))
-		home_tally.size = Vector2(wide - 40.0, 18.0)
+		home_tally.position = Vector2(12.0, 26.0)
+		home_tally.size = Vector2(wide - 120.0, 16.0)
 
 
 func _place_home_card(card: Button, pos: Vector2, box: Vector2) -> void:
 	card.position = pos
 	card.size = box
 	card.custom_minimum_size = box
-	var s := clampf(box.y / 124.0, 1.0, 1.55)
+	var s := clampf(box.y / 136.0, 1.0, 1.55)
 	var inset := 14.0
-	var stacked := box.y >= 150.0
-	var title_h := clampf(26.0 * s, 26.0, 36.0)
-	var stamp := clampf(64.0 * s, 64.0, 76.0)
-	if stacked:
-		stamp = clampf(box.y - title_h - 62.0, 78.0, 108.0)
+	var title_h := clampf(32.0 * s, 30.0, 40.0)
+	var detail_h := clampf(22.0 * s, 20.0, 28.0)
 	var heading := card.get_node_or_null("Heading") as Label
 	if heading != null:
 		heading.position = Vector2(inset, 10.0)
 		heading.size = Vector2(box.x - inset * 2.0, title_h)
-		heading.add_theme_font_size_override("font_size", int(round(clampf(24.0 * s, 24.0, 30.0))))
+		heading.add_theme_font_size_override("font_size", int(round(clampf(26.0 * s, 26.0, 34.0))))
+		heading.add_theme_color_override("font_color", GOLD)
 		heading.autowrap_mode = TextServer.AUTOWRAP_OFF
 		heading.clip_text = true
+		heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		heading.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	var detail := card.get_node_or_null("Detail") as Label
 	if detail != null:
 		detail.position = Vector2(inset, 8.0 + title_h)
-		if stacked:
-			detail.size = Vector2(box.x - inset * 2.0, 36.0)
-		else:
-			detail.size = Vector2(box.x - inset * 2.0 - stamp - 8.0, maxf(36.0, box.y - title_h - 20.0))
-		detail.add_theme_font_size_override("font_size", int(round(clampf(15.0 * s, 15.0, 18.0))))
-		detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	var art_x := box.x - inset - stamp
-	var art_y := 8.0 + title_h + maxf(0.0, (box.y - title_h - 18.0 - stamp) * 0.5)
-	if stacked:
-		art_x = (box.x - stamp) * 0.5
-		art_y = box.y - inset - stamp
-	var art := card.get_node_or_null("Art") as Control
+		detail.size = Vector2(box.x - inset * 2.0, detail_h)
+		detail.add_theme_font_size_override("font_size", int(round(clampf(15.0 * s, 15.0, 19.0))))
+		detail.add_theme_color_override("font_color", CREAM)
+		detail.autowrap_mode = TextServer.AUTOWRAP_OFF
+		detail.clip_text = true
+		detail.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var shine := card.get_node_or_null("Shine") as ColorRect
+	if shine != null:
+		shine.position = Vector2(18.0, 3.0)
+		shine.size = Vector2(box.x - 36.0, 3.0)
+	var art := card.get_node_or_null("Art") as TextureRect
+	var copy_bottom := 10.0 + title_h + detail_h
 	if art != null:
-		art.position = Vector2(art_x, art_y)
-		art.size = Vector2(stamp, stamp)
-		art.queue_redraw()
-	var badge := card.get_node_or_null("Badge") as Label
-	if badge != null:
-		badge.visible = false
+		art.position = Vector2(12.0, copy_bottom)
+		art.size = Vector2(box.x - 24.0, maxf(64.0, box.y - copy_bottom - 10.0))
+		art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		art.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 
 
 func _process(_delta: float) -> void:
@@ -535,7 +554,10 @@ func _build_home() -> void:
 
 	var play := _button("▶  PLAY A MATCH", 22)
 	_place(page, play, Vector2(28, 360), Vector2(484, 64))
-	_paint_button(play, GOLD, Color("#FFE9A0"), Color("#1A1208"), 20, 0, 2)
+	_paint_button(play, GOLD, Color("#FFE9A0"), Color("#1A1208"), 22, 0, 2)
+	play.add_theme_stylebox_override("normal", _chrome(GOLD, GOLD_GLOW, 2, 22, 0, 2.1, Color(0.96, 0.72, 0.12, 0.55)))
+	play.add_theme_stylebox_override("hover", _chrome(GOLD.lightened(0.08), GOLD_GLOW, 2, 22, 0, 2.1, Color(0.96, 0.72, 0.12, 0.62)))
+	play.add_theme_stylebox_override("pressed", _chrome(GOLD.darkened(0.08), GOLD, 2, 22, 0, 1.2, Color(0.96, 0.72, 0.12, 0.35)))
 	home_play = play
 	play.pressed.connect(func() -> void:
 		_tap()
@@ -543,53 +565,70 @@ func _build_home() -> void:
 	)
 
 	home_cards = [
-		_home_card(page, Rect2(28, 444, 236, 124), "CRAZY BOWLS", "18 holes · par 70", "crazy", "⛳", "crazy"),
-		_home_card(page, Rect2(276, 444, 236, 124), "SOLO ENDS", "One bowl · the jack", "solo", "🎯", "solo"),
-		_home_card(page, Rect2(28, 584, 236, 124), "PRACTICE", "You and the jack", "practice", "🔥", "practice"),
-		_home_card(page, Rect2(276, 584, 236, 124), "THE BOARD", "Wins · ends · runs", "board", "🏆", "rankings"),
+		_home_card(page, Rect2(28, 444, 236, 136), "CRAZY BOWLS", "18 holes · par 70", _home_art.get("crazy") as Texture2D, "crazy", true),
+		_home_card(page, Rect2(276, 444, 236, 136), "SOLO ENDS", "One bowl · the jack", _home_art.get("solo") as Texture2D, "solo", false),
+		_home_card(page, Rect2(28, 584, 236, 136), "PRACTICE", "You and the jack", _home_art.get("practice") as Texture2D, "practice", false),
+		_home_card(page, Rect2(276, 584, 236, 136), "THE BOARD", "Wins · ends · runs", _home_art.get("board") as Texture2D, "rankings", true),
 	]
 
+	home_record_box = Panel.new()
+	_place(page, home_record_box, Vector2(48, 720), Vector2(444, 48))
+	home_record_box.add_theme_stylebox_override("panel", _chrome(Color(0.05, 0.10, 0.22, 0.92), GOLD, 2, 24, 0, 1.4, Color(0, 0, 0, 0.45)))
 	home_record = _label("0W  ·  0L", 18, CREAM, bold_font)
-	_place(page, home_record, Vector2(20, 720), Vector2(500, 24))
+	home_record.position = Vector2(12, 4)
+	home_record.size = Vector2(420, 22)
 	home_record.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	home_record_box.add_child(home_record)
 	home_tally = _label("ENDS 0  ·  NO DRIVE YET", 13, MUTED, bold_font)
-	_place(page, home_tally, Vector2(20, 744), Vector2(500, 18))
+	home_tally.position = Vector2(12, 26)
+	home_tally.size = Vector2(420, 16)
 	home_tally.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	home_record_box.add_child(home_tally)
 
 
-func _home_card(page: Control, rect: Rect2, title: String, body: String, stamp_kind: String, glyph: String, target: String) -> Button:
+func _home_card(page: Control, rect: Rect2, title: String, body: String, art_tex: Texture2D, target: String, warm: bool) -> Button:
 	var button := Button.new()
 	button.text = ""
-	button.clip_contents = true
+	button.clip_contents = false
 	_place(page, button, rect.position, rect.size)
-	_paint_button(button, PLUM, Color("#3A78E8"), CREAM, 20, 14, 2)
-	var heading := _label(title, 20, CREAM, title_font)
+	var fill := Color(0.42, 0.08, 0.12, 0.94) if warm else Color(0.07, 0.16, 0.46, 0.94)
+	var shade := Color(0.55, 0.08, 0.10, 0.38) if warm else Color(0.08, 0.16, 0.55, 0.38)
+	button.add_theme_stylebox_override("normal", _chrome(fill, GOLD, 2, 22, 8, 1.8, shade))
+	button.add_theme_stylebox_override("hover", _chrome(fill.lightened(0.08), GOLD_GLOW, 2, 22, 8, 2.0, shade))
+	button.add_theme_stylebox_override("pressed", _chrome(fill.darkened(0.08), GOLD, 2, 22, 8, 1.1, shade))
+	button.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	button.add_theme_color_override("font_color", CREAM)
+	var shine := ColorRect.new()
+	shine.name = "Shine"
+	shine.color = Color(1, 0.9, 0.45, 0.38)
+	shine.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	shine.position = Vector2(18, 3)
+	shine.size = Vector2(rect.size.x - 36, 3)
+	button.add_child(shine)
+	var heading := _label(title, 26, GOLD, title_font)
 	heading.name = "Heading"
-	heading.position = Vector2(14, 18)
-	heading.size = Vector2(rect.size.x - 96, 32)
+	heading.position = Vector2(14, 10)
+	heading.size = Vector2(rect.size.x - 28, 32)
+	heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	heading.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	button.add_child(heading)
-	var detail := _label(body, 13, MUTED, body_font)
+	var detail := _label(body, 15, CREAM, body_font)
 	detail.name = "Detail"
-	detail.position = Vector2(14, 54)
-	detail.size = Vector2(rect.size.x - 96, 56)
-	detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	detail.position = Vector2(14, 42)
+	detail.size = Vector2(rect.size.x - 28, 22)
+	detail.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	detail.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	button.add_child(detail)
-	var art := Stamp.new()
+	var art := TextureRect.new()
 	art.name = "Art"
-	art.kind = stamp_kind
-	art.lit = true
-	art.position = Vector2(rect.size.x - 90, 26)
-	art.size = Vector2(72, 72)
+	art.texture = art_tex
+	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	art.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	art.position = Vector2(12, 64)
+	art.size = Vector2(rect.size.x - 24, rect.size.y - 74)
 	button.add_child(art)
-	var badge := _glyph(glyph, 32)
-	badge.name = "Badge"
-	badge.position = Vector2(rect.size.x - 84, 38)
-	badge.size = Vector2(60, 48)
-	badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	button.add_child(badge)
 	button.pressed.connect(func() -> void:
 		if target == "solo":
 			_launch_solo()
@@ -1070,7 +1109,7 @@ func _build_nav() -> void:
 	nav = Panel.new()
 	nav.position = Vector2(14, 842)
 	nav.size = Vector2(512, 104)
-	nav.add_theme_stylebox_override("panel", _flat(Color(0.04, 0.08, 0.16, 0.96), GOLD, 2, 28, 0))
+	nav.add_theme_stylebox_override("panel", _chrome(Color(0.04, 0.08, 0.16, 0.96), GOLD, 2, 28, 0, 1.8, Color(0, 0, 0, 0.55)))
 	root.add_child(nav)
 	nav_glow = ColorRect.new()
 	nav_glow.position = Vector2(28, 2)
@@ -2260,6 +2299,10 @@ func _paint_button(button: Button, fill: Color, border: Color, font_color: Color
 
 
 func _flat(fill: Color, border: Color, width: int, radius: int, side: int) -> StyleBoxFlat:
+	return _chrome(fill, border, width, radius, side, 1.0, Color(0, 0, 0, 0.48))
+
+
+func _chrome(fill: Color, border: Color, width: int, radius: int, side: int, lift: float, shade: Color) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = fill
 	style.border_color = border
@@ -2269,11 +2312,11 @@ func _flat(fill: Color, border: Color, width: int, radius: int, side: int) -> St
 	style.content_margin_right = side
 	style.content_margin_top = 6
 	style.content_margin_bottom = 6
-	if radius >= 12 and fill.a > 0.5:
-		style.shadow_color = Color(0.0, 0.0, 0.0, 0.45)
-		style.shadow_size = 7
-		style.shadow_offset = Vector2(0, 3)
-		style.anti_aliasing = true
+	style.anti_aliasing = true
+	if fill.a > 0.4 and lift > 0.0:
+		style.shadow_color = shade
+		style.shadow_size = int(round(8.0 * lift))
+		style.shadow_offset = Vector2(0, 3.0 * lift)
 	return style
 
 
