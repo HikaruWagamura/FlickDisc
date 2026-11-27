@@ -166,6 +166,8 @@ static func _paint_mesh(mi: MeshInstance3D, kit: Dictionary, for_disc: bool) -> 
 	if not for_disc:
 		mat.set_shader_parameter("roughness_val", _wrap_roughness(skin_id))
 		mat.set_shader_parameter("metallic_val", _wrap_metal(skin_id))
+		if mi.has_meta("pole_axis"):
+			mat.set_shader_parameter("pole_axis", mi.get_meta("pole_axis"))
 	if for_disc:
 		var span := 0.22
 		var face := 0

@@ -1949,6 +1949,29 @@ func _kitshot() -> void:
 		await RenderingServer.frame_post_draw
 		await get_tree().create_timer(0.45).timeout
 		await _dump_compare_shot(str(look["file"]))
+	if disc != null:
+		var holder: Node3D = disc.get_node_or_null("ClubBowl")
+		if holder == null:
+			holder = disc.find_child("ClubBowl", true, false) as Node3D
+		var mi := BowlScript._first_mesh(holder) if holder != null else null
+		if mi != null and mi.mesh != null:
+			var box: AABB = mi.global_transform * mi.mesh.get_aabb()
+			print("BOWL_AABB size=%.3f,%.3f,%.3f sit=%.3f pole=%s" % [
+				box.size.x, box.size.y, box.size.z, disc._bowl_sit, str(BowlScript.pole_of(mi))
+			])
+	if cam != null and disc != null:
+		var at: Vector3 = disc.global_position
+		cam.fov = 40.0
+		cam.position = at + Vector3(0.55, 0.20, 0.78)
+		cam.look_at(at + Vector3(0.0, 0.06, 0.0), Vector3.UP)
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		await _dump_compare_shot("kit_bowl_side")
+		cam.position = at + Vector3(0.0, 1.15, 0.05)
+		cam.look_at(at + Vector3(0.0, 0.0, 0.0), Vector3.FORWARD)
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		await _dump_compare_shot("kit_bowl_top")
 	print("KITSHOT done")
 	get_tree().quit(0)
 
@@ -1996,7 +2019,7 @@ func _rollshot() -> void:
 			var img := tex.get_image()
 			if img != null:
 				img.save_png("/tmp/roll_anim/%03d.png" % frames)
-				if i == 0 or i == 4 or i == 10 or i == 20:
+				if i == 0 or i == 4 or i == 10 or i == 20 or i == 28 or i == 30:
 					img.save_png("/opt/cursor/artifacts/roll_%02d.png" % i)
 				frames += 1
 	print("ROLLSHOT frames=%d pos=%.2f,%.2f" % [frames, disc.global_position.x, disc.global_position.z])

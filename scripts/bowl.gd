@@ -355,7 +355,7 @@ func paint(index: int, hand: float = -1.0, bias: int = -1) -> void:
 		_mark_mat = dressed["mark"]
 		_pip = dressed["weight"]
 		_paint_club_if_custom(index)
-		_bowl_sit = DISC_RADIUS - SIT_NEST + GROUND_CLEAR
+		_bowl_sit = sit_from_holder(_pip)
 		set_hand(hand)
 		return
 	apply_team(_body_mat, index, false)
@@ -363,7 +363,7 @@ func paint(index: int, hand: float = -1.0, bias: int = -1) -> void:
 	tint_band(_cap_mat, index)
 	tint_band(_mark_mat, index)
 	_paint_club_if_custom(index)
-	_bowl_sit = DISC_RADIUS - SIT_NEST + GROUND_CLEAR
+	_bowl_sit = sit_from_holder(_pip)
 	set_hand(hand)
 
 
@@ -380,6 +380,7 @@ func _paint_club_if_custom(index: int) -> void:
 
 
 static func roll_basis_by(current: Basis, travel: Vector3, body_radius: float) -> Basis:
+	# Jack only. A sphere can tumble; a bowl cannot.
 	var flat := Vector3(travel.x, 0.0, travel.z)
 	var dist := flat.length()
 	if dist < 0.00005 or body_radius < 0.001:
@@ -387,8 +388,30 @@ static func roll_basis_by(current: Basis, travel: Vector3, body_radius: float) -
 	var axis := Vector3.UP.cross(flat / dist)
 	if axis.length() < 0.001:
 		return current
-	# A full roll strobes the terrazzo. Keep the spin readable.
-	return Basis(axis.normalized(), dist / body_radius * 0.58) * current
+	return Basis(axis.normalized(), dist / body_radius) * current
+
+
+static func running_basis(spin_angle: float, travel: Vector3) -> Basis:
+	# Pole axis stays horizontal and perpendicular to the run. The bowl
+	# rolls around that axis on the wide equator, so it cannot wobble
+	# onto a face the way a sphere-tumble would.
+	var flat := Vector3(travel.x, 0.0, travel.z)
+	if flat.length() < 0.00005:
+		flat = Vector3(0.0, 0.0, -1.0)
+	else:
+		flat = flat.normalized()
+	var pole := flat.cross(Vector3.UP)
+	if pole.length() < 0.001:
+		pole = Vector3.RIGHT
+	else:
+		pole = pole.normalized()
+	var fwd := pole.cross(Vector3.UP)
+	if fwd.length() < 0.001:
+		fwd = Vector3(0.0, 0.0, 1.0)
+	else:
+		fwd = fwd.normalized()
+	var orient := Basis(pole, Vector3.UP, fwd)
+	return orient * Basis(Vector3.RIGHT, -spin_angle)
 
 
 func setup_jack() -> void:
@@ -456,7 +479,7 @@ func _build_disc(index: int, hand: float) -> void:
 	_mark_mat = dressed["mark"]
 	_pip = dressed["weight"]
 	_paint_club_if_custom(index)
-	_bowl_sit = DISC_RADIUS - SIT_NEST + GROUND_CLEAR
+	_bowl_sit = sit_from_holder(_pip)
 	set_hand(hand)
 	_score_ring = MeshInstance3D.new()
 	_score_ring.mesh = _annulus(0.2, 0.26, 28)
@@ -571,11 +594,11 @@ static func _dress_club(parent: Node3D, index: int, hand: float, variant: int = 
 		# Paint the pack two-tone on the smooth mesh instead of the
 		# white default MTL, which is the cage-preview look, not the
 		# finished bowl.
-		mi.material_override = _club_finish_mat(index)
+		mi.material_override = _club_finish_mat(index, pole_of(mi))
 	return {"rim": ring, "body": body, "cap": mark, "mark": mark, "weight": holder}
 
 
-static func _club_finish_mat(index: int) -> ShaderMaterial:
+static func _club_finish_mat(index: int, pole: Vector3 = Vector3.RIGHT) -> ShaderMaterial:
 	var mat := ShaderMaterial.new()
 	mat.shader = CLUB_FINISH_SHADER
 	var cream := Color(0.96, 0.92, 0.88) if index % 2 == 0 else Color(0.90, 0.94, 0.98)
@@ -583,6 +606,7 @@ static func _club_finish_mat(index: int) -> ShaderMaterial:
 	mat.set_shader_parameter("color_b", cream)
 	mat.set_shader_parameter("look", 0)
 	mat.set_shader_parameter("seam", 0.10)
+	mat.set_shader_parameter("pole_axis", pole)
 	var maps := _club_maps()
 	var tex: Texture2D = maps["red"] if index % 2 == 0 else maps["blue"]
 	if tex == null:
@@ -598,10 +622,10 @@ static func _club_finish_mat(index: int) -> ShaderMaterial:
 static func _apply_club_finish(holder: Node3D, index: int) -> void:
 	if holder == null:
 		return
-	var finish := _club_finish_mat(index)
 	for child in holder.get_children():
 		if child is MeshInstance3D:
-			(child as MeshInstance3D).material_override = finish
+			var mi := child as MeshInstance3D
+			mi.material_override = _club_finish_mat(index, pole_of(mi))
 
 
 static func club_mesh(variant: int = 0) -> Mesh:
@@ -691,33 +715,48 @@ static func _named_mesh(node: Node, names: PackedStringArray) -> MeshInstance3D:
 	return null
 
 
+static func pole_of(mi: MeshInstance3D) -> Vector3:
+	if mi != null and mi.has_meta("pole_axis"):
+		return mi.get_meta("pole_axis")
+	return Vector3.RIGHT
+
+
 static func sit_from_holder(holder: Node3D) -> float:
 	if holder == null:
 		return DISC_RADIUS + GROUND_CLEAR
 	var mi := _first_mesh(holder)
 	if mi == null or mi.mesh == null:
 		return DISC_RADIUS + GROUND_CLEAR
-	var box: AABB = mi.mesh.get_aabb()
-	var xf := mi.transform
-	if holder.is_inside_tree() and mi.is_inside_tree():
-		xf = holder.global_transform.affine_inverse() * mi.global_transform
-	var bottom := INF
-	for i in 8:
-		var corner := box.position + box.size * Vector3(i & 1, (i >> 1) & 1, (i >> 2) & 1)
-		bottom = minf(bottom, (xf * corner).y)
-	if bottom == INF or is_nan(bottom):
+	var running := running_radius_of(mi)
+	if running < 0.01:
 		return DISC_RADIUS + GROUND_CLEAR
-	return -bottom + GROUND_CLEAR
+	return running + GROUND_CLEAR
+
+
+static func running_radius_of(mi: MeshInstance3D) -> float:
+	if mi == null or mi.mesh == null:
+		return DISC_RADIUS
+	var box: AABB = mi.transform * mi.mesh.get_aabb()
+	return 0.5 * maxf(box.size.y, box.size.z)
+
+
+static func _mesh_pole(aabb: AABB) -> Vector3:
+	var s := aabb.size
+	if s.y <= s.x and s.y <= s.z:
+		return Vector3(0.0, 1.0, 0.0)
+	if s.z <= s.x and s.z <= s.y:
+		return Vector3(0.0, 0.0, 1.0)
+	return Vector3(1.0, 0.0, 0.0)
 
 
 static func _seat_running_surface(mi: MeshInstance3D, target_span: float) -> void:
-	# Pack bowls were posed in C4D, so the short bias axis is not always Y.
-	# Scale by the wide equator, then rotate the flatten onto X so the
-	# running surface stands on the grass. Translation must use the same
-	# rotation or the bowl slides off its own shadow.
+	# Pack bowls were posed in C4D, so the short pole (the two grip faces)
+	# is not always X. Map that pole onto +X, scale by the wide equator
+	# between the hand grooves, and sit the running surface on the grass.
 	if mi.mesh == null:
 		return
 	var aabb := mi.mesh.get_aabb()
+	var pole := _mesh_pole(aabb)
 	var s := aabb.size
 	var running := s.x
 	if s.y <= s.x and s.y <= s.z:
@@ -729,13 +768,24 @@ static func _seat_running_surface(mi: MeshInstance3D, target_span: float) -> voi
 	if running < 0.0001:
 		return
 	var scale := target_span / running
-	var rot := Basis.IDENTITY
-	if s.y <= s.x and s.y <= s.z:
-		rot = Basis(Vector3.FORWARD, 0.5 * PI)
-	elif s.z <= s.x and s.z <= s.y:
-		rot = Basis(Vector3.UP, 0.5 * PI)
-	mi.basis = rot.scaled(Vector3.ONE * scale)
+	var eq_up := Vector3.UP if absf(pole.dot(Vector3.UP)) < 0.9 else Vector3.RIGHT
+	eq_up = (eq_up - pole * eq_up.dot(pole)).normalized()
+	var eq_fwd := pole.cross(eq_up)
+	if eq_fwd.length() < 0.001:
+		eq_fwd = Vector3(0.0, 0.0, 1.0)
+	else:
+		eq_fwd = eq_fwd.normalized()
+	eq_up = eq_fwd.cross(pole).normalized()
+	# Rows are pole / up / forward so mesh pole becomes parent +X, the
+	# equator lives in YZ, and the basis stays right-handed.
+	var rot := Basis(
+		Vector3(pole.x, eq_up.x, eq_fwd.x),
+		Vector3(pole.y, eq_up.y, eq_fwd.y),
+		Vector3(pole.z, eq_up.z, eq_fwd.z)
+	)
+	mi.basis = rot * Basis.from_scale(Vector3.ONE * scale)
 	mi.position = rot * (-aabb.get_center() * scale)
+	mi.set_meta("pole_axis", pole)
 
 
 static func _fit_mesh(mi: MeshInstance3D, target_span: float, keep_bias: bool = false) -> void:

@@ -10,22 +10,25 @@ uniform float graphic_mix = 1.0;
 uniform float graphic_scale = 1.0;
 uniform float roughness_val = 0.42;
 uniform float metallic_val = 0.04;
+// Pack mesh space: the short pole through the two grip faces. The
+// two-tone lives on those faces, not in world axes, so a yawed or
+// rolling bowl keeps red / white on the sides and the equator as the
+// running middle.
+uniform vec3 pole_axis = vec3(1.0, 0.0, 0.0);
 
 varying vec3 obj_pos;
 varying vec3 obj_n;
-varying vec3 world_n;
 
 void vertex() {
 	obj_pos = VERTEX;
 	obj_n = NORMAL;
-	world_n = (MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz;
 }
 
 void fragment() {
 	vec3 n = normalize(obj_n);
-	// World X is left-right on the green: the two faces, with the wide
-	// equator standing on the grass.
-	float side = smoothstep(-seam, seam, normalize(world_n).x);
+	vec3 pole = normalize(pole_axis);
+	// The two faces, split across the wide equator between the grips.
+	float side = smoothstep(-seam, seam, dot(n, pole));
 	vec2 suv = vec2(0.5 + atan(n.x, n.z) / TAU, 0.5 - n.y * 0.5);
 	suv *= max(graphic_scale, 0.25);
 	vec4 graphic = texture(graphic_tex, suv);

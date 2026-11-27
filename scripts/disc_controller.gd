@@ -217,7 +217,7 @@ func configure_bowl(index: int, hand: float) -> void:
 
 
 func seat_visual() -> void:
-	_bowl_sit = BowlScript.DISC_RADIUS - BowlScript.SIT_NEST + BowlScript.GROUND_CLEAR
+	_refresh_sit()
 	_apply_visual(0.0)
 
 
@@ -311,7 +311,8 @@ func fire_taken(aim: Vector3, power: float) -> void:
 	is_aiming = false
 	aim_direction = direction
 	_aim_target = direction
-	roll_basis = Basis(Vector3.UP, -atan2(direction.x, -direction.z))
+	spin_angle = 0.0
+	roll_basis = BowlScript.running_basis(0.0, direction)
 	power_ratio = clampf(power, 0.0, 1.0)
 	_power_target = power_ratio
 	_hide_guide()
@@ -332,6 +333,10 @@ func fire_taken(aim: Vector3, power: float) -> void:
 
 
 func launch() -> void:
+	spin_angle = 0.0
+	travel_facing = aim_direction
+	if travel_facing.length() < 0.001:
+		travel_facing = Vector3(0.0, 0.0, -1.0)
 	shot_power = power_ratio
 	shot_bias = 0.0 if delivering_jack else bias_ratio
 	velocity = _delivery_velocity(aim_direction, shot_power)
@@ -432,9 +437,7 @@ func _advance(body, delta: float, use_shot_bias: bool) -> void:
 	body.global_position = moved[0]
 	body.velocity = moved[1]
 	var rolled: Vector3 = body.global_position - before_pos
-	body.roll_basis = BowlScript.roll_basis_by(body.roll_basis, rolled, body.radius)
-	if body == self:
-		spin_angle += rolled.length() / maxf(body.radius, 0.05)
+	_spin_body(body, rolled)
 	var wall_hit: float = moved[2]
 	if wall_hit > 1.2 and wall_hit > _impact_speed:
 		_impact_speed = wall_hit
@@ -594,9 +597,7 @@ func _sink(body, delta: float) -> void:
 		body.global_position.y = DITCH_FLOOR_Y
 		body.velocity.y = 0.0
 	var moved: Vector3 = body.global_position - before
-	body.roll_basis = BowlScript.roll_basis_by(body.roll_basis, moved, body.radius)
-	if body == self:
-		spin_angle += moved.length() / maxf(body.radius, 0.05)
+	_spin_body(body, moved)
 	var height: float = body.global_position.y
 	var slide := Vector2(body.velocity.x, body.velocity.z)
 	var drop: float = body.velocity.y
@@ -809,7 +810,7 @@ func _apply_visual(_speed: float) -> void:
 			_visual.visible = true
 		if _jack_visual != null:
 			_jack_visual.visible = false
-		_visual.position = Vector3(0.0, BowlScript.DISC_RADIUS - BowlScript.SIT_NEST + BowlScript.GROUND_CLEAR, 0.0)
+		_visual.position = Vector3(0.0, _bowl_sit, 0.0)
 		# Keep the parent still. Roll lives only on _spin, so the painted
 		# centre line turns like a wheel instead of wandering.
 		_visual.basis = Basis.IDENTITY
@@ -818,7 +819,7 @@ func _apply_visual(_speed: float) -> void:
 			var face := _aim_target
 			if face.length() < 0.001:
 				face = aim_direction
-			roll_basis = Basis(Vector3.UP, -atan2(face.x, -face.z) * AIM_YAW_SCALE)
+			roll_basis = BowlScript.running_basis(0.0, face)
 		if _spin != null:
 			_spin.position = Vector3.ZERO
 			_spin.transform.basis = roll_basis
@@ -983,7 +984,7 @@ func _mount_pack_jack() -> void:
 	if mesh != null:
 		ball.mesh = mesh
 		BowlScript._seat_running_surface(ball, BowlScript.JACK_RADIUS * 2.0)
-		_jack_sit = BowlScript.JACK_RADIUS + BowlScript.GROUND_CLEAR
+		_jack_sit = BowlScript.running_radius_of(ball) + BowlScript.GROUND_CLEAR
 	else:
 		var sphere := SphereMesh.new()
 		sphere.radius = BowlScript.JACK_RADIUS
@@ -1018,8 +1019,42 @@ func _redress_bowl(index: int) -> void:
 	_refresh_sit()
 
 
+func _spin_body(body, moved: Vector3) -> void:
+	var dist := Vector3(moved.x, 0.0, moved.z).length()
+	body.spin_angle += dist / maxf(body.radius, 0.05)
+	var jack_like: bool = delivering_jack if body == self else bool(body.is_jack)
+	if jack_like:
+		body.roll_basis = BowlScript.roll_basis_by(body.roll_basis, moved, body.radius)
+		return
+	body.roll_basis = BowlScript.running_basis(body.spin_angle, _roll_facing(body, moved))
+
+
+func _roll_facing(body, moved: Vector3) -> Vector3:
+	# Roll on the equator around the send. Instant velocity at the finish
+	# can hook sideways; following that yaws the faces into the camera.
+	if body == self:
+		var axis := Vector3(shot_axis.x, 0.0, shot_axis.y)
+		if axis.length() > 0.001:
+			travel_facing = axis
+			return axis
+		if travel_facing.length() > 0.01:
+			return travel_facing
+		return Vector3(0.0, 0.0, -1.0)
+	var vel := Vector3(body.velocity.x, 0.0, body.velocity.z)
+	if vel.length() >= 0.4:
+		body.travel = vel
+		return vel
+	var prev: Vector3 = body.travel
+	if prev.length() > 0.01:
+		return prev
+	var step := Vector3(moved.x, 0.0, moved.z)
+	if step.length() > 0.0001:
+		return step
+	return Vector3(0.0, 0.0, -1.0)
+
+
 func _refresh_sit() -> void:
-	_bowl_sit = BowlScript.DISC_RADIUS - BowlScript.SIT_NEST + BowlScript.GROUND_CLEAR
+	_bowl_sit = BowlScript.sit_from_holder(_stone)
 
 
 func _paint_club_bowl() -> void:
