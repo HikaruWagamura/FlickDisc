@@ -245,10 +245,14 @@ static func disc_colors(kit: Dictionary) -> Dictionary:
 
 
 static func graphic_texture(skin_id: String, color_a: Color, color_b: Color, kit: Dictionary = {}) -> Texture2D:
+	if kit.has("preview_photo_slot"):
+		var preview_tex := load_user_photo(str(kit["preview_photo_slot"]))
+		if preview_tex != null:
+			return preview_tex
 	if is_photo_skin(skin_id):
 		var slot := "a"
 		if skin_id == "photo_right":
-			slot = "a"
+			slot = "b"
 		var tex := load_user_photo(slot)
 		if tex == null and skin_id == "photo_wrap":
 			tex = load_user_photo("a")
@@ -396,17 +400,44 @@ static func _wrap_metal(skin_id: String) -> float:
 			return 0.04
 
 
+static func theme_face(skin_id: String, pal: Dictionary) -> Image:
+	var tex := graphic_texture(skin_id, pal["a"], pal["b"])
+	if tex == null:
+		return null
+	var src := tex.get_image()
+	if src == null:
+		return null
+	if src.is_compressed():
+		src.decompress()
+	src.convert(Image.FORMAT_RGBA8)
+	var face := Image.create(256, 256, false, Image.FORMAT_RGBA8)
+	face.fill(Color(0, 0, 0, 0))
+	src.resize(256, 256, Image.INTERPOLATE_LANCZOS)
+	for y in 256:
+		for x in 256:
+			var nx := (float(x) + 0.5) / 256.0 * 2.0 - 1.0
+			var ny := (float(y) + 0.5) / 256.0 * 2.0 - 1.0
+			if nx * nx + ny * ny > 1.0:
+				continue
+			face.set_pixel(x, y, src.get_pixel(x, y))
+	return face
+
+
 static func preview(kit: Dictionary, for_disc: bool) -> Texture2D:
 	var pal := palette(int(kit.get("disc_color" if for_disc else "bowl_color", 0)))
 	var skin_id := str(kit.get("disc_skin" if for_disc else "bowl_skin", "split"))
 	var color_a: Color = pal["a"]
 	var color_b: Color = pal["b"]
-	var key := "%s_%s_%s_%s_%s_%s_%s" % [
+	if kit.has("preview_color"):
+		color_a = kit["preview_color"]
+		color_b = kit.get("preview_color_b", pal["b"])
+	var key := "%s_%s_%s_%s_%s_%s_%s_%s" % [
 		skin_id,
 		color_a.to_html(false),
 		color_b.to_html(false),
 		for_disc,
 		str(active_slot),
+		str(kit.get("preview_photo_slot", "")),
 		str(FileAccess.get_modified_time(face_path("a"))),
 		str(FileAccess.get_modified_time(face_path("b"))),
 	]

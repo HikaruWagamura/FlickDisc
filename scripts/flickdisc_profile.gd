@@ -34,6 +34,7 @@ var best_drive := 0.0
 var best_mark := 9999.0
 var solo_cleared := 0
 var solo_wins := 0
+var best_crazy := 0
 var results: PackedStringArray = PackedStringArray()
 
 
@@ -136,6 +137,7 @@ func load_profile() -> void:
 	best_mark = float(cfg.get_value("player", "best_mark", 9999.0))
 	solo_cleared = int(cfg.get_value("player", "solo_cleared", 0))
 	solo_wins = int(cfg.get_value("player", "solo_wins", 0))
+	best_crazy = int(cfg.get_value("player", "best_crazy", 0))
 	results = PackedStringArray()
 	var history := str(cfg.get_value("player", "results", ""))
 	if history != "":
@@ -174,6 +176,7 @@ func save_profile() -> void:
 	cfg.set_value("player", "best_mark", best_mark)
 	cfg.set_value("player", "solo_cleared", solo_cleared)
 	cfg.set_value("player", "solo_wins", solo_wins)
+	cfg.set_value("player", "best_crazy", best_crazy)
 	cfg.set_value("player", "results", "|".join(results))
 	cfg.save("user://flickdisc.cfg")
 
@@ -218,10 +221,26 @@ func note_solo(end_number: int) -> void:
 	save_profile()
 
 
+func note_crazy(strokes: int, par: int) -> void:
+	if best_crazy <= 0 or strokes < best_crazy:
+		best_crazy = strokes
+	xp += 16
+	var vs := strokes - par
+	var line := "EVEN" if vs == 0 else ("%+d" % vs)
+	_push_result("Crazy Bowls %d  ·  %s" % [strokes, line])
+	save_profile()
+
+
 func drive_text() -> String:
 	if best_drive < 1.0:
 		return "NO DRIVE YET"
 	return "%d m" % int(round(best_drive))
+
+
+func crazy_text() -> String:
+	if best_crazy <= 0:
+		return "NO ROUND YET"
+	return "%d STROKES" % best_crazy
 
 
 func mark_text() -> String:

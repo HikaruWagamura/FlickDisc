@@ -45,20 +45,33 @@ var tool := "draw"
 var ink := Color("#121214")
 var brush := 14
 var place := "left"
+var coverage := "whole"
+var picked_theme := "both"
 var canvas_a: Image
 var canvas_b: Image
 var drawing := false
 var last_pt := Vector2(-1, -1)
 var face_view: TextureRect
 var face_tex: ImageTexture
+var face_view_b: TextureRect
+var face_tex_b: ImageTexture
 var preview_bowl: TextureRect
+var preview_bowl_b: TextureRect
 var caption: Label
+var look_box: VBoxContainer
+var hero_row: HBoxContainer
+var pads_row: HBoxContainer
+var draw_block: VBoxContainer
+var draw_toggle: Button
+var draw_open := false
+var face_row: Control
 var slot_buttons: Array = []
 var tool_buttons: Array = []
 var size_buttons: Array = []
 var ink_buttons: Array = []
 var place_buttons: Array = []
 var face_buttons: Array = []
+var cover_buttons: Array = []
 var photo_picker: FileDialog
 var upload_button: Button
 var copy_button: Button
@@ -73,6 +86,7 @@ func setup(player_profile) -> void:
 	Kit.active_slot = slot_index
 	_load_canvases()
 	_build()
+	coverage = _coverage_from_skin(str(profile.bowl_skin))
 	refresh()
 
 
@@ -93,19 +107,94 @@ func pick_slot(index: int) -> void:
 	profile.bowl_color = profile.slot_color(slot_index)
 	Kit.active_slot = slot_index
 	profile.save_profile()
+	coverage = _coverage_from_skin(str(profile.bowl_skin))
 	_load_canvases()
 	_commit()
 
 
 func pick_place(id: String) -> void:
 	place = id
-	if id == "right":
-		face = "b"
-	elif id == "left" or id == "wrap":
+	if id == "right" or id == "split" or id == "both":
+		coverage = "half"
+		if id == "right":
+			face = "b"
+		else:
+			face = "a"
+	elif id == "wrap":
+		coverage = "whole"
+		face = "a"
+	elif id == "left":
 		face = "a"
 	_apply_place_skin()
 	_paint()
 	_commit()
+
+
+func apply_theme(skin_id: String) -> void:
+	picked_theme = skin_id
+	if coverage == "half" and not Kit.is_photo_skin(skin_id) and skin_id != "split" and skin_id != "club" and skin_id != "both":
+		var pal: Dictionary = Kit.palette(profile.bowl_color)
+		var baked := Kit.theme_face(skin_id, pal)
+		if baked != null:
+			if face == "b":
+				canvas_b = baked
+			else:
+				canvas_a = baked
+			place = "split"
+			_save_canvases()
+			_apply_place_skin()
+			_commit()
+			return
+	profile.bowl_skin = skin_id
+	profile.set_slot(slot_index, skin_id, profile.bowl_color)
+	if skin_id == "split" or Kit.is_photo_skin(skin_id):
+		coverage = "half"
+	elif skin_id == "both" or int(Kit.skin(skin_id).get("look", 0)) == Kit.LOOK_GRAPHIC:
+		coverage = "whole"
+	_commit()
+
+
+func set_coverage(mode: String) -> void:
+	coverage = "half" if mode == "half" else "whole"
+	if coverage == "whole":
+		place = "wrap"
+		face = "a"
+		var keep := picked_theme
+		if keep == "" or keep == "split" or keep == "club" or Kit.is_photo_skin(keep):
+			keep = "both"
+		profile.bowl_skin = keep
+		profile.set_slot(slot_index, keep, profile.bowl_color)
+	else:
+		place = "split"
+		face = "a"
+		_prepare_half()
+	_paint()
+	_commit()
+
+
+func _coverage_from_skin(skin_id: String) -> String:
+	if Kit.is_photo_skin(skin_id) or skin_id == "split":
+		return "half"
+	return "whole"
+
+
+func _prepare_half() -> void:
+	var skin_id := str(profile.bowl_skin)
+	var look := int(Kit.skin(skin_id).get("look", Kit.LOOK_SPLIT))
+	if look == Kit.LOOK_GRAPHIC:
+		var pal: Dictionary = Kit.palette(profile.bowl_color)
+		var baked := Kit.theme_face(skin_id, pal)
+		if baked != null:
+			canvas_a = baked
+			canvas_b = _blank()
+			_fill_disc(canvas_b, pal["b"])
+			_save_canvases()
+			profile.bowl_skin = "photo_split"
+			profile.set_slot(slot_index, "photo_split", profile.bowl_color)
+			return
+	if skin_id == "both":
+		profile.bowl_skin = "split"
+		profile.set_slot(slot_index, "split", profile.bowl_color)
 
 
 func apply_photo(image: Image) -> void:
@@ -136,6 +225,8 @@ func demo_paint() -> void:
 	tool = "draw"
 	ink = Color("#121214")
 	brush = 14
+	draw_open = true
+	coverage = "half"
 	canvas_a = _blank()
 	_stamp_smile(canvas_a, Color("#fff4e8"), Color("#121214"), Color("#c41018"))
 	canvas_b = Kit._demo_dog()
@@ -156,24 +247,46 @@ func _build() -> void:
 		button.pressed.connect(func() -> void: pick_slot(i))
 		slots.add_child(button)
 		slot_buttons.append(button)
-	caption = _wrapped("SLOT 1  ·  LEFT FACE  ·  DRAW")
+	caption = _wrapped("SLOT 1  ·  WHOLE BOWL")
 	add_child(caption)
-	var previews := HBoxContainer.new()
-	previews.alignment = BoxContainer.ALIGNMENT_CENTER
-	previews.add_theme_constant_override("separation", 18)
-	add_child(previews)
-	preview_bowl = TextureRect.new()
-	preview_bowl.custom_minimum_size = Vector2(92, 92)
-	preview_bowl.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	preview_bowl.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	preview_bowl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	previews.add_child(preview_bowl)
-	var pad_col := VBoxContainer.new()
-	pad_col.add_theme_constant_override("separation", 6)
-	previews.add_child(pad_col)
-	var faces := HBoxContainer.new()
-	faces.add_theme_constant_override("separation", 6)
-	pad_col.add_child(faces)
+	add_child(_kicker("COVER THE BOWL"))
+	var cover := HBoxContainer.new()
+	cover.add_theme_constant_override("separation", 8)
+	add_child(cover)
+	for item in [{"id": "whole", "name": "WHOLE BOWL"}, {"id": "half", "name": "HALF AND HALF"}]:
+		var chip := _button(str(item["name"]), 14)
+		chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		chip.custom_minimum_size = Vector2(0, 52)
+		chip.set_meta("cover_id", str(item["id"]))
+		chip.pressed.connect(func() -> void: set_coverage(str(item["id"])))
+		cover.add_child(chip)
+		cover_buttons.append(chip)
+	hero_row = HBoxContainer.new()
+	hero_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	hero_row.add_theme_constant_override("separation", 18)
+	add_child(hero_row)
+	preview_bowl = _bowl_view(220)
+	hero_row.add_child(preview_bowl)
+	preview_bowl_b = _bowl_view(168)
+	preview_bowl_b.visible = false
+	hero_row.add_child(preview_bowl_b)
+	look_box = VBoxContainer.new()
+	look_box.add_theme_constant_override("separation", 8)
+	add_child(look_box)
+	draw_toggle = _button("PAINT THIS FACE", 14)
+	draw_toggle.custom_minimum_size = Vector2(0, 48)
+	draw_toggle.pressed.connect(func() -> void:
+		draw_open = not draw_open
+		_paint()
+	)
+	add_child(draw_toggle)
+	draw_block = VBoxContainer.new()
+	draw_block.add_theme_constant_override("separation", 8)
+	draw_block.visible = false
+	add_child(draw_block)
+	face_row = HBoxContainer.new()
+	face_row.add_theme_constant_override("separation", 6)
+	draw_block.add_child(face_row)
 	for item in [{"id": "a", "name": "LEFT FACE"}, {"id": "b", "name": "RIGHT FACE"}]:
 		var chip := _button(str(item["name"]), 11)
 		chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -186,20 +299,24 @@ func _build() -> void:
 				place = "left"
 			_paint()
 		)
-		faces.add_child(chip)
+		face_row.add_child(chip)
 		face_buttons.append(chip)
-	face_view = TextureRect.new()
-	face_view.custom_minimum_size = Vector2(196, 196)
-	face_view.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	face_view.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	face_view.mouse_filter = Control.MOUSE_FILTER_STOP
-	face_view.gui_input.connect(_on_pad)
-	pad_col.add_child(face_view)
+	pads_row = HBoxContainer.new()
+	pads_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	pads_row.add_theme_constant_override("separation", 14)
+	draw_block.add_child(pads_row)
+	face_view = _pad_view(168)
+	face_view.gui_input.connect(func(event: InputEvent) -> void: _on_pad_side(event, "a"))
+	pads_row.add_child(face_view)
 	face_tex = ImageTexture.new()
-	add_child(_kicker("DRAW"))
+	face_view_b = _pad_view(168)
+	face_view_b.gui_input.connect(func(event: InputEvent) -> void: _on_pad_side(event, "b"))
+	pads_row.add_child(face_view_b)
+	face_tex_b = ImageTexture.new()
+	draw_block.add_child(_kicker("DRAW"))
 	var tools := HBoxContainer.new()
 	tools.add_theme_constant_override("separation", 6)
-	add_child(tools)
+	draw_block.add_child(tools)
 	for item in [{"id": "draw", "name": "DRAW"}, {"id": "erase", "name": "ERASE"}, {"id": "fill", "name": "FILL"}, {"id": "clear", "name": "CLEAR"}]:
 		var chip := _button(str(item["name"]), 12)
 		chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -207,13 +324,16 @@ func _build() -> void:
 		chip.pressed.connect(func() -> void: _pick_tool(str(item["id"])))
 		tools.add_child(chip)
 		tool_buttons.append(chip)
-	add_child(_kicker("PLACE ON"))
+	var place_block := VBoxContainer.new()
+	place_block.visible = false
+	add_child(place_block)
+	place_block.add_child(_kicker("PLACE ON"))
 	var place_row := GridContainer.new()
 	place_row.columns = 5
 	place_row.add_theme_constant_override("h_separation", 6)
 	place_row.add_theme_constant_override("v_separation", 6)
 	place_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	add_child(place_row)
+	place_block.add_child(place_row)
 	for item in PLACES:
 		var chip := _button(str(item["name"]), 10)
 		chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -224,7 +344,7 @@ func _build() -> void:
 		place_buttons.append(chip)
 	var stamps := HBoxContainer.new()
 	stamps.add_theme_constant_override("separation", 6)
-	add_child(stamps)
+	draw_block.add_child(stamps)
 	for item in [{"id": "smile", "name": "SMILE"}, {"id": "star", "name": "STAR"}, {"id": "heart", "name": "HEART"}, {"id": "ring", "name": "RING"}]:
 		var chip := _button(str(item["name"]), 11)
 		chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -232,11 +352,11 @@ func _build() -> void:
 		chip.pressed.connect(func() -> void: _stamp_preset(str(item["id"])))
 		stamps.add_child(chip)
 		stamp_buttons.append(chip)
-	add_child(_kicker("INK"))
+	draw_block.add_child(_kicker("INK"))
 	var inks := HBoxContainer.new()
 	inks.add_theme_constant_override("separation", 6)
 	inks.alignment = BoxContainer.ALIGNMENT_CENTER
-	add_child(inks)
+	draw_block.add_child(inks)
 	for color in INKS:
 		var swatch := Button.new()
 		swatch.text = ""
@@ -251,10 +371,10 @@ func _build() -> void:
 		)
 		inks.add_child(swatch)
 		ink_buttons.append(swatch)
-	add_child(_kicker("BRUSH"))
+	draw_block.add_child(_kicker("BRUSH"))
 	var sizes := HBoxContainer.new()
 	sizes.add_theme_constant_override("separation", 6)
-	add_child(sizes)
+	draw_block.add_child(sizes)
 	for i in BRUSHES.size():
 		var names := ["S", "M", "L"]
 		var chip := _button(names[i], 13)
@@ -266,10 +386,10 @@ func _build() -> void:
 		)
 		sizes.add_child(chip)
 		size_buttons.append(chip)
-	add_child(_kicker("PHOTO"))
+	draw_block.add_child(_kicker("PHOTO"))
 	var photos := HBoxContainer.new()
 	photos.add_theme_constant_override("separation", 8)
-	add_child(photos)
+	draw_block.add_child(photos)
 	upload_button = _button("UPLOAD TO THIS FACE", 12)
 	upload_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	upload_button.custom_minimum_size = Vector2(0, 48)
@@ -292,6 +412,15 @@ func _pick_tool(id: String) -> void:
 		return
 	tool = id
 	_paint()
+
+
+func _on_pad_side(event: InputEvent, side: String) -> void:
+	face = side
+	if side == "b" and coverage == "half" and place == "left":
+		place = "right"
+	elif side == "a" and coverage == "half" and place == "right":
+		place = "left"
+	_on_pad(event)
 
 
 func _on_pad(event: InputEvent) -> void:
@@ -326,9 +455,10 @@ func _on_pad(event: InputEvent) -> void:
 
 
 func _pad_point(local: Vector2) -> Vector2:
-	var box := face_view.size
+	var view := face_view_b if face == "b" and face_view_b != null else face_view
+	var box := view.size
 	if box.x < 8.0 or box.y < 8.0:
-		box = face_view.custom_minimum_size
+		box = view.custom_minimum_size
 	return Vector2(local.x / box.x * float(FACE), local.y / box.y * float(FACE))
 
 
@@ -560,16 +690,27 @@ func _commit() -> void:
 
 
 func _paint() -> void:
+	_sync_coverage_layout()
 	_refresh_pad()
 	if preview_bowl != null and profile != null:
-		preview_bowl.texture = Kit.preview(profile.kit(), false)
+		preview_bowl.texture = Kit.preview(_face_kit("a"), false)
+	if preview_bowl_b != null and profile != null:
+		preview_bowl_b.texture = Kit.preview(_face_kit("b"), false)
 	if caption != null:
-		var face_name := "RIGHT FACE" if face == "b" else "LEFT FACE"
-		caption.text = "SLOT %d  ·  %s  ·  %s  ·  this is your match bowl" % [slot_index + 1, face_name, tool.to_upper()]
+		var cover_name := "HALF AND HALF" if coverage == "half" else "WHOLE BOWL"
+		if coverage == "half":
+			var face_name := "RIGHT FACE" if face == "b" else "LEFT FACE"
+			caption.text = "SLOT %d  ·  %s  ·  %s" % [slot_index + 1, cover_name, face_name]
+		else:
+			caption.text = "SLOT %d  ·  WHOLE BOWL  ·  this is your match bowl" % (slot_index + 1)
 	for i in slot_buttons.size():
 		var on: bool = i == slot_index
 		_paint_button(slot_buttons[i], GOLD if on else PLUM, Color("#FFE9A0") if on else Color(1, 1, 1, 0.18), CREAM, 12, 8, 2 if on else 1)
 		slot_buttons[i].text = "SLOT %d" % (i + 1)
+	for chip in cover_buttons:
+		var id := str(chip.get_meta("cover_id"))
+		var on: bool = coverage == id
+		_paint_button(chip, GOLD if on else PLUM, Color("#FFE9A0") if on else Color(1, 1, 1, 0.18), Color("#1A1208") if on else CREAM, 14, 8, 2 if on else 1)
 	for i in face_buttons.size():
 		var id := "a" if i == 0 else "b"
 		var on: bool = face == id
@@ -595,14 +736,63 @@ func _paint() -> void:
 		_paint_button(copy_button, PLUM, Color("#FFE9A0"), CREAM, 12, 8, 2)
 	for chip in stamp_buttons:
 		_paint_button(chip, PLUM, Color(1, 1, 1, 0.18), CREAM, 11, 8, 1)
+	if draw_toggle != null:
+		var draw_label := "HIDE PAINT" if draw_open else "PAINT THIS FACE"
+		draw_toggle.text = draw_label
+		_paint_button(draw_toggle, GOLD if draw_open else PLUM, Color("#FFE9A0") if draw_open else Color(1, 1, 1, 0.18), Color("#1A1208") if draw_open else CREAM, 14, 8, 2 if draw_open else 1)
+	if draw_block != null:
+		draw_block.visible = draw_open
+
+
+func _sync_coverage_layout() -> void:
+	var half := coverage == "half"
+	if preview_bowl_b != null:
+		preview_bowl_b.visible = half
+	if face_view_b != null:
+		face_view_b.visible = half
+	if face_row != null:
+		face_row.visible = half
+	if preview_bowl != null:
+		preview_bowl.custom_minimum_size = Vector2(168, 168) if half else Vector2(220, 220)
+	if preview_bowl_b != null:
+		preview_bowl_b.custom_minimum_size = Vector2(168, 168)
+	if face_view != null:
+		face_view.custom_minimum_size = Vector2(156, 156)
+	if face_view_b != null:
+		face_view_b.custom_minimum_size = Vector2(156, 156)
+
+
+func _face_kit(side: String) -> Dictionary:
+	var kit: Dictionary = profile.kit()
+	if coverage != "half":
+		return kit
+	var copy: Dictionary = kit.duplicate(true)
+	var pal: Dictionary = Kit.palette(int(copy.get("bowl_color", 1)))
+	if Kit.is_photo_skin(str(copy.get("bowl_skin", "club"))) or _has_ink(canvas_a if side == "a" else canvas_b):
+		copy["bowl_skin"] = "photo_wrap"
+		copy["preview_photo_slot"] = "b" if side == "b" else "a"
+		return copy
+	copy["bowl_skin"] = "both"
+	if side == "b":
+		copy["preview_color"] = pal["b"]
+		copy["preview_color_b"] = pal["a"]
+	return copy
 
 
 func _refresh_pad() -> void:
-	if face_view == null:
+	_paint_pad(face_view, face_tex, "a")
+	if coverage == "half":
+		_paint_pad(face_view_b, face_tex_b, "b")
+
+
+func _paint_pad(view: TextureRect, tex: ImageTexture, side: String) -> void:
+	if view == null:
 		return
-	var art := _active_canvas()
+	var art := canvas_b if side == "b" else canvas_a
+	if coverage == "whole" and profile != null and not Kit.is_photo_skin(str(profile.bowl_skin)):
+		art = null
 	var pal: Dictionary = Kit.palette(profile.bowl_color if profile != null else 1)
-	var base: Color = pal["a"] if face == "a" else pal["b"]
+	var base: Color = pal["b"] if side == "b" else pal["a"]
 	var img := Image.create(FACE, FACE, false, Image.FORMAT_RGBA8)
 	img.fill(Color(0, 0, 0, 0))
 	for y in FACE:
@@ -618,11 +808,15 @@ func _refresh_pad() -> void:
 				if px.a > 0.04:
 					col = col.lerp(px, px.a)
 			img.set_pixel(x, y, col)
-	if face_tex == null:
-		face_tex = ImageTexture.create_from_image(img)
+	if tex == null:
+		tex = ImageTexture.create_from_image(img)
+		if side == "b":
+			face_tex_b = tex
+		else:
+			face_tex = tex
 	else:
-		face_tex.set_image(img)
-	face_view.texture = face_tex
+		tex.set_image(img)
+	view.texture = tex
 
 
 func _blank() -> Image:
@@ -708,6 +902,35 @@ func _fill_circle(img: Image, at: Vector2, radius: int, col: Color) -> void:
 			var dx := x - at.x
 			var dy := y - at.y
 			if dx * dx + dy * dy <= float(r2):
+				img.set_pixel(x, y, col)
+
+
+func _bowl_view(side: int) -> TextureRect:
+	var view := TextureRect.new()
+	view.custom_minimum_size = Vector2(side, side)
+	view.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	view.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	view.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return view
+
+
+func _pad_view(side: int) -> TextureRect:
+	var view := TextureRect.new()
+	view.custom_minimum_size = Vector2(side, side)
+	view.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	view.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	view.mouse_filter = Control.MOUSE_FILTER_STOP
+	return view
+
+
+func _fill_disc(img: Image, col: Color) -> void:
+	if img == null:
+		return
+	for y in FACE:
+		for x in FACE:
+			var nx := (float(x) + 0.5) / float(FACE) * 2.0 - 1.0
+			var ny := (float(y) + 0.5) / float(FACE) * 2.0 - 1.0
+			if nx * nx + ny * ny <= 1.0:
 				img.set_pixel(x, y, col)
 
 

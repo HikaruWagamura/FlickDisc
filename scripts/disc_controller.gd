@@ -40,6 +40,7 @@ const CURL_HOT := 0.32
 const FACE_FALL := 0.52
 const FACE_REST := 1.12
 const DITCH_FLOOR_Y := -0.23
+const SLOPE_G := 11.5
 const RUNUP_MAX := 1.8
 const PICK_RADIUS_PX := 88.0
 const GUIDE_DOTS := 9
@@ -66,6 +67,13 @@ var ditch_mode := false
 var pace_scale := 1.0
 var drag := DECEL
 var in_ditch := false
+var in_cup := false
+var green_poly: PackedVector2Array = PackedVector2Array()
+var cup_center := Vector3.ZERO
+var cup_radius := 0.0
+var ground_height: Callable = Callable()
+var water_spots: Array = []
+var tree_spots: Array = []
 var bowl_bias := 0.95
 var bowl_finish := 0.0
 var bowl_pace := 1.0
@@ -134,7 +142,9 @@ func _physics_process(delta: float) -> void:
 	var substeps := 6
 	var step := delta / float(substeps)
 	for _sub in substeps:
-		if in_ditch:
+		if in_cup:
+			_sink_cup(self, step)
+		elif in_ditch:
 			_sink(self, step)
 		else:
 			_advance(self, step, true)
@@ -379,6 +389,7 @@ func reset_to_start() -> void:
 	velocity = Vector3.ZERO
 	global_position = start_position
 	in_ditch = false
+	in_cup = false
 	is_aiming = false
 	shot_in_progress = false
 	power_ratio = 0.0
@@ -410,6 +421,35 @@ func set_palette(index: int) -> void:
 func set_green(bounds_min: Vector2, bounds_max: Vector2) -> void:
 	green_min = bounds_min
 	green_max = bounds_max
+
+
+func set_poly_green(poly: PackedVector2Array) -> void:
+	green_poly = poly
+	if poly.size() < 3:
+		return
+	var min_x := 999.0
+	var max_x := -999.0
+	var min_z := 999.0
+	var max_z := -999.0
+	for p in poly:
+		min_x = minf(min_x, p.x)
+		max_x = maxf(max_x, p.x)
+		min_z = minf(min_z, p.y)
+		max_z = maxf(max_z, p.y)
+	green_min = Vector2(min_x, min_z)
+	green_max = Vector2(max_x, max_z)
+
+
+func set_cup(at: Vector3, radius: float) -> void:
+	cup_center = at
+	cup_radius = radius
+	in_cup = false
+
+
+func set_course(height: Callable, waters: Array, trees: Array) -> void:
+	ground_height = height
+	water_spots = waters
+	tree_spots = trees
 
 
 func _advance(body, delta: float, use_shot_bias: bool) -> void:
@@ -527,9 +567,36 @@ func _move_planar(pos: Vector3, vel: Vector3, body_radius: float, bias: float, u
 	vel = _damp(vel, bias if use_bias else 0.0, delta, axis)
 	var before := vel
 	pos += vel * delta
-	pos.y = 0.0
+	if ground_height.is_valid():
+		var step := 0.22
+		var y := float(ground_height.call(pos.x, pos.z))
+		var yx := float(ground_height.call(pos.x + step, pos.z))
+		var yz := float(ground_height.call(pos.x, pos.z + step))
+		vel.x += ((y - yx) / step) * SLOPE_G * delta
+		vel.z += ((y - yz) / step) * SLOPE_G * delta
+		pos.y = y
+	else:
+		pos.y = 0.0
+	var wet := _in_water(pos)
+	if wet:
+		return [Vector3(pos.x, pos.y, pos.z), vel * 0.4 + Vector3(0.0, -0.8, 0.0), before.length(), true]
+	var treed := _hit_tree(pos, vel, body_radius)
+	if treed["hit"]:
+		pos = treed["pos"]
+		vel = treed["vel"]
 	# In ditch mode the side strings and the far end are open. Crossing the
 	# line starts the fall. The near end still rebounds.
+	if cup_radius > 0.12 and _over_cup(pos, vel, body_radius):
+		in_cup = true
+		var inward := Vector3(cup_center.x - pos.x, 0.0, cup_center.z - pos.z)
+		if inward.length() < 0.001:
+			inward = Vector3(before.x, 0.0, before.z)
+		var cup_y := pos.y
+		if ground_height.is_valid():
+			cup_y = float(ground_height.call(pos.x, pos.z))
+		return [Vector3(pos.x, cup_y, pos.z), inward.normalized() * minf(before.length(), 1.4) + Vector3(0.0, -0.6, 0.0), before.length(), false]
+	if green_poly.size() >= 3:
+		return _move_poly(pos, vel, body_radius, before)
 	if ditch_mode and _crossed_ditch(pos, body_radius):
 		var lip := _lip(pos, body_radius)
 		var outward := Vector3(pos.x - lip.x, 0.0, pos.z - lip.z)
@@ -565,6 +632,111 @@ func _move_planar(pos: Vector3, vel: Vector3, body_radius: float, bias: float, u
 		vel.z = -absf(vel.z) * BANK_KEEP
 		vel.x *= 0.92
 	return [pos, vel, wall, false]
+
+
+func _in_water(pos: Vector3) -> bool:
+	for pond in water_spots:
+		var at: Vector3 = pond["pos"]
+		var radius: float = float(pond["radius"])
+		if Vector2(pos.x - at.x, pos.z - at.z).length() < radius * 0.82:
+			return true
+	return false
+
+
+func _hit_tree(pos: Vector3, vel: Vector3, body_radius: float) -> Dictionary:
+	for tree in tree_spots:
+		var at: Vector3 = tree["pos"]
+		var radius: float = float(tree["radius"]) + body_radius
+		var delta := Vector2(pos.x - at.x, pos.z - at.z)
+		var dist := delta.length()
+		if dist >= radius or dist < 0.001:
+			continue
+		var n := delta / dist
+		pos.x = at.x + n.x * radius
+		pos.z = at.z + n.y * radius
+		var n3 := Vector3(n.x, 0.0, n.y)
+		var into := vel.dot(-n3)
+		if into > 0.0:
+			vel += n3 * into * (1.0 + BANK_KEEP)
+		vel *= 0.86
+		return {"hit": true, "pos": pos, "vel": vel}
+	return {"hit": false, "pos": pos, "vel": vel}
+
+
+func _over_cup(pos: Vector3, vel: Vector3, body_radius: float) -> bool:
+	var d := Vector2(pos.x - cup_center.x, pos.z - cup_center.z).length()
+	var catch := cup_radius - body_radius * 0.12
+	if d > catch:
+		return false
+	return vel.length() < 2.35 or d < cup_radius * 0.42
+
+
+func _move_poly(pos: Vector3, vel: Vector3, body_radius: float, before: Vector3) -> Array:
+	var p := Vector2(pos.x, pos.z)
+	var inside := Geometry2D.is_point_in_polygon(p, green_poly)
+	var edge := _closest_poly_edge(p)
+	var keep := body_radius + 0.02
+	var dist := float(edge["d"])
+	if inside and dist > keep:
+		return [pos, vel, 0.0, false]
+	var q: Vector2 = edge["q"]
+	var n: Vector2 = edge["n"]
+	if n.length() < 0.001:
+		n = Vector2(0.0, 1.0)
+	n = n.normalized()
+	var placed := q + n * keep
+	pos = Vector3(placed.x, pos.y, placed.y)
+	var n3 := Vector3(n.x, 0.0, n.y)
+	var into := vel.dot(-n3)
+	if into > 0.0:
+		vel = vel + n3 * into * (1.0 + BANK_KEEP)
+	vel *= 0.9
+	return [pos, vel, maxf(before.length() * 0.4, into), false]
+
+
+func _closest_poly_edge(p: Vector2) -> Dictionary:
+	var best_d := 9999.0
+	var best_q := p
+	var best_n := Vector2(0, -1)
+	var n := green_poly.size()
+	var c := Vector2.ZERO
+	for pt in green_poly:
+		c += pt
+	if n > 0:
+		c /= float(n)
+	for i in n:
+		var a := green_poly[i]
+		var b := green_poly[(i + 1) % n]
+		var ab := b - a
+		var denom := ab.length_squared()
+		var q := a if denom < 0.0001 else a + ab * clampf((p - a).dot(ab) / denom, 0.0, 1.0)
+		var d := p.distance_to(q)
+		if d < best_d:
+			best_d = d
+			best_q = q
+			var edge := b - a
+			if edge.length() > 0.001:
+				edge = edge.normalized()
+				var normal := Vector2(-edge.y, edge.x)
+				if normal.dot(c - q) < 0.0:
+					normal = -normal
+				best_n = normal
+	return {"d": best_d, "q": best_q, "n": best_n}
+
+
+func _sink_cup(body, delta: float) -> void:
+	var to := Vector3(cup_center.x - body.global_position.x, 0.0, cup_center.z - body.global_position.z)
+	var pull := to * 6.0
+	body.velocity.x = lerpf(body.velocity.x, pull.x, clampf(8.0 * delta, 0.0, 1.0))
+	body.velocity.z = lerpf(body.velocity.z, pull.z, clampf(8.0 * delta, 0.0, 1.0))
+	body.velocity.y -= 16.0 * delta
+	body.global_position += body.velocity * delta
+	if body.global_position.y < -0.30:
+		body.global_position.y = -0.30
+		body.velocity = Vector3.ZERO
+	if Vector2(body.global_position.x - cup_center.x, body.global_position.z - cup_center.z).length() < 0.08:
+		body.global_position.x = cup_center.x
+		body.global_position.z = cup_center.z
 
 
 func _crossed_ditch(pos: Vector3, body_radius: float) -> bool:

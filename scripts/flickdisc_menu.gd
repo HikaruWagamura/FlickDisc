@@ -136,6 +136,11 @@ var photo_slot := "a"
 var studio
 var studio_box: Control
 var theme_kicker: Label
+var look_panel: VBoxContainer
+var disc_block: VBoxContainer
+var disc_look_host: VBoxContainer
+var hub_page_margins: Array = []
+var profile_bowl: TextureRect
 
 
 func setup(player_profile) -> void:
@@ -267,13 +272,10 @@ func _view_size() -> Vector2:
 
 
 func _safe_pad() -> Vector2:
-	# Keep chrome out of the notch and the tab bar above the Android
-	# taskbar, including when a swipe brings the bar back on screen.
-	var min_top := 8.0
-	var min_bottom := 12.0
-	if OS.get_name() == "Android":
-		min_top = 28.0
-		min_bottom = 48.0
+	# About 15px from the glass. If a system bar is actually showing,
+	# sit above that instead of adding a second cushion.
+	var min_top := 15.0
+	var min_bottom := 15.0
 	var safe := DisplayServer.get_display_safe_area()
 	var win := DisplayServer.window_get_size()
 	if win.x < 1 or win.y < 1:
@@ -315,6 +317,14 @@ func _layout_shell() -> void:
 	if toast != null:
 		toast.position = Vector2(40.0, maxf(80.0, nav.position.y - 56.0))
 		toast.size = Vector2(wide - 80.0, 48.0)
+	var top_m := int(round(pad.x + 6.0))
+	var bot_m := 120
+	if nav != null:
+		bot_m = int(round(view.y - nav.position.y + 18.0))
+	for margin in hub_page_margins:
+		if margin is MarginContainer:
+			(margin as MarginContainer).add_theme_constant_override("margin_top", top_m)
+			(margin as MarginContainer).add_theme_constant_override("margin_bottom", bot_m)
 	_layout_home(view, pad)
 
 
@@ -322,7 +332,7 @@ func _layout_home(view: Vector2, pad: Vector2) -> void:
 	if home_pill == null or home_mark == null or home_play == null:
 		return
 	var wide := view.x
-	var chrome_y := pad.x + 4.0
+	var chrome_y := pad.x
 	home_pill.position = Vector2(16.0, chrome_y)
 	if chip_wins != null and chip_wins.get_parent() is Control:
 		(chip_wins.get_parent() as Control).position = Vector2(wide - 148.0, chrome_y + 10.0)
@@ -338,8 +348,8 @@ func _layout_home(view: Vector2, pad: Vector2) -> void:
 	var rec_h := 48.0
 	var gap := 10.0
 	var inner := floor - y - play_h - rec_h - 8.0 - gap * 3.0
-	var logo_h := clampf(inner * 0.42, 176.0, 320.0)
-	var card_h := clampf((inner - logo_h) * 0.5, 112.0, 156.0)
+	var logo_h := clampf(inner * 0.40, 176.0, 380.0)
+	var card_h := clampf((inner - logo_h) * 0.5, 112.0, 210.0)
 	if logo_h + card_h * 2.0 > inner:
 		logo_h = clampf(inner - card_h * 2.0, 160.0, logo_h)
 	if logo_h + card_h * 2.0 > inner:
@@ -489,7 +499,7 @@ func _build_home() -> void:
 	)
 
 	home_cards = [
-		_home_card(page, Rect2(28, 444, 236, 124), "LONG GREEN", "A full match rink.", "green", "🌿", "drive"),
+		_home_card(page, Rect2(28, 444, 236, 124), "CRAZY BOWLS", "Eighteen holes. Bowl to the cup.", "crazy", "⛳", "crazy"),
 		_home_card(page, Rect2(276, 444, 236, 124), "SOLO ENDS", "One bowl. The jack.", "solo", "🎯", "solo"),
 		_home_card(page, Rect2(28, 584, 236, 124), "PRACTICE", "You and the jack.", "practice", "🔥", "practice"),
 		_home_card(page, Rect2(276, 584, 236, 124), "THE BOARD", "Wins. Ends. Runs.", "board", "🏆", "rankings"),
@@ -535,8 +545,10 @@ func _home_card(page: Control, rect: Rect2, title: String, body: String, stamp_k
 	button.pressed.connect(func() -> void:
 		if target == "solo":
 			_launch_solo()
+		elif target == "crazy":
+			_launch_crazy()
 		elif target == "drive":
-			_launch_drive()
+			_launch_crazy()
 		else:
 			_tap()
 			if target == "classic" or target == "duo":
@@ -700,11 +712,11 @@ func _build_practice() -> void:
 	root.add_child(page)
 	_back_on(page, "home")
 	box.add_child(_title("PRACTICE"))
-	box.add_child(_wrapped("Nothing is on the line except the shot. Solo ends and the long green keep a tally."))
+	box.add_child(_wrapped("Nothing is on the line except the shot. Solo ends and Crazy Bowls keep a tally."))
 	box.add_child(_wide_card("SOLO ENDS", "Three bowls are already down. One bowl to be the shot.", "PLAY"))
 	box.get_child(box.get_child_count() - 1).pressed.connect(_launch_solo)
-	box.add_child(_wide_card("THE LONG GREEN", "Ten times the rink. Bowl long, and find the mark.", "PLAY"))
-	box.get_child(box.get_child_count() - 1).pressed.connect(_launch_drive)
+	box.add_child(_wide_card("CRAZY BOWLS", "Eighteen holes on a wide green. Bowl it, as it lies.", "PLAY"))
+	box.get_child(box.get_child_count() - 1).pressed.connect(_launch_crazy)
 	box.add_child(_wide_card("OPEN BOARD", "Crokinmode with a clear road to the hole.", "PLAY"))
 	box.get_child(box.get_child_count() - 1).pressed.connect(_practice.bind("open"))
 	box.add_child(_wide_card("PEG GUARD", "The far side is sitting on the pegs.", "PLAY"))
@@ -742,7 +754,7 @@ func _build_friends() -> void:
 	root.add_child(page)
 	_back_on(page, "home")
 	box.add_child(_title("FRIENDS"))
-	box.add_child(_wrapped("Play with mates on this device. Share the room code when a club server is connected."))
+	box.add_child(_wrapped("Head-to-head on two phones is not live yet. A room code stays on this device. PLAY A FRIEND is pass-the-phone on one handset."))
 	box.add_child(_kicker("YOUR ROOM"))
 	friend_code = _label(room_code, 36, CREAM, title_font)
 	friend_code.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -769,11 +781,11 @@ func _build_rankings() -> void:
 	board_solo = solo_row.get_node("Trail") as Label
 	solo_row.disabled = true
 	box.add_child(solo_row)
-	var drive_row := _wide_card("LONGEST BOWL", "The long green", "NO DRIVE YET")
+	var drive_row := _wide_card("CRAZY BOWLS", "Best 18 on the wide green", "NO ROUND YET")
 	board_drive = drive_row.get_node("Trail") as Label
 	drive_row.disabled = true
 	box.add_child(drive_row)
-	var mark_row := _wide_card("NEAREST MARK", "How close on the long green", "MARK NOT FOUND")
+	var mark_row := _wide_card("NEAREST MARK", "How close on a match rink", "MARK NOT FOUND")
 	board_mark = mark_row.get_node("Trail") as Label
 	mark_row.disabled = true
 	box.add_child(mark_row)
@@ -784,12 +796,15 @@ func _build_rankings() -> void:
 
 
 func _build_profile() -> void:
-	var built: Dictionary = _column_page(24, 140)
+	var built: Dictionary = _column_page(24, 140, true)
 	var page := built["page"] as Control
 	var box := built["box"] as VBoxContainer
 	pages["profile"] = page
 	root.add_child(page)
 	var avatar_row := CenterContainer.new()
+	var stack := HBoxContainer.new()
+	stack.add_theme_constant_override("separation", 18)
+	stack.alignment = BoxContainer.ALIGNMENT_CENTER
 	var avatar := Panel.new()
 	avatar.custom_minimum_size = Vector2(96, 96)
 	var disc := _flat(GOLD, Color("#FFE9A0"), 2, 48, 0)
@@ -799,7 +814,14 @@ func _build_profile() -> void:
 	profile_letter.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	profile_letter.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	avatar.add_child(profile_letter)
-	avatar_row.add_child(avatar)
+	stack.add_child(avatar)
+	profile_bowl = TextureRect.new()
+	profile_bowl.custom_minimum_size = Vector2(96, 96)
+	profile_bowl.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	profile_bowl.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	profile_bowl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stack.add_child(profile_bowl)
+	avatar_row.add_child(stack)
 	box.add_child(avatar_row)
 	profile_name = _label("Flicker", 32, CREAM, title_font)
 	profile_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -832,13 +854,13 @@ func _build_profile() -> void:
 
 
 func _build_customise() -> void:
-	var built: Dictionary = _column_page(24, 140)
+	var built: Dictionary = _column_page(24, 140, true)
 	var page := built["page"] as Control
 	var box := built["box"] as VBoxContainer
 	pages["customise"] = page
 	root.add_child(page)
 	box.add_child(_title("YOUR BOWLS"))
-	box.add_child(_wrapped("Four slots. Draw or upload a photo on either face. The selected slot is your match bowl."))
+	box.add_child(_wrapped("A theme wraps the whole bowl. Half and half opens the other face."))
 	var tabs := HBoxContainer.new()
 	tabs.add_theme_constant_override("separation", 8)
 	box.add_child(tabs)
@@ -863,23 +885,46 @@ func _build_customise() -> void:
 	studio.kit_changed.connect(_on_studio_changed)
 	box.add_child(studio)
 	studio_box = studio
+	disc_block = VBoxContainer.new()
+	disc_block.add_theme_constant_override("separation", 12)
+	disc_block.visible = false
+	box.add_child(disc_block)
 	var previews := HBoxContainer.new()
 	previews.alignment = BoxContainer.ALIGNMENT_CENTER
 	previews.add_theme_constant_override("separation", 28)
-	box.add_child(previews)
+	disc_block.add_child(previews)
 	kit_preview_bowl = TextureRect.new()
-	kit_preview_bowl.custom_minimum_size = Vector2(96, 96)
+	kit_preview_bowl.custom_minimum_size = Vector2(132, 132)
 	kit_preview_bowl.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	kit_preview_bowl.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	previews.add_child(kit_preview_bowl)
 	kit_preview_disc = TextureRect.new()
-	kit_preview_disc.custom_minimum_size = Vector2(96, 96)
+	kit_preview_disc.custom_minimum_size = Vector2(132, 132)
 	kit_preview_disc.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	kit_preview_disc.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	previews.add_child(kit_preview_disc)
 	kit_caption = _wrapped("CLUB  ·  Match red")
-	box.add_child(kit_caption)
-	box.add_child(_kicker("COLOUR"))
+	disc_block.add_child(kit_caption)
+	disc_look_host = VBoxContainer.new()
+	disc_look_host.add_theme_constant_override("separation", 8)
+	disc_block.add_child(disc_look_host)
+	look_panel = VBoxContainer.new()
+	look_panel.add_theme_constant_override("separation", 8)
+	theme_kicker = _kicker("THEMES")
+	look_panel.add_child(theme_kicker)
+	kit_skin_row = GridContainer.new()
+	kit_skin_row.columns = 4
+	kit_skin_row.add_theme_constant_override("h_separation", 8)
+	kit_skin_row.add_theme_constant_override("v_separation", 10)
+	kit_skin_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	look_panel.add_child(kit_skin_row)
+	for item in Kit.SKINS:
+		if Kit.is_photo_skin(str(item["id"])):
+			continue
+		if str(item["id"]) == "club" or str(item["id"]) == "split":
+			continue
+		kit_skin_row.add_child(_theme_orb(str(item["id"]), str(item["name"])))
+	look_panel.add_child(_kicker("COLOUR"))
 	var grid := GridContainer.new()
 	grid.columns = 8
 	grid.add_theme_constant_override("h_separation", 6)
@@ -888,30 +933,17 @@ func _build_customise() -> void:
 	for i in Kit.PALETTES.size():
 		var swatch := Button.new()
 		swatch.text = ""
-		swatch.custom_minimum_size = Vector2(48, 48)
+		swatch.custom_minimum_size = Vector2(44, 44)
 		swatch.pressed.connect(_pick_swatch.bind(i))
 		swatch_buttons.append(swatch)
 		grid.add_child(swatch)
 	var center := CenterContainer.new()
 	center.add_child(grid)
-	box.add_child(center)
-	theme_kicker = _kicker("THEMES")
-	box.add_child(theme_kicker)
-	kit_skin_row = GridContainer.new()
-	kit_skin_row.columns = 3
-	kit_skin_row.add_theme_constant_override("h_separation", 8)
-	kit_skin_row.add_theme_constant_override("v_separation", 8)
-	kit_skin_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	box.add_child(kit_skin_row)
-	for item in Kit.SKINS:
-		if Kit.is_photo_skin(str(item["id"])):
-			continue
-		var chip := _button(str(item["name"]), 11)
-		chip.custom_minimum_size = Vector2(0, 36)
-		chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		chip.pressed.connect(_pick_skin.bind(str(item["id"])))
-		chip.set_meta("skin_id", str(item["id"]))
-		kit_skin_row.add_child(chip)
+	look_panel.add_child(center)
+	if studio != null and studio.look_box != null:
+		studio.look_box.add_child(look_panel)
+	else:
+		box.add_child(look_panel)
 	var play_kit := _button("USE THIS BOWL", 16)
 	play_kit.custom_minimum_size = Vector2(0, 52)
 	_paint_button(play_kit, GOLD, Color("#FFE9A0"), Color("#1A1208"), 16, 12, 2)
@@ -923,42 +955,67 @@ func _build_customise() -> void:
 
 
 func _build_shop() -> void:
-	var built: Dictionary = _column_page(24, 140)
+	var built: Dictionary = _column_page(24, 140, true)
 	var page := built["page"] as Control
 	var box := built["box"] as VBoxContainer
 	pages["shop"] = page
 	root.add_child(page)
 	box.add_child(_title("SHOP"))
-	box.add_child(_kicker("FLICK COINS    0"))
-	box.add_child(_shop_row("Match red disc", "OWNED", true))
-	box.add_child(_shop_row("Ice rim", "LOCKED", false))
-	box.add_child(_shop_row("Gold centre", "LOCKED", false))
-	box.add_child(_shop_row("Lawn whites", "LOCKED", false))
+	var coins := PanelContainer.new()
+	coins.add_theme_stylebox_override("panel", _flat(PLUM, GOLD, 1, 16, 14))
+	var coin_row := HBoxContainer.new()
+	coin_row.add_theme_constant_override("separation", 10)
+	var coin_mark := _label("●", 22, GOLD, title_font)
+	coin_row.add_child(coin_mark)
+	var coin_copy := VBoxContainer.new()
+	coin_copy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	coin_copy.add_child(_label("FLICK COINS", 12, MUTED, bold_font))
+	coin_copy.add_child(_label("0", 28, CREAM, title_font))
+	coin_row.add_child(coin_copy)
+	coins.add_child(coin_row)
+	box.add_child(coins)
+	box.add_child(_wrapped("Board colours for Crock and Hole. The match-red disc is yours."))
+	box.add_child(_shop_row("Match red disc", "OWNED", true, 1))
+	box.add_child(_shop_row("Ice rim", "LOCKED", false, 8))
+	box.add_child(_shop_row("Gold centre", "LOCKED", false, 4))
+	box.add_child(_shop_row("Lawn whites", "LOCKED", false, 17))
 
 
 func _build_settings() -> void:
-	var built: Dictionary = _column_page(24, 140)
+	var built: Dictionary = _column_page(24, 140, true)
 	var page := built["page"] as Control
 	var box := built["box"] as VBoxContainer
 	pages["settings"] = page
 	root.add_child(page)
 	box.add_child(_title("SETTINGS"))
-	box.add_child(_kicker("PLAYER NAME"))
+	var name_card := PanelContainer.new()
+	name_card.add_theme_stylebox_override("panel", _flat(PLUM, GOLD, 1, 16, 14))
+	var name_col := VBoxContainer.new()
+	name_col.add_theme_constant_override("separation", 8)
+	name_col.add_child(_kicker("PLAYER NAME"))
 	name_edit = LineEdit.new()
 	name_edit.text = profile.player_name
 	name_edit.max_length = 16
 	name_edit.custom_minimum_size = Vector2(0, 52)
 	_style_edit(name_edit)
 	name_edit.text_changed.connect(_on_name_changed)
-	box.add_child(name_edit)
+	name_col.add_child(name_edit)
+	name_card.add_child(name_col)
+	box.add_child(name_card)
 	sound_button = _row_button("Sound on", _toggle_sound)
 	haptic_button = _row_button("Haptics on", _toggle_haptics)
 	box.add_child(sound_button)
 	box.add_child(haptic_button)
 	box.add_child(_kicker("YOUR BOWLS"))
 	box.add_child(_row_button("Customise bowls", _show.bind("customise")))
-	box.add_child(_kicker("HOW A ROUND WORKS"))
-	box.add_child(_wrapped("Bowl & Roll. Drag the bowl back. The cream line is your finger, and the blocks are where the bowl will run. Let go to bowl. It leaves from your hand and takes its bias as it slows.\n\nA match is four bowls each. Solo ends put three bowls down around the jack. You have one bowl, and as many tries as you want, to finish closer than all of them. The long green is ten times a match rink. Three bowls. The longest one is kept, and a mark sits somewhere out on the green.\n\nThe board on this device stores matches won, ends cleared, the longest bowl, and the nearest mark."))
+	var how := PanelContainer.new()
+	how.add_theme_stylebox_override("panel", _flat(CARD, GOLD, 1, 16, 14))
+	var how_col := VBoxContainer.new()
+	how_col.add_theme_constant_override("separation", 8)
+	how_col.add_child(_kicker("HOW A ROUND WORKS"))
+	how_col.add_child(_wrapped("Drag the bowl back. The cream line is your finger. The blocks are where it will run. Let go — it leaves your hand and takes its bias as it slows.\n\nA match is four bowls each. Solo ends put three bowls around the jack. You have one bowl, and as many tries as you want, to finish closer than all of them.\n\nCrazy Bowls is eighteen holes on a wider green. Par 70. Play it as it lies.\n\nThis device stores matches won, ends cleared, and your nearest mark."))
+	how.add_child(how_col)
+	box.add_child(how)
 
 
 func _build_nav() -> void:
@@ -1282,20 +1339,16 @@ func _launch_solo() -> void:
 
 
 func _launch_drive() -> void:
+	_launch_crazy()
+
+
+func _launch_crazy() -> void:
 	_tap()
 	_emit_play({
-		"rink": "lawn",
-		"solo": false,
-		"distance": true,
+		"rink": "crazy",
 		"back": "home",
-		"opponent": "local",
-		"match_index": 0,
-		"ditch": true,
 		"goal": "",
 		"challenge": "",
-		"difficulty": 0,
-		"level": 0,
-		"target": 100,
 	})
 
 
@@ -1415,7 +1468,7 @@ func _join_room() -> void:
 	if entered == "" or entered == room_code:
 		_launch("room")
 		return
-	_toast("That room is not open on this device.")
+	_toast("That code is not on this phone. Two devices cannot share a room yet.")
 
 
 func _copy_code() -> void:
@@ -1451,7 +1504,7 @@ func _sync_identity() -> void:
 	home_letter.text = initial
 	home_record.text = profile.record_text()
 	if home_tally != null:
-		home_tally.text = "ENDS %d / 8   ·   %s" % [profile.solo_cleared, profile.drive_text()]
+		home_tally.text = "ENDS %d / 8   ·   CRAZY %s" % [profile.solo_cleared, profile.crazy_text()]
 	chip_wins.text = str(profile.wins)
 	chip_losses.text = str(profile.losses)
 	home_xp.size.x = 150.0 * profile.xp_ratio()
@@ -1463,13 +1516,15 @@ func _sync_identity() -> void:
 		profile_rounds.text = "%d rounds on this device" % profile.rounds
 		profile_disc.text = "Disc  ·  %s" % profile.disc_name()
 		profile_xp.size.x = 220.0 * profile.xp_ratio()
+	if profile_bowl != null:
+		profile_bowl.texture = Kit.preview(profile.kit(), false)
 	if rank_name != null:
 		rank_name.text = profile.player_name.to_upper()
 		rank_record.text = "%d WINS" % profile.wins
 	if board_solo != null:
 		board_solo.text = "%d / 8" % profile.solo_cleared
 	if board_drive != null:
-		board_drive.text = profile.drive_text()
+		board_drive.text = profile.crazy_text()
 	if board_mark != null:
 		board_mark.text = profile.mark_text()
 	if board_recent != null:
@@ -1523,15 +1578,17 @@ func _pick_swatch(index: int) -> void:
 
 func _pick_skin(skin_id: String) -> void:
 	if kit_tab == "bowl":
-		profile.bowl_skin = skin_id
-		profile.set_slot(profile.bowl_slot, skin_id, profile.bowl_color)
+		if studio != null and studio.has_method("apply_theme"):
+			studio.apply_theme(skin_id)
+		else:
+			profile.bowl_skin = skin_id
+			profile.set_slot(profile.bowl_slot, skin_id, profile.bowl_color)
+			profile.save_profile()
 	else:
 		if Kit.is_photo_skin(skin_id):
 			return
 		profile.disc_skin = skin_id
-	profile.save_profile()
-	if studio != null and kit_tab == "bowl":
-		studio.refresh()
+		profile.save_profile()
 	_paint_kit()
 	_sync_identity()
 
@@ -1608,6 +1665,8 @@ func _paint_kit() -> void:
 		kit_preview_bowl.texture = Kit.preview(kit, false)
 	if kit_preview_disc != null:
 		kit_preview_disc.texture = Kit.preview(kit, true)
+	if profile_bowl != null:
+		profile_bowl.texture = Kit.preview(kit, false)
 	var color_index: int = profile.bowl_color if kit_tab == "bowl" else profile.disc_index
 	var pal: Dictionary = Kit.palette(color_index)
 	var skin_id: String = profile.bowl_skin if kit_tab == "bowl" else profile.disc_skin
@@ -1621,18 +1680,39 @@ func _paint_kit() -> void:
 	if kit_skin_row != null:
 		for i in kit_skin_row.get_child_count():
 			var chip := kit_skin_row.get_child(i) as Button
+			if chip == null:
+				continue
 			var id := str(chip.get_meta("skin_id")) if chip.has_meta("skin_id") else ""
-			var on: bool = id == skin_id
-			_paint_button(chip, GOLD if on else PLUM, Color("#FFE9A0") if on else Color(1, 1, 1, 0.18), Color("#1A1208") if on else MUTED, 12, 8, 2 if on else 1)
+			var mark := skin_id
+			if studio != null and str(studio.picked_theme) != "" and Kit.is_photo_skin(skin_id):
+				mark = str(studio.picked_theme)
+			var on: bool = id == mark
+			_paint_button(chip, GOLD if on else Color(0.07, 0.14, 0.30, 0.96), Color("#FFE9A0") if on else Color(1, 1, 1, 0.16), Color("#1A1208") if on else MUTED, 14, 6, 2 if on else 1)
+			var orb := chip.find_child("Orb", true, false)
+			if orb is TextureRect:
+				var orb_kit := {
+					"bowl_skin": id,
+					"bowl_color": color_index,
+					"disc_skin": id,
+					"disc_color": color_index,
+				}
+				(orb as TextureRect).texture = Kit.preview(orb_kit, kit_tab != "bowl")
 	var bowls := kit_tab == "bowl"
 	if studio != null:
 		studio.visible = bowls
-	if kit_preview_bowl != null:
-		kit_preview_bowl.visible = not bowls
-		if kit_preview_bowl.get_parent() is Control:
-			(kit_preview_bowl.get_parent() as Control).visible = not bowls
-	if kit_preview_disc != null:
-		kit_preview_disc.visible = not bowls
+	if disc_block != null:
+		disc_block.visible = not bowls
+	if look_panel != null:
+		var host: Node = null
+		if bowls and studio != null:
+			host = studio.look_box
+		elif disc_look_host != null:
+			host = disc_look_host
+		if host != null and look_panel.get_parent() != host:
+			var old := look_panel.get_parent()
+			if old != null:
+				old.remove_child(look_panel)
+			host.add_child(look_panel)
 	if photo_kicker != null:
 		photo_kicker.visible = false
 	if photo_blurb != null:
@@ -1649,7 +1729,7 @@ func _paint_kit() -> void:
 		var border := Color("#FFE9A0") if i == selected else Color(1, 1, 1, 0.18)
 		var swatch_pal: Dictionary = Kit.palette(i)
 		var swatch_color: Color = swatch_pal["a"]
-		_paint_button(swatch, swatch_color, border, CREAM, 32, 0, 3 if i == selected else 1)
+		_paint_button(swatch, swatch_color, border, CREAM, 22, 0, 3 if i == selected else 1)
 
 
 func _paint_challenges() -> void:
@@ -1688,7 +1768,7 @@ func _initial() -> String:
 	return trimmed.substr(0, 1).to_upper()
 
 
-func _column_page(top: float, bottom: float) -> Dictionary:
+func _column_page(top: float, bottom: float, hub: bool = false) -> Dictionary:
 	var page := Control.new()
 	page.set_anchors_preset(Control.PRESET_FULL_RECT)
 	page.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1708,6 +1788,8 @@ func _column_page(top: float, bottom: float) -> Dictionary:
 	box.custom_minimum_size = Vector2(508, 0)
 	box.add_theme_constant_override("separation", 10)
 	margin.add_child(box)
+	if hub:
+		hub_page_margins.append(margin)
 	return {"page": page, "box": box}
 
 
@@ -1808,8 +1890,45 @@ func _wide_card(title: String, body: String, trailing: String) -> Button:
 	return button
 
 
-func _shop_row(title: String, trailing: String, owned: bool) -> Button:
-	var button := _wide_card(title, "Round-board colour", trailing)
+func _shop_row(title: String, trailing: String, owned: bool, pal_index: int = 1) -> Button:
+	var button := Button.new()
+	button.text = ""
+	button.custom_minimum_size = Vector2(0, 96)
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_paint_button(button, CARD, GOLD, CREAM, 16, 12, 2)
+	var row := HBoxContainer.new()
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_theme_constant_override("separation", 14)
+	row.set_anchors_preset(Control.PRESET_FULL_RECT)
+	row.offset_left = 12
+	row.offset_right = -12
+	row.offset_top = 10
+	row.offset_bottom = -10
+	var orb := TextureRect.new()
+	orb.custom_minimum_size = Vector2(64, 64)
+	orb.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	orb.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	orb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	orb.texture = Kit.preview({
+		"bowl_skin": "both",
+		"bowl_color": pal_index,
+		"disc_skin": "both",
+		"disc_color": pal_index,
+	}, true)
+	row.add_child(orb)
+	var copy := VBoxContainer.new()
+	copy.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	copy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	copy.alignment = BoxContainer.ALIGNMENT_CENTER
+	var heading := _label(title, 16, CREAM, bold_font)
+	heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	copy.add_child(heading)
+	copy.add_child(_label("Round-board colour", 13, MUTED, body_font))
+	row.add_child(copy)
+	var badge := _label(trailing, 13, GOLD, bold_font)
+	badge.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row.add_child(badge)
+	button.add_child(row)
 	button.pressed.connect(func() -> void:
 		if owned:
 			_toast("Match red is the disc you own.")
@@ -1817,7 +1936,41 @@ func _shop_row(title: String, trailing: String, owned: bool) -> Button:
 			_toast("Locked. Flick coins are not on this build.")
 	)
 	if not owned:
-		button.modulate = Color(1, 1, 1, 0.78)
+		button.modulate = Color(1, 1, 1, 0.82)
+	return button
+
+
+func _theme_orb(skin_id: String, caption: String) -> Button:
+	var button := Button.new()
+	button.text = ""
+	button.custom_minimum_size = Vector2(0, 92)
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.focus_mode = Control.FOCUS_NONE
+	button.action_mode = BaseButton.ACTION_MODE_BUTTON_PRESS
+	button.set_meta("skin_id", skin_id)
+	button.pressed.connect(_pick_skin.bind(skin_id))
+	var col := VBoxContainer.new()
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.alignment = BoxContainer.ALIGNMENT_CENTER
+	col.add_theme_constant_override("separation", 4)
+	col.set_anchors_preset(Control.PRESET_FULL_RECT)
+	col.offset_left = 4
+	col.offset_right = -4
+	col.offset_top = 6
+	col.offset_bottom = -6
+	var orb := TextureRect.new()
+	orb.name = "Orb"
+	orb.custom_minimum_size = Vector2(56, 56)
+	orb.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	orb.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	orb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	orb.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	col.add_child(orb)
+	var label := _label(caption, 10, MUTED, bold_font)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	col.add_child(label)
+	button.add_child(col)
 	return button
 
 
@@ -2126,6 +2279,8 @@ class Stamp extends Control:
 				draw_circle(mid, r * 0.08, gold)
 			"green", "lawn":
 				_rink(mid, r * 0.7, grass, cream, Color("#E12A32"))
+			"crazy":
+				_crazy_stamp(mid, r * 0.7, grass, cream, gold)
 			"solo":
 				_target(mid, r * 0.62, cream, navy, gold)
 			"practice":
@@ -2170,6 +2325,19 @@ class Stamp extends Control:
 		]), cream)
 		draw_arc(Vector2(mid.x, mid.y - span * 0.12), span * 0.42, PI, TAU, 14, cream, 3.0, true)
 		draw_circle(mid + Vector2(0, span * 0.28), span * 0.16, gold)
+
+	func _crazy_stamp(mid: Vector2, span: float, grass: Color, cream: Color, gold: Color) -> void:
+		draw_rect(Rect2(mid.x - span * 0.82, mid.y - span * 0.92, span * 1.64, span * 1.84), Color("#163C22"), true)
+		draw_rect(Rect2(mid.x - span * 0.58, mid.y - span * 0.86, span * 1.16, span * 1.68), grass, true)
+		draw_circle(Vector2(mid.x + span * 0.12, mid.y - span * 0.28), span * 0.22, Color("#0A1208"))
+		draw_circle(Vector2(mid.x + span * 0.12, mid.y - span * 0.28), span * 0.1, Color("#07101C"))
+		draw_line(Vector2(mid.x + span * 0.12, mid.y - span * 0.48), Vector2(mid.x + span * 0.12, mid.y - span * 0.92), gold, 2.0, true)
+		draw_colored_polygon(PackedVector2Array([
+			Vector2(mid.x + span * 0.12, mid.y - span * 0.92),
+			Vector2(mid.x + span * 0.58, mid.y - span * 0.78),
+			Vector2(mid.x + span * 0.12, mid.y - span * 0.64),
+		]), Color("#E12A32"))
+		draw_circle(Vector2(mid.x - span * 0.22, mid.y + span * 0.42), span * 0.2, cream)
 
 	func _rink(mid: Vector2, span: float, grass: Color, cream: Color, pink: Color) -> void:
 		draw_rect(Rect2(mid.x - span * 0.72, mid.y - span * 0.92, span * 1.44, span * 1.84), Color("#163C22"), true)

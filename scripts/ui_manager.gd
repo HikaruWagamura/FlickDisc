@@ -312,6 +312,91 @@ func show_drive_done(longest: float, best_miss: float) -> void:
 	show_bowl_controls(false)
 
 
+func show_crazy_prompt(hole: Dictionary, to_par: int, strokes: int) -> void:
+	level_label.text = "HOLE %d / 18" % int(hole["number"])
+	throws_label.text = "PAR %d" % int(hole["par"])
+	status_label.text = str(hole["name"]).to_upper()
+	score_label.text = "STROKE %d  •  %s" % [maxi(strokes, 1), _crazy_par_line(to_par)]
+	hide_summary()
+	next_button.visible = false
+	show_bowl_controls(true)
+
+
+func show_crazy_rest(hole: Dictionary, strokes: int, to_par: int, miss: float) -> void:
+	throws_label.text = "PAR %d" % int(hole["par"])
+	status_label.text = "AT REST  •  %.1f m FROM THE CUP" % miss
+	score_label.text = "STROKE %d  •  %s" % [strokes, _crazy_par_line(to_par)]
+	hide_summary()
+	next_button.visible = false
+	show_bowl_controls(true)
+
+
+func show_crazy_water(hole: Dictionary, strokes: int, to_par: int) -> void:
+	throws_label.text = "PAR %d" % int(hole["par"])
+	status_label.text = "IN THE WATER  •  ONE STROKE PENALTY"
+	score_label.text = "STROKE %d  •  %s" % [strokes, _crazy_par_line(to_par)]
+	hide_summary()
+	next_button.visible = false
+	show_bowl_controls(true)
+
+
+func show_crazy_holed(hole: Dictionary, strokes: int, to_par: int) -> void:
+	summary.visible = true
+	summary_title.text = "HOLE %d" % int(hole["number"])
+	summary_shots.text = _crazy_hole_word(strokes, int(hole["par"]))
+	summary_detail.text = "%s\n%d STROKES  •  PAR %d" % [str(hole["name"]).to_upper(), strokes, int(hole["par"])]
+	status_label.text = "IN THE CUP"
+	score_label.text = _crazy_par_line(to_par)
+	next_button.text = "NEXT HOLE" if int(hole["number"]) < 18 else "SCORECARD"
+	next_button.visible = true
+	reset_button.visible = true
+	show_bowl_controls(false)
+
+
+func show_crazy_done(strokes: int, par: int, card: Array) -> void:
+	summary.visible = true
+	summary_title.text = "CRAZY BOWLS"
+	var vs := strokes - par
+	summary_shots.text = _crazy_par_line(vs)
+	summary_detail.text = "%d STROKES  •  PAR %d\n%s" % [strokes, par, _crazy_card_line(card)]
+	status_label.text = "ROUND COMPLETE"
+	score_label.text = "EIGHTEEN HOLES ON THE WIDE GREEN"
+	next_button.text = "NEW ROUND"
+	next_button.visible = true
+	reset_button.visible = true
+	show_bowl_controls(false)
+
+
+func _crazy_par_line(to_par: int) -> String:
+	if to_par == 0:
+		return "EVEN PAR"
+	if to_par > 0:
+		return "+%d" % to_par
+	return "%d" % to_par
+
+
+func _crazy_hole_word(strokes: int, par: int) -> String:
+	var d := strokes - par
+	if strokes == 1:
+		return "HOLE IN ONE"
+	if d <= -2:
+		return "EAGLE"
+	if d == -1:
+		return "BIRDIE"
+	if d == 0:
+		return "PAR"
+	if d == 1:
+		return "BOGEY"
+	return "+%d" % d
+
+
+func _crazy_card_line(card: Array) -> String:
+	var bits: PackedStringArray = PackedStringArray()
+	for n in mini(card.size(), 18):
+		bits.append(str(int(card[n])))
+	return "  ".join(bits)
+
+
 func show_solo_prompt(end_number: int, end_count: int, end_name: String, blurb: String) -> void:
 	level_label.text = "END %d / %d" % [end_number, end_count]
 	throws_label.text = "ONE BOWL"
@@ -565,12 +650,9 @@ func _paint_power_fill(ratio: float) -> void:
 
 
 func _safe_pad() -> Vector2:
-	# Top and bottom insets in viewport pixels. Width stays 540; height grows.
-	var min_top := 0.0
-	var min_bottom := 0.0
-	if OS.get_name() == "Android":
-		min_top = 28.0
-		min_bottom = 48.0
+	# Use the phone. Keep about 15px at the rim unless a system bar is actually showing.
+	var min_top := 15.0
+	var min_bottom := 15.0
 	var safe := DisplayServer.get_display_safe_area()
 	var win := DisplayServer.window_get_size()
 	if win.x < 1 or win.y < 1:
@@ -589,34 +671,34 @@ func _layout_hud() -> void:
 	var top := pad.x
 	var bottom := pad.y
 	if menu_button != null:
-		menu_button.position = Vector2(16.0, 24.0 + top)
+		menu_button.position = Vector2(16.0, 4.0 + top)
 	if reset_button != null:
-		reset_button.position = Vector2(122.0, 24.0 + top)
+		reset_button.position = Vector2(122.0, 4.0 + top)
 	if cue_button != null:
 		cue_button.visible = false
-		cue_button.position = Vector2(228.0, 24.0 + top)
+		cue_button.position = Vector2(228.0, 4.0 + top)
 	if level_label != null:
-		level_label.position = Vector2(340.0, 28.0 + top)
+		level_label.position = Vector2(340.0, 8.0 + top)
 	if throws_label != null:
-		throws_label.position = Vector2(340.0, 54.0 + top)
+		throws_label.position = Vector2(340.0, 34.0 + top)
 	if match_button != null:
-		match_button.position = Vector2(16.0, 72.0 + top)
+		match_button.position = Vector2(16.0, 52.0 + top)
 	if camera_button != null:
-		camera_button.position = Vector2(144.0, 72.0 + top)
+		camera_button.position = Vector2(144.0, 52.0 + top)
 	if ditch_button != null:
 		ditch_button.visible = false
-		ditch_button.position = Vector2(280.0, 72.0 + top)
+		ditch_button.position = Vector2(280.0, 52.0 + top)
 	if status_label != null:
-		status_label.position = Vector2(18.0, 126.0 + top)
+		status_label.position = Vector2(18.0, 106.0 + top)
 	if score_label != null:
-		score_label.position = Vector2(18.0, 150.0 + top)
+		score_label.position = Vector2(18.0, 130.0 + top)
 	if power_track != null:
-		_power_home = Vector2(502.0, 108.0 + top)
+		_power_home = Vector2(502.0, 88.0 + top)
 		power_track.position = _power_home
 	if power_label != null:
-		power_label.position = Vector2(478.0, 392.0 + top)
+		power_label.position = Vector2(478.0, 372.0 + top)
 	if bias_rail != null:
-		bias_rail.position = Vector2(468.0, 430.0 + top)
+		bias_rail.position = Vector2(468.0, 410.0 + top)
 	var tall := 960.0
 	if is_inside_tree():
 		tall = get_viewport().get_visible_rect().size.y
