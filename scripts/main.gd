@@ -138,6 +138,10 @@ func _menutest() -> void:
 	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
 	_dump_menu("menu_shop")
+	menu.open_screen("settings")
+	await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	_dump_menu("menu_settings")
 	menu.open_screen("customise")
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -157,6 +161,29 @@ func _menutest() -> void:
 	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
 	_dump_menu("menu_kit_photo")
+	if menu.studio != null:
+		menu.studio.demo_paint()
+		await get_tree().process_frame
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		_dump_menu("menu_studio")
+		menu.studio.pick_place("right")
+		menu.studio.apply_photo(Kit._demo_face())
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		_dump_menu("menu_studio_photo")
+		menu.studio.pick_place("split")
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		_dump_menu("menu_studio_split")
+		var kit_page := menu.pages["customise"] as Control
+		if kit_page != null and kit_page.get_child_count() > 0:
+			var scroll := kit_page.get_child(0) as ScrollContainer
+			if scroll != null:
+				scroll.scroll_vertical = 560
+				await get_tree().process_frame
+				await RenderingServer.frame_post_draw
+				_dump_menu("menu_studio_tools")
 	menu._pick_skin("club")
 	menu._pick_swatch(1)
 	await get_tree().process_frame

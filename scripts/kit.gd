@@ -15,6 +15,8 @@ const LOOK_PHOTO_RIGHT := 4
 const LOOK_PHOTO_SPLIT := 5
 const PHOTO_A_PATH := "user://kit/photo_a.png"
 const PHOTO_B_PATH := "user://kit/photo_b.png"
+const SLOT_COUNT := 4
+static var active_slot := 0
 
 const PALETTES := [
 	{"id": "pink", "name": "Club pink", "a": Color("#ff3d9a"), "b": Color("#fff6f0")},
@@ -88,6 +90,7 @@ static func default_kit() -> Dictionary:
 		"disc_color": 0,
 		"photo_a": "",
 		"photo_b": "",
+		"bowl_slot": 0,
 	}
 
 
@@ -131,6 +134,7 @@ static func from_meta(tree: SceneTree) -> Dictionary:
 		return default_kit()
 	var out := default_kit()
 	out.merge(kit, true)
+	active_slot = int(out.get("bowl_slot", 0))
 	return out
 
 
@@ -287,9 +291,18 @@ static func graphic_texture_b(skin_id: String, color_a: Color, color_b: Color, k
 	return graphic_texture(skin_id, color_a, color_b, kit)
 
 
+static func face_path(side: String, slot: int = -1) -> String:
+	var n := active_slot if slot < 0 else slot
+	var letter := "b" if side == "b" else "a"
+	return "user://kit/s%d_%s.png" % [n, letter]
+
+
 static func load_user_photo(slot: String) -> Texture2D:
-	var path := PHOTO_A_PATH if slot != "b" else PHOTO_B_PATH
-	var cache_key := "user_%s_%s" % [slot, str(FileAccess.get_modified_time(path))]
+	_migrate_legacy_photos()
+	var path := face_path(slot)
+	if not FileAccess.file_exists(path):
+		path = PHOTO_A_PATH if slot != "b" else PHOTO_B_PATH
+	var cache_key := "user_%s_%s_%s" % [str(active_slot), slot, str(FileAccess.get_modified_time(path))]
 	if _graphic_cache.has(cache_key):
 		return _graphic_cache[cache_key]
 	if not FileAccess.file_exists(path):
@@ -305,7 +318,7 @@ static func load_user_photo(slot: String) -> Texture2D:
 	return tex
 
 
-static func save_user_photo(slot: String, image: Image) -> String:
+static func save_user_photo(slot: String, image: Image, kit_slot: int = -1) -> String:
 	if image == null:
 		return ""
 	var copy := image.duplicate() as Image
@@ -326,7 +339,7 @@ static func save_user_photo(slot: String, image: Image) -> String:
 		var y := (high - side) / 2
 		copy = copy.get_region(Rect2i(x, y, side, side))
 	DirAccess.make_dir_recursive_absolute("user://kit")
-	var path := PHOTO_A_PATH if slot != "b" else PHOTO_B_PATH
+	var path := face_path(slot, kit_slot)
 	copy.save_png(path)
 	_graphic_cache.clear()
 	_preview_cache.clear()
@@ -334,8 +347,16 @@ static func save_user_photo(slot: String, image: Image) -> String:
 
 
 static func has_user_photo(slot: String) -> bool:
-	var path := PHOTO_A_PATH if slot != "b" else PHOTO_B_PATH
-	return FileAccess.file_exists(path)
+	_migrate_legacy_photos()
+	return FileAccess.file_exists(face_path(slot)) or FileAccess.file_exists(PHOTO_A_PATH if slot != "b" else PHOTO_B_PATH)
+
+
+static func _migrate_legacy_photos() -> void:
+	DirAccess.make_dir_recursive_absolute("user://kit")
+	if FileAccess.file_exists(PHOTO_A_PATH) and not FileAccess.file_exists(face_path("a", 0)):
+		DirAccess.copy_absolute(PHOTO_A_PATH, face_path("a", 0))
+	if FileAccess.file_exists(PHOTO_B_PATH) and not FileAccess.file_exists(face_path("b", 0)):
+		DirAccess.copy_absolute(PHOTO_B_PATH, face_path("b", 0))
 
 
 static func seed_demo_photos() -> void:
@@ -380,7 +401,15 @@ static func preview(kit: Dictionary, for_disc: bool) -> Texture2D:
 	var skin_id := str(kit.get("disc_skin" if for_disc else "bowl_skin", "split"))
 	var color_a: Color = pal["a"]
 	var color_b: Color = pal["b"]
-	var key := "%s_%s_%s_%s_%s" % [skin_id, color_a.to_html(false), color_b.to_html(false), for_disc, str(FileAccess.get_modified_time(PHOTO_A_PATH))]
+	var key := "%s_%s_%s_%s_%s_%s_%s" % [
+		skin_id,
+		color_a.to_html(false),
+		color_b.to_html(false),
+		for_disc,
+		str(active_slot),
+		str(FileAccess.get_modified_time(face_path("a"))),
+		str(FileAccess.get_modified_time(face_path("b"))),
+	]
 	if _preview_cache.has(key):
 		return _preview_cache[key]
 	var look_info := skin(skin_id)

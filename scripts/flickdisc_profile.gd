@@ -24,6 +24,9 @@ var disc_index := 0
 var bowl_color := 1
 var bowl_skin := "club"
 var disc_skin := "club"
+var bowl_slot := 0
+var slot_skins := PackedStringArray(["club", "club", "club", "club"])
+var slot_colors := PackedInt32Array([1, 1, 1, 1])
 var sound := true
 var haptics := true
 var cleared: PackedStringArray = PackedStringArray()
@@ -49,12 +52,37 @@ func disc_color() -> Color:
 func kit() -> Dictionary:
 	if bowl_skin == "photo":
 		bowl_skin = "photo_left"
+	Kit.active_slot = clampi(bowl_slot, 0, Kit.SLOT_COUNT - 1)
 	return {
 		"bowl_skin": bowl_skin,
 		"bowl_color": bowl_color,
 		"disc_skin": disc_skin,
 		"disc_color": disc_index,
+		"bowl_slot": clampi(bowl_slot, 0, Kit.SLOT_COUNT - 1),
 	}
+
+
+func slot_skin(index: int) -> String:
+	var i := clampi(index, 0, slot_skins.size() - 1)
+	return str(slot_skins[i])
+
+
+func slot_color(index: int) -> int:
+	var i := clampi(index, 0, slot_colors.size() - 1)
+	return int(slot_colors[i])
+
+
+func set_slot(index: int, skin_id: String, color_index: int) -> void:
+	var i := clampi(index, 0, Kit.SLOT_COUNT - 1)
+	while slot_skins.size() < Kit.SLOT_COUNT:
+		slot_skins.append("club")
+	while slot_colors.size() < Kit.SLOT_COUNT:
+		slot_colors.append(1)
+	slot_skins[i] = skin_id
+	slot_colors[i] = color_index
+	if i == bowl_slot:
+		bowl_skin = skin_id
+		bowl_color = color_index
 
 
 func disc_name() -> String:
@@ -84,6 +112,16 @@ func load_profile() -> void:
 	bowl_color = int(cfg.get_value("player", "bowl_color", 1))
 	bowl_skin = str(cfg.get_value("player", "bowl_skin", "club"))
 	disc_skin = str(cfg.get_value("player", "disc_skin", "club"))
+	bowl_slot = clampi(int(cfg.get_value("player", "bowl_slot", 0)), 0, Kit.SLOT_COUNT - 1)
+	slot_skins = PackedStringArray()
+	slot_colors = PackedInt32Array()
+	for i in Kit.SLOT_COUNT:
+		var fallback_skin := bowl_skin if i == 0 else "club"
+		var fallback_color := bowl_color if i == 0 else 1
+		slot_skins.append(str(cfg.get_value("player", "slot_%d_skin" % i, fallback_skin)))
+		slot_colors.append(int(cfg.get_value("player", "slot_%d_color" % i, fallback_color)))
+	bowl_skin = slot_skin(bowl_slot)
+	bowl_color = slot_color(bowl_slot)
 	if bowl_skin == "split":
 		bowl_skin = "club"
 	if bowl_skin == "photo":
@@ -125,6 +163,10 @@ func save_profile() -> void:
 	cfg.set_value("player", "bowl_color", bowl_color)
 	cfg.set_value("player", "bowl_skin", bowl_skin)
 	cfg.set_value("player", "disc_skin", disc_skin)
+	cfg.set_value("player", "bowl_slot", clampi(bowl_slot, 0, Kit.SLOT_COUNT - 1))
+	for i in Kit.SLOT_COUNT:
+		cfg.set_value("player", "slot_%d_skin" % i, slot_skin(i))
+		cfg.set_value("player", "slot_%d_color" % i, slot_color(i))
 	cfg.set_value("player", "sound", sound)
 	cfg.set_value("player", "haptics", haptics)
 	cfg.set_value("player", "cleared", ",".join(cleared))
