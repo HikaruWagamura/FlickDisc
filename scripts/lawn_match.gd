@@ -36,9 +36,9 @@ var throw_index := 0
 var shot_token := 0
 var delivering_jack := true
 var hand_sign := -1.0
-var bias_index := 1
+var bias_index := 0
 var player_hand := -1.0
-var player_bias := 1
+var player_bias := 0
 var ditch_mode := true
 var jack_length := 0.0
 var match_index := 1
@@ -61,6 +61,7 @@ var cue_blocks
 var cue_solid
 var cue_kind := 0
 var _cue_compare := false
+var _hold_finish := false
 var _compare_label: Label
 var _compare_power := 0.85
 var _compare_aim := Vector3(0.10, 0.0, -1.0)
@@ -160,6 +161,8 @@ func _ready() -> void:
 		call_deferred("_cuetest")
 	elif OS.get_cmdline_user_args().has("--handtest"):
 		call_deferred("_handtest")
+	elif OS.get_cmdline_user_args().has("--hudtest"):
+		call_deferred("_hudtest")
 	elif OS.get_cmdline_user_args().has("--fixtest"):
 		call_deferred("_fixtest")
 	elif OS.get_cmdline_user_args().has("--pulltest"):
@@ -217,6 +220,7 @@ func _wire_shot() -> void:
 	shot.cancelled_pull.connect(_on_pull_cancelled)
 	shot.fired.connect(_on_shot_fired)
 	shot.direct = true
+	shot.blocks_pointer = ui.blocks_shot_at
 	add_child(shot)
 	gesture = shot
 	fan = preload("res://scripts/shot_fan.gd").new()
@@ -425,9 +429,13 @@ func _sync_direct(cam: Camera3D, placed: Vector3) -> void:
 		var rim := cam.unproject_position(live_pos + Vector3(cos(ang), 0.2, sin(ang)) * disc.radius)
 		bowl_r = maxf(bowl_r, centre.distance_to(rim))
 	fan.present(bowl_px, power, 0.0, false, -PI * 0.5, 120.0)
-	if pulling:
-		if cue != null and cue_kind != 3:
+	if cue != null and cue_kind != 3:
+		if pulling:
 			cue.present(disc.grass_cue(power), power, disc.aim_direction)
+		elif live and not delivering_jack:
+			cue.present(disc.grass_cue(0.52), 0.52, Vector3(0.0, 0.0, -1.0))
+		else:
+			cue.clear()
 	elif cue != null:
 		cue.clear()
 	fan.set_cue(PackedVector2Array(), PackedFloat32Array(), false)
@@ -445,7 +453,7 @@ func _new_match() -> void:
 	match_complete = false
 	match_reported = false
 	player_hand = -1.0
-	player_bias = 1
+	player_bias = 0
 	hand_sign = player_hand
 	bias_index = player_bias
 	_begin_end()
@@ -498,7 +506,7 @@ func _build_rack() -> void:
 	for i in BOWLS_EACH:
 		var bowl = BowlScript.new()
 		bowl.name = "Rack%d" % (i + 1)
-		bowl.setup_disc(0, hand_sign)
+		bowl.setup_disc(0, hand_sign, player_bias)
 		add_child(bowl)
 		rack.append(bowl)
 
@@ -511,7 +519,7 @@ func _place_rack() -> void:
 		left = 1
 	for i in rack.size():
 		var bowl = rack[i]
-		bowl.paint(side, hand_sign)
+		bowl.paint(side, hand_sign, player_bias if side == 0 else 1)
 		bowl.set_scoring(false)
 		bowl.roll_basis = Basis.IDENTITY
 		bowl.visible = i < left
@@ -598,6 +606,7 @@ func _on_bias_selected(index: int) -> void:
 	disc.configure_bowl(bias_index, hand_sign)
 	ui.show_bias(bias_index, _side())
 	ui.show_hand(hand_sign < 0.0, _bowl_name(bias_index))
+	_place_rack()
 
 
 func _on_cue_cycle_requested() -> void:
@@ -677,6 +686,8 @@ func _on_disc_impacted(speed: float, hit_jack: bool, hit_bank: bool) -> void:
 
 
 func _on_disc_shot_stopped() -> void:
+	if _hold_finish:
+		return
 	call_deferred("_finish_shot", shot_token)
 
 
@@ -695,7 +706,7 @@ func _finish_shot(token: int) -> void:
 		return
 	var thrown = BowlScript.new()
 	thrown.name = "Bowl%d" % (throw_index + 1)
-	thrown.setup_disc(throw_index % 2, hand_sign)
+	thrown.setup_disc(throw_index % 2, disc.hand_sign, maxi(disc._bowl_index, 0))
 	thrown.side = throw_index % 2
 	thrown.roll_basis = disc.roll_basis
 	thrown.lean = disc.rest_lean
@@ -1833,11 +1844,11 @@ func _drawtest() -> void:
 	_compare_aim = Vector3(-0.18, 0.0, -1.0).normalized()
 	_compare_power = 0.82
 	_cue_compare = true
-	ui.show_hand(false, "CLASSIC")
-	_set_compare_banner("CLASSIC  •  BACKHAND")
+	ui.show_hand(false, "MAX")
+	_set_compare_banner("MAX  •  BACKHAND")
 	_sync_compare_cue()
 	await get_tree().create_timer(0.35).timeout
-	await _dump_compare_shot("draw_cue_classic_back")
+	await _dump_compare_shot("draw_cue_max_back")
 	_cue_compare = false
 	for index in 4:
 		disc.configure_bowl(index, -1.0)
@@ -1969,7 +1980,7 @@ func _handtest() -> void:
 	disc.configure_bowl(3, -1.0)
 	disc.set_palette(0)
 	ui.show_bowl_controls(true)
-	ui.show_hand(true, "CLASSIC")
+	ui.show_hand(true, "MAX")
 	_set_compare_banner("FOREHAND")
 	_compare_power = 0.9
 	_compare_aim = Vector3(0.22, 0.0, -1.0).normalized()
@@ -1979,13 +1990,112 @@ func _handtest() -> void:
 	await _dump_compare_shot("hand_fore")
 	disc.set_hand(1.0)
 	hand_sign = disc.hand_sign
-	ui.show_hand(false, "CLASSIC")
+	ui.show_hand(false, "MAX")
 	_set_compare_banner("BACKHAND")
 	_sync_compare_cue()
 	await get_tree().create_timer(0.6).timeout
 	await _dump_compare_shot("hand_back")
 	print("HANDTEST done")
 	get_tree().quit(0)
+
+
+func _hudtest() -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+	if gesture != null:
+		gesture.arm()
+		gesture.direct = true
+	delivering_jack = false
+	disc.delivering_jack = false
+	player_bias = 0
+	bias_index = 0
+	hand_sign = -1.0
+	disc.configure_bowl(0, -1.0)
+	disc.set_palette(0)
+	disc.reset_to_start()
+	ui.show_bowl_controls(true)
+	ui.show_bias(0, 0)
+	ui.show_hand(true, _bowl_name(0))
+	_place_rack()
+	_set_compare_banner("1 STANDARD  •  FORE")
+	for _i in 10:
+		await get_tree().process_frame
+	await _dump_compare_shot("hud_std_fore")
+	var hand_ok: bool = await _tap_control(ui.hand_switch)
+	var caption := "FORE" if bool(ui.hand_switch.get("forehand")) else "BACK"
+	print("HUDTEST hand_tap=%s caption=%s disc_hand=%.1f" % [str(hand_ok), caption, disc.hand_sign])
+	_set_compare_banner("1 STANDARD  •  BACK")
+	for _j in 8:
+		await get_tree().process_frame
+	await _dump_compare_shot("hud_std_back")
+	for index in 4:
+		var chip: Control = ui.bias_buttons[index]
+		var chip_ok: bool = await _tap_control(chip)
+		print("HUDTEST chip=%d tap=%s name=%s bias=%.2f kind=%d" % [index, str(chip_ok), _bowl_name(bias_index), disc.bowl_bias, disc._bowl_index])
+		_set_compare_banner("%d %s" % [index + 1, _bowl_name(index)])
+		for _k in 6:
+			await get_tree().process_frame
+		await _dump_compare_shot("hud_bowl_%d" % (index + 1))
+	var from: Vector3 = disc.start_position
+	var first_x := 0.0
+	var last_x := 0.0
+	for index in 4:
+		disc.configure_bowl(index, 1.0)
+		disc.aim_direction = Vector3(0.0, 0.0, -1.0)
+		var path: PackedVector3Array = disc.grass_cue(0.70)
+		var tip: Vector3 = path[path.size() - 1] if path.size() > 0 else Vector3.ZERO
+		var power: float = disc.weight_for_length(23.0, disc.bias_ratio)
+		var rest: Vector3 = disc.predict_rest(from, Vector3(0.0, 0.0, -1.0), power, disc.bias_ratio)
+		if index == 0:
+			first_x = rest.x
+		last_x = rest.x
+		print("HUDTEST rest %s x=%.2f along=%.1f cue_x=%.3f pts=%d" % [_bowl_name(index), rest.x, from.z - rest.z, tip.x, path.size()])
+	print("HUDTEST spread=%.2f" % absf(last_x - first_x))
+	if gesture != null:
+		gesture.busy()
+	_hold_finish = true
+	for item in [{"i": 0, "file": "hud_std_rest"}, {"i": 3, "file": "hud_max_rest"}]:
+		var idx := int(item["i"])
+		disc.configure_bowl(idx, -1.0)
+		disc.reset_to_start()
+		var send := Vector3(0.16, 0.0, -1.0).normalized()
+		var weight: float = disc.weight_for_length(23.0, disc.bias_ratio)
+		disc.fire_taken(send, weight)
+		var ticks := 0
+		while disc.shot_in_progress and ticks < 480:
+			await get_tree().physics_frame
+			ticks += 1
+		print("HUDTEST finish %s lean=%.2f x=%.2f ditched=%s ticks=%d" % [_bowl_name(idx), disc.rest_lean, disc.global_position.x, str(disc.in_ditch), ticks])
+		_set_compare_banner("%s  •  REST" % _bowl_name(idx))
+		await _dump_compare_shot(str(item["file"]))
+	print("HUDTEST done")
+	get_tree().quit(0)
+
+
+func _tap_control(node: Control) -> bool:
+	if node == null or gesture == null:
+		return false
+	var at: Vector2 = node.get_global_rect().get_center()
+	var blocked: bool = ui.blocks_shot_at(at)
+	var can_pull: bool = gesture._direct_can_start(at)
+	print("HUDTEST point=%.0f,%.0f blocked=%s can_pull=%s" % [at.x, at.y, str(blocked), str(can_pull)])
+	var down := InputEventMouseButton.new()
+	down.button_index = MOUSE_BUTTON_LEFT
+	down.pressed = true
+	down.position = at
+	down.global_position = at
+	get_viewport().push_input(down)
+	await get_tree().process_frame
+	var up := InputEventMouseButton.new()
+	up.button_index = MOUSE_BUTTON_LEFT
+	up.pressed = false
+	up.position = at
+	up.global_position = at
+	get_viewport().push_input(up)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	return blocked and not can_pull
 
 
 func _kitshot() -> void:

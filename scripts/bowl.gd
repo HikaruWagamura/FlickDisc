@@ -59,7 +59,7 @@ var punch := 0.0
 var in_ditch := false
 var is_toucher := false
 var palette_index := 0
-var bias_type := 1
+var bias_type := 0
 var hand_sign := -1.0
 ## Kept so a finished bowl can remember the delivery. The mesh stays on the grass.
 var lean := 0.0
@@ -91,20 +91,57 @@ static func team_color(index: int) -> Color:
 	return Color(0.14, 0.34, 0.88) if index % 2 == 1 else Color(0.82, 0.08, 0.14)
 
 
-static func apply_team(mat: StandardMaterial3D, index: int, _wide: bool = false) -> void:
+static func preset_tex_name(team: int, bias: int) -> String:
+	if team % 2 == 1:
+		return "blue"
+	match bias % 4:
+		1:
+			return "orange"
+		2:
+			return "green"
+		3:
+			return "orange"
+		_:
+			return "red"
+
+
+static func preset_tint(team: int, bias: int) -> Color:
+	if team % 2 == 1:
+		return Color(1.0, 1.0, 1.0)
+	if bias % 4 == 3:
+		return Color(1.45, 1.18, 0.22)
+	return Color(1.0, 1.0, 1.0)
+
+
+static func preset_body_color(team: int, bias: int) -> Color:
+	if team % 2 == 1:
+		return Color(0.14, 0.34, 0.88)
+	var colors := [
+		Color(0.82, 0.08, 0.14),
+		Color(0.92, 0.42, 0.08),
+		Color(0.12, 0.52, 0.22),
+		Color(0.86, 0.68, 0.12),
+	]
+	return colors[bias % 4]
+
+
+static func apply_team(mat: StandardMaterial3D, index: int, _wide: bool = false, bias: int = 0) -> void:
 	if mat == null:
 		return
 	var maps := _club_maps()
 	_apply_pbr(mat, maps)
-	var tex: Texture2D = maps["red"] if index % 2 == 0 else maps["blue"]
+	var key := preset_tex_name(index, bias)
+	var tex: Texture2D = maps[key] if maps.has(key) else null
+	if tex == null:
+		tex = maps["blue"] if index % 2 == 1 else maps["red"]
 	if tex == null:
 		tex = maps["albedo"]
 	if tex != null:
 		mat.albedo_texture = tex
-		mat.albedo_color = Color(1.0, 1.0, 1.0)
+		mat.albedo_color = preset_tint(index, bias)
 	else:
 		mat.albedo_texture = null
-		mat.albedo_color = team_color(index)
+		mat.albedo_color = preset_body_color(index, bias)
 	mat.roughness = 0.5
 
 
@@ -223,13 +260,12 @@ static func hand_yaw(hand: float) -> float:
 
 static func bowl_type(index: int) -> Dictionary:
 	var types := [
-		# Bias is the draw for the whole run. Finish is the late cut.
-		# Pace is extra weight; shop fire bowls will raise this later.
-		# Hand (fore/back) still flips the side.
-		{"name": "LAZER", "bias": 1.05, "finish": 0.20, "pace": 1.00},
-		{"name": "BLAZE", "bias": 1.42, "finish": 1.05, "pace": 1.04},
-		{"name": "ACE", "bias": 1.82, "finish": 0.75, "pace": 1.08},
-		{"name": "CLASSIC", "bias": 2.18, "finish": 1.50, "pace": 1.12},
+		# One, two, three, four: each step is a wider draw. Finish is how
+		# readily the stone tips onto a face as it dies, not a late cut.
+		{"name": "STANDARD", "bias": 1.00, "finish": 0.22, "pace": 1.00},
+		{"name": "WIDE", "bias": 1.40, "finish": 0.62, "pace": 1.03},
+		{"name": "EXTRA", "bias": 1.80, "finish": 1.05, "pace": 1.06},
+		{"name": "MAX", "bias": 2.20, "finish": 1.48, "pace": 1.09},
 	]
 	return types[index % types.size()]
 
@@ -239,7 +275,10 @@ static func chip_texture(team: int, bias: int) -> Texture2D:
 	if _chip_cache.has(key):
 		return _chip_cache[key]
 	var maps := _club_maps()
-	var src: Texture2D = maps["blue"] if team % 2 == 1 else maps["red"]
+	var tex_key := preset_tex_name(team, bias)
+	var src: Texture2D = maps[tex_key] if maps.has(tex_key) else null
+	if src == null:
+		src = maps["blue"] if team % 2 == 1 else maps["red"]
 	var src_img: Image = src.get_image() if src != null else null
 	if src_img != null and src_img.is_compressed():
 		src_img.decompress()
@@ -256,11 +295,11 @@ static func chip_texture(team: int, bias: int) -> Texture2D:
 			var nz := sqrt(maxf(0.0, 1.0 - r2))
 			var u := 0.5 + atan2(nx, nz) / TAU
 			var v := 0.5 - ny * 0.48
-			var col := team_color(team)
+			var col := preset_body_color(team, bias)
 			if src_img != null:
 				var sx := clampi(int(clampf(u, 0.0, 0.999) * float(src_img.get_width())), 0, src_img.get_width() - 1)
 				var sy := clampi(int(clampf(v, 0.0, 0.999) * float(src_img.get_height())), 0, src_img.get_height() - 1)
-				col = src_img.get_pixel(sx, sy)
+				col = src_img.get_pixel(sx, sy) * preset_tint(team, bias)
 			var ring := absf(ny)
 			if ring > 0.20 and ring < 0.28:
 				col = col.lerp(Color(0.94, 0.91, 0.84), 0.78)
@@ -324,7 +363,7 @@ static func resolve(a_pos: Vector3, a_vel: Vector3, a_radius: float, a_mass: flo
 	return {"hit": impact > 0.0, "a_pos": a_pos, "a_vel": a_vel, "b_pos": b_pos, "b_vel": b_vel, "impact": impact}
 
 
-func setup_disc(index: int, hand: float = -1.0, bias: int = 1) -> void:
+func setup_disc(index: int, hand: float = -1.0, bias: int = 0) -> void:
 	bias_type = bias
 	paint(index, hand, bias)
 
@@ -359,7 +398,7 @@ func paint(index: int, hand: float = -1.0, bias: int = -1) -> void:
 		_bowl_sit = sit_from_holder(_pip)
 		set_hand(hand)
 		return
-	apply_team(_body_mat, index, false)
+	apply_team(_body_mat, index, false, bias_type)
 	tint_band(_rim_mat, index)
 	tint_band(_cap_mat, index)
 	tint_band(_mark_mat, index)
@@ -377,7 +416,7 @@ func _paint_club_if_custom(index: int) -> void:
 		if Kit.uses_custom_bowl(kit):
 			Kit.paint_holder(holder, kit, false)
 			return
-	_apply_club_finish(holder, index)
+	_apply_club_finish(holder, index, bias_type)
 
 
 static func roll_basis_by(current: Basis, travel: Vector3, body_radius: float) -> Basis:
@@ -575,7 +614,7 @@ static func _dress_club(parent: Node3D, index: int, hand: float, variant: int = 
 	body.roughness = 0.38
 	body.metallic = 0.06
 	body.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
-	apply_team(body, index, false)
+	apply_team(body, index, false, variant)
 	var ring := StandardMaterial3D.new()
 	ring.roughness = 0.32
 	ring.metallic = 0.04
@@ -595,26 +634,34 @@ static func _dress_club(parent: Node3D, index: int, hand: float, variant: int = 
 		# Paint the pack two-tone on the smooth mesh instead of the
 		# white default MTL, which is the cage-preview look, not the
 		# finished bowl.
-		mi.material_override = _club_finish_mat(index, mi)
+		mi.material_override = _club_finish_mat(index, mi, variant)
 	return {"rim": ring, "body": body, "cap": mark, "mark": mark, "weight": holder}
 
 
-static func _club_finish_mat(index: int, mi: MeshInstance3D = null) -> ShaderMaterial:
+static func _club_finish_mat(index: int, mi: MeshInstance3D = null, bias: int = 0) -> ShaderMaterial:
 	var mat := ShaderMaterial.new()
 	mat.shader = CLUB_FINISH_SHADER
 	var cream := Color(0.96, 0.92, 0.88) if index % 2 == 0 else Color(0.90, 0.94, 0.98)
-	mat.set_shader_parameter("color_a", team_color(index))
+	mat.set_shader_parameter("color_a", preset_body_color(index, bias))
 	mat.set_shader_parameter("color_b", cream)
 	mat.set_shader_parameter("look", 0)
 	mat.set_shader_parameter("seam", 0.02)
 	_apply_pole_params(mat, mi)
 	var maps := _club_maps()
-	var tex: Texture2D = maps["red"] if index % 2 == 0 else maps["blue"]
+	var key := preset_tex_name(index, bias)
+	var tex: Texture2D = maps[key] if maps.has(key) else null
+	if tex == null:
+		tex = maps["blue"] if index % 2 == 1 else maps["red"]
 	if tex == null:
 		tex = maps["albedo"]
 	mat.set_shader_parameter("graphic_tex", tex)
-	mat.set_shader_parameter("graphic_mix", 1.0 if tex != null else 0.0)
+	var mix := 1.0 if tex != null else 0.0
+	if index % 2 == 0 and bias % 4 == 3:
+		mix = 0.48
+	mat.set_shader_parameter("graphic_mix", mix)
 	mat.set_shader_parameter("graphic_scale", 1.0)
+	var tint := preset_tint(index, bias)
+	mat.set_shader_parameter("graphic_tint", Vector3(tint.r, tint.g, tint.b))
 	mat.set_shader_parameter("roughness_val", 0.34)
 	mat.set_shader_parameter("metallic_val", 0.05)
 	return mat
@@ -632,13 +679,13 @@ static func _apply_pole_params(mat: ShaderMaterial, mi: MeshInstance3D) -> void:
 		mat.set_shader_parameter("groove_inner", mi.get_meta("groove_inner"))
 
 
-static func _apply_club_finish(holder: Node3D, index: int) -> void:
+static func _apply_club_finish(holder: Node3D, index: int, bias: int = 0) -> void:
 	if holder == null:
 		return
 	for child in holder.get_children():
 		if child is MeshInstance3D:
 			var mi := child as MeshInstance3D
-			mi.material_override = _club_finish_mat(index, mi)
+			mi.material_override = _club_finish_mat(index, mi, bias)
 
 
 static func club_mesh(variant: int = 0) -> Mesh:

@@ -28,11 +28,12 @@ func _ready() -> void:
 	_caption.offset_bottom = -1.0
 	_caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_caption.add_theme_font_override("font", FONT)
-	_caption.add_theme_font_size_override("font_size", 9)
+	_caption.add_theme_font_size_override("font_size", 11)
 	_caption.add_theme_color_override("font_color", Color("#fff6ff"))
 	_caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_caption)
 	var hit := Button.new()
+	hit.name = "HandHit"
 	hit.set_anchors_preset(Control.PRESET_FULL_RECT)
 	hit.flat = true
 	hit.focus_mode = Control.FOCUS_NONE
@@ -52,7 +53,8 @@ func set_forehand(on: bool) -> void:
 
 
 func _toggle() -> void:
-	chosen.emit(not forehand)
+	set_forehand(not forehand)
+	chosen.emit(forehand)
 
 
 func _draw_plate() -> void:
@@ -81,6 +83,7 @@ func _mount_arrow() -> void:
 	var view := SubViewport.new()
 	view.transparent_bg = true
 	view.own_world_3d = true
+	view.gui_disable_input = true
 	view.size = Vector2i(128, 128)
 	view.msaa_3d = Viewport.MSAA_2X
 	view.render_target_update_mode = SubViewport.UPDATE_ALWAYS
@@ -159,3 +162,4 @@ func _apply_hand() -> void:
 		_holder.scale = Vector3(-1.0 if forehand else 1.0, 1.0, 1.0)
 	if _caption != null:
 		_caption.text = "FORE" if forehand else "BACK"
+		_caption.add_theme_color_override("font_color", Color("#ffe08a") if forehand else Color("#9be7ff"))

@@ -31,17 +31,14 @@ const DECEL := 2.32
 const STOP_SPEED := 0.15
 const STOP_GRACE_SECONDS := 0.15
 const BANK_KEEP := 0.40
-## Radians of turn per metre at bias 1. Even a Lazer has to arc.
-## One law for every speed: faster stays a bit straighter, then the same
-## take as it dies. Not a special fire mode, and not zero at the top.
+## Radians of turn per metre at bias 1. One law for every speed: faster
+## stays a bit straighter, then the same take as it dies, all the way
+## to a stop. No extra last-second cut.
 const CURL_PER_METRE := 0.0048
 const CURL_DRAW := 1.48
 const CURL_HOT := 0.32
-const TAIL_FROM := 0.85
-const TAIL_SPEED := 7.2
-const TAIL_TURN := 5.8
-const TAIL_KILL := 8.0
-const TAIL_MAX := PI * 0.5
+const FACE_FALL := 0.52
+const FACE_REST := 1.12
 const DITCH_FLOOR_Y := -0.23
 const RUNUP_MAX := 1.8
 const PICK_RADIUS_PX := 88.0
@@ -346,6 +343,7 @@ func launch() -> void:
 	shot_axis = axis.normalized() if axis.length() > 0.001 else Vector2(0.0, -1.0)
 	shot_in_progress = true
 	stop_timer = 0.0
+	rest_lean = 0.0
 	touched_jack = false
 	shot_started.emit()
 
@@ -402,7 +400,7 @@ func set_palette(index: int) -> void:
 	palette_index = index % 4
 	if _rim_mat == null:
 		return
-	BowlScript.apply_team(_body_mat, palette_index, false)
+	BowlScript.apply_team(_body_mat, palette_index, false, maxi(_bowl_index, 0))
 	BowlScript.tint_band(_rim_mat, palette_index)
 	BowlScript.tint_band(_cap_mat, palette_index)
 	BowlScript.tint_band(_mark_mat, palette_index)
@@ -669,13 +667,13 @@ func _finish_amount(bias: float) -> float:
 	if absf(absf(bias) - bowl_bias) < 0.08:
 		return bowl_finish
 	var amount := absf(bias)
-	if amount < 1.30:
-		return 0.20
-	if amount < 1.90:
+	if amount < 1.15:
+		return 0.22
+	if amount < 1.65:
+		return 0.62
+	if amount < 2.15:
 		return 1.05
-	if amount < 2.40:
-		return 0.75
-	return 1.50
+	return 1.48
 
 
 func _damp(vel: Vector3, bias: float, delta: float, axis: Vector2 = Vector2.ZERO) -> Vector3:
@@ -694,30 +692,10 @@ func _damp(vel: Vector3, bias: float, delta: float, axis: Vector2 = Vector2.ZERO
 		var curve := CURL_PER_METRE * (CURL_HOT + (1.0 - CURL_HOT + CURL_DRAW) * take)
 		# Turn with the distance run. Negative bias is the forehand
 		# and bends to the player's left. The same bowl takes the same
-		# hand from a centre line or a wide one.
+		# hand from a centre line or a wide one. This law runs to a stop.
 		var hand := 1.0 if pace_scale < 1.2 else 0.075
 		planar = planar.rotated(bias * curve * hand * speed * delta)
 		speed = planar.length()
-		# Finish is the late cut. Width (bias) is how far it sits off the
-		# line; a Blaze can be mid-width and still fall away sideways.
-		var extra := _finish_amount(bias)
-		var tail_at := TAIL_SPEED * pace_scale
-		if extra > 0.01 and speed < tail_at:
-			var u := clampf(1.0 - speed / tail_at, 0.0, 1.0)
-			var perp := Vector2(-axis.y, axis.x)
-			var along := planar.dot(axis)
-			var side := planar.dot(perp)
-			var heading := atan2(side, along)
-			var turn := signf(bias) * extra * TAIL_TURN * u * u * u * delta
-			if absf(heading + turn) > TAIL_MAX:
-				turn = signf(turn) * maxf(0.0, TAIL_MAX - absf(heading))
-			planar = planar.rotated(turn)
-			along = planar.dot(axis)
-			side = planar.dot(perp)
-			if along > 0.0:
-				along = maxf(0.0, along - extra * TAIL_KILL * u * u * delta)
-			planar = axis * along + perp * side
-			speed = planar.length()
 	var next := speed - drag * delta
 	if next <= STOP_SPEED:
 		return Vector3.ZERO
@@ -727,17 +705,25 @@ func _damp(vel: Vector3, bias: float, delta: float, axis: Vector2 = Vector2.ZERO
 
 
 func _lean_angle(speed: float) -> float:
-	if absf(shot_bias) < 0.01:
+	if delivering_jack or absf(shot_bias) < 0.01:
 		rest_lean = 0.0
 		return 0.0
 	if not shot_in_progress:
 		return rest_lean
-	var slow := clampf(1.0 - speed / MAX_SPEED, 0.0, 1.0)
-	var into := clampf(absf(shot_bias) / 3.40, 0.0, 1.0)
-	# A quiet tip onto the bias, no rock. The path already draws.
-	var lean := -signf(shot_bias) * into * lerpf(0.0, 0.045, slow * slow)
-	rest_lean = lean
-	return lean
+	var dying := clampf(1.0 - speed / 5.2, 0.0, 1.0)
+	dying *= dying
+	var extra := _finish_amount(shot_bias)
+	var tip := absf(shot_bias) * 0.22 * dying * (0.35 + extra * 0.80)
+	var planar := Vector2(velocity.x, velocity.z)
+	if planar.length() > 0.05 and shot_axis.length() > 0.05:
+		var perp := Vector2(-shot_axis.y, shot_axis.x)
+		var heading := absf(atan2(planar.dot(perp), planar.dot(shot_axis)))
+		tip *= lerpf(0.55, 1.35, clampf(heading / 0.70, 0.0, 1.0))
+	if tip > FACE_FALL:
+		var over := clampf((tip - FACE_FALL) / 0.22, 0.0, 1.0)
+		tip = lerpf(FACE_FALL, FACE_REST, over)
+	rest_lean = -signf(shot_bias) * tip
+	return rest_lean
 
 
 func _aim_face() -> Vector3:
@@ -813,7 +799,7 @@ func _apply_visual(_speed: float) -> void:
 			_visual.visible = true
 		if _jack_visual != null:
 			_jack_visual.visible = false
-		_visual.position = Vector3(0.0, _bowl_sit, 0.0)
+		_visual.position = Vector3(0.0, _sit_with_lean(), 0.0)
 		# Keep the parent still. Roll lives only on _spin, so the painted
 		# centre line turns like a wheel instead of wandering.
 		_visual.basis = Basis.IDENTITY
@@ -850,24 +836,42 @@ func guide_points() -> PackedVector3Array:
 
 
 func grass_cue(power: float) -> PackedVector3Array:
-	# Follow the send. A brief inclination shows the hand; the real draw
-	# happens over the length of the green, not in these few metres.
+	# The blocks walk the same curl law as the bowl, so Standard sits
+	# tighter than Max on the first few metres.
 	var flat := Vector3(aim_direction.x, 0.0, aim_direction.z)
-	if flat.length() < 0.001:
+	if (not is_aiming) or flat.length() < 0.001:
 		flat = Vector3(0.0, 0.0, -1.0)
 	flat = flat.normalized()
-	var start := Vector3(global_position.x, 0.0, global_position.z)
-	var want := lerpf(2.55, 3.45, clampf(power, 0.0, 1.0))
+	var pos := Vector3(global_position.x, 0.0, global_position.z)
+	var pace := clampf(power, 0.12, 1.0)
+	var vel := _delivery_velocity(flat, pace)
+	var axis := Vector2(flat.x, flat.z)
+	if axis.length() < 0.001:
+		axis = Vector2(0.0, -1.0)
+	else:
+		axis = axis.normalized()
+	var bias := 0.0 if delivering_jack else bias_ratio
+	var want := lerpf(5.4, 8.2, pace)
 	var out := PackedVector3Array()
-	var lean := 0.0
-	if (not delivering_jack) and absf(bias_ratio) > 0.04:
-		# A hint of hand only. The blocks sit on the send, which is
-		# dead opposite the pull.
-		lean = clampf(bias_ratio * 0.08, -0.18, 0.18)
-	var perp := Vector3(-flat.z, 0.0, flat.x)
-	for step in 28:
-		var t := float(step) / 27.0
-		var point := start + flat * (want * t) + perp * (lean * t * t)
+	out.append(pos)
+	var travelled := 0.0
+	var last_emit := 0.0
+	var step := 0.012
+	for _i in 420:
+		var prev := pos
+		var moved := _move_planar(pos, vel, radius, bias, not delivering_jack, step, pace, axis)
+		pos = moved[0]
+		vel = moved[1]
+		travelled += prev.distance_to(pos)
+		if travelled - last_emit >= 0.28:
+			var point := pos
+			point.y = 0.0
+			out.append(point)
+			last_emit = travelled
+		if bool(moved[3]) or vel.length() < STOP_SPEED or travelled >= want:
+			break
+	if out.size() < 2:
+		var point := pos
 		point.y = 0.0
 		out.append(point)
 	return out
@@ -1029,13 +1033,20 @@ func _spin_body(body, moved: Vector3) -> void:
 	if jack_like:
 		body.roll_basis = BowlScript.roll_basis_by(body.roll_basis, moved, body.radius)
 		return
-	body.roll_basis = BowlScript.running_basis(body.spin_angle, _roll_facing(body, moved))
+	var facing := _roll_facing(body, moved)
+	body.roll_basis = BowlScript.running_basis(body.spin_angle, facing)
+	var lean := 0.0
+	if body == self:
+		lean = _lean_angle(Vector3(body.velocity.x, 0.0, body.velocity.z).length())
+	else:
+		lean = float(body.lean)
+	if absf(lean) > 0.001:
+		body.roll_basis = Basis(facing, lean) * body.roll_basis
 
 
 func _roll_facing(body, moved: Vector3) -> Vector3:
-	# Face the run. The equator stays the rolling surface, so the bowl
-	# yaws with the draw instead of sliding sideways at the finish, and
-	# it cannot fall onto a face.
+	# Face the run. The equator is the rolling surface until a late
+	# tip puts some bowls onto a face.
 	var vel := Vector3(body.velocity.x, 0.0, body.velocity.z)
 	var stored: Vector3 = travel_facing if body == self else body.travel
 	if vel.length() >= 0.12:
@@ -1064,6 +1075,11 @@ func _refresh_sit() -> void:
 	_bowl_sit = BowlScript.sit_from_holder(_stone)
 
 
+func _sit_with_lean() -> float:
+	var tip := clampf(absf(rest_lean) / FACE_REST, 0.0, 1.0)
+	return _bowl_sit * (1.0 - 0.18 * tip)
+
+
 func _paint_club_bowl() -> void:
 	var holder := _spin.get_node_or_null("ClubBowl") if _spin != null else null
 	if holder == null:
@@ -1073,7 +1089,7 @@ func _paint_club_bowl() -> void:
 		if Kit.uses_custom_bowl(kit):
 			Kit.paint_holder(holder, kit, false)
 			return
-	BowlScript._apply_club_finish(holder, palette_index)
+	BowlScript._apply_club_finish(holder, palette_index, maxi(_bowl_index, 0))
 
 
 func _place_pip() -> void:

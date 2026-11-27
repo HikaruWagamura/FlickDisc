@@ -6,8 +6,8 @@ extends Control
 
 signal picked(index: int)
 
-const NAMES := ["LAZER", "BLAZE", "ACE", "CLASSIC"]
-const HOOK := [0.32, 0.55, 0.78, 1.0]
+const NAMES := ["STD", "WIDE", "EXTRA", "MAX"]
+const HOOK := [0.18, 0.44, 0.72, 1.0]
 const FONT := preload("res://assets/fonts/Inter-Bold.ttf")
 
 var index := 0
@@ -64,6 +64,11 @@ func _draw() -> void:
 	var text_at := Vector2(centre.x - wide * 0.5, centre.y + 4.0)
 	draw_string_outline(FONT, text_at, label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, 4, outline)
 	draw_string(FONT, text_at, label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, ink)
+	var num := str(index + 1)
+	var num_wide := FONT.get_string_size(num, HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x
+	var num_at := Vector2(centre.x - num_wide * 0.5, 11.0)
+	draw_string_outline(FONT, num_at, num, HORIZONTAL_ALIGNMENT_LEFT, -1, 10, 4, outline)
+	draw_string(FONT, num_at, num, HORIZONTAL_ALIGNMENT_LEFT, -1, 10, ink)
 	_draw_hook(Vector2(centre.x, centre.y + radius + 8.0))
 
 

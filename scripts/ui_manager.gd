@@ -425,6 +425,27 @@ func show_bias(index: int, team: int = -1) -> void:
 			chip.set_chip(i, bias_team, BowlScript.chip_texture(bias_team, i), i == index)
 
 
+func blocks_shot_at(screen: Vector2) -> bool:
+	if _rect_hits(hand_switch, screen, 10.0):
+		return true
+	if bias_rail != null and bias_rail.visible:
+		for chip in bias_buttons:
+			if _rect_hits(chip, screen, 6.0):
+				return true
+	for node in [menu_button, reset_button, ditch_button, match_button, camera_button, cue_button, next_button]:
+		if _rect_hits(node, screen, 4.0):
+			return true
+	if pause_layer != null and pause_layer.visible:
+		return true
+	if summary != null and summary.visible and _rect_hits(summary, screen, 0.0):
+		return true
+	return false
+
+
+func _rect_hits(node: Control, screen: Vector2, grow: float) -> bool:
+	return node != null and node.visible and node.get_global_rect().grow(grow).has_point(screen)
+
+
 func show_bowl_controls(enabled: bool) -> void:
 	if bias_rail != null:
 		bias_rail.visible = enabled
@@ -593,7 +614,8 @@ func _layout_hud() -> void:
 	if bias_rail != null:
 		bias_rail.position = Vector2(468.0, 430.0 + top)
 	if hand_switch != null:
-		hand_switch.position = Vector2(458.0, 868.0 - bottom)
+		hand_switch.position = Vector2(446.0, 852.0 - bottom)
+		hand_switch.size = Vector2(86.0, 92.0)
 	if next_button != null:
 		next_button.position = Vector2(150.0, 888.0 - bottom)
 
@@ -624,7 +646,7 @@ func _build_bias_row() -> void:
 		chip.picked.connect(_emit_bias)
 		bias_rail.add_child(chip)
 		bias_buttons.append(chip)
-	show_bias(1, 0)
+	show_bias(0, 0)
 
 
 func _emit_bias(index: int) -> void:
@@ -633,10 +655,10 @@ func _emit_bias(index: int) -> void:
 
 func _build_hand_bar() -> void:
 	hand_switch = HandSwitchScript.new()
-	hand_switch.position = Vector2(458.0, 868.0)
-	hand_switch.size = Vector2(70.0, 78.0)
+	hand_switch.position = Vector2(446.0, 852.0)
+	hand_switch.size = Vector2(86.0, 92.0)
 	hand_switch.visible = false
-	hand_switch.z_index = 8
+	hand_switch.z_index = 12
 	hand_switch.chosen.connect(func(fore: bool) -> void: hand_selected.emit(fore))
 	add_child(hand_switch)
 	fore_button = _make_button("FORE", Vector2(448.0, 900.0), Vector2(76.0, 40.0))

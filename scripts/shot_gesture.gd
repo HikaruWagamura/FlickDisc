@@ -38,6 +38,7 @@ var aim := 0.0
 var camera: Camera3D
 var hit_test: Callable
 var board_point: Callable
+var blocks_pointer: Callable
 var take
 
 var _from := Vector2.ZERO
@@ -289,15 +290,27 @@ func _direct_input(event: InputEvent) -> void:
 
 
 func _direct_can_start(screen: Vector2) -> bool:
+	if _over_blocking_gui(screen):
+		return false
 	if hit_test.is_valid() and bool(hit_test.call(screen)):
 		return true
-	var hovered := get_viewport().gui_get_hovered_control()
-	if hovered != null and hovered.mouse_filter == Control.MOUSE_FILTER_STOP:
-		return false
 	var view := get_viewport().get_visible_rect().size
 	# The mat sits in the lower half. Keep the right rail open so a
 	# right-hand pull can still take the bowl and fire.
 	return screen.y > view.y * 0.58 and screen.x > 20.0 and screen.x < view.x - 8.0
+
+
+func _over_blocking_gui(screen: Vector2) -> bool:
+	if blocks_pointer.is_valid() and bool(blocks_pointer.call(screen)):
+		return true
+	var hovered := get_viewport().gui_get_hovered_control()
+	var node: Control = hovered
+	while node != null:
+		if node.mouse_filter == Control.MOUSE_FILTER_STOP:
+			return true
+		var parent := node.get_parent()
+		node = parent as Control
+	return false
 
 
 func _apply_direct(screen: Vector2) -> void:

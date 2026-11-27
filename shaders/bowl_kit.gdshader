@@ -9,6 +9,7 @@ uniform sampler2D graphic_tex : source_color, hint_default_white, filter_linear_
 uniform sampler2D graphic_tex_b : source_color, hint_default_white, filter_linear_mipmap, repeat_enable;
 uniform float graphic_mix = 1.0;
 uniform float graphic_scale = 1.0;
+uniform vec3 graphic_tint = vec3(1.0);
 uniform float roughness_val = 0.42;
 uniform float metallic_val = 0.04;
 // Pack mesh space: the short pole through the two grip faces.
@@ -64,7 +65,7 @@ void fragment() {
 	vec4 graphic = texture(graphic_tex, suv);
 	vec3 paint = color_a.rgb;
 	if (look == 0) {
-		vec3 colored = mix(color_a.rgb, graphic.rgb, graphic.a * graphic_mix);
+		vec3 colored = mix(color_a.rgb, graphic.rgb * graphic_tint, graphic.a * graphic_mix);
 		paint = mix(color_b.rgb, colored, side);
 	}
 	if (look == 1) {
@@ -73,7 +74,7 @@ void fragment() {
 	if (look == 2) {
 		vec2 wuv = _wrap_uv(radial, along_n, tanv, bitv);
 		vec4 wrap = texture(graphic_tex, wuv);
-		paint = mix(color_a.rgb, wrap.rgb, wrap.a * graphic_mix);
+		paint = mix(color_a.rgb, wrap.rgb * graphic_tint, wrap.a * graphic_mix);
 	}
 	if (look >= 3) {
 		float span = pole_half * 0.92;
