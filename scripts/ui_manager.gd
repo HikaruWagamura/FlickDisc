@@ -85,6 +85,7 @@ func _ready() -> void:
 	ditch_button.add_theme_font_size_override("font_size", 13)
 	_paint_sync(ditch_button, false)
 	ditch_button.pressed.connect(func() -> void: ditch_option_requested.emit())
+	ditch_button.visible = false
 
 	match_button = _make_button("4 ENDS", Vector2(16.0, 72.0), Vector2(118.0, 40.0))
 	match_button.add_theme_font_size_override("font_size", 13)
@@ -115,6 +116,7 @@ func _ready() -> void:
 	cue_button.add_theme_font_size_override("font_size", 13)
 	_paint_sync(cue_button, false)
 	cue_button.pressed.connect(func() -> void: cue_cycle_requested.emit())
+	cue_button.visible = false
 	show_cue_kind(0)
 
 	next_button = _make_button("NEXT END", Vector2(150.0, 888.0), Vector2(240.0, 48.0))
@@ -566,6 +568,7 @@ func _layout_hud() -> void:
 	if reset_button != null:
 		reset_button.position = Vector2(122.0, 24.0 + top)
 	if cue_button != null:
+		cue_button.visible = false
 		cue_button.position = Vector2(228.0, 24.0 + top)
 	if level_label != null:
 		level_label.position = Vector2(340.0, 28.0 + top)
@@ -576,6 +579,7 @@ func _layout_hud() -> void:
 	if camera_button != null:
 		camera_button.position = Vector2(144.0, 72.0 + top)
 	if ditch_button != null:
+		ditch_button.visible = false
 		ditch_button.position = Vector2(280.0, 72.0 + top)
 	if status_label != null:
 		status_label.position = Vector2(18.0, 126.0 + top)

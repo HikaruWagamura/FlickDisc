@@ -793,6 +793,8 @@ static func sit_from_holder(holder: Node3D) -> float:
 static func running_radius_of(mi: MeshInstance3D) -> float:
 	if mi == null or mi.mesh == null:
 		return DISC_RADIUS
+	if mi.has_meta("running_radius"):
+		return float(mi.get_meta("running_radius"))
 	var box: AABB = mi.transform * mi.mesh.get_aabb()
 	return 0.5 * maxf(box.size.y, box.size.z)
 
@@ -856,6 +858,17 @@ static func _seat_running_surface(mi: MeshInstance3D, target_span: float) -> voi
 	mi.set_meta("pole_axis", posed_pole)
 	mi.set_meta("mesh_center", unpose.inverse() * aabb.get_center())
 	mi.set_meta("pole_half", pole_half)
+	var sit_radius := 0.5 * running * scale
+	if mi.mesh.get_surface_count() > 0:
+		var verts: PackedVector3Array = mi.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+		var lowest := 0.0
+		for v in verts:
+			var y: float = (mi.basis * v).y + mi.position.y
+			if y < lowest:
+				lowest = y
+		if lowest < -0.01:
+			sit_radius = -lowest
+	mi.set_meta("running_radius", sit_radius)
 	mi.set_meta("groove_inner", 0.55)
 
 

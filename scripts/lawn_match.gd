@@ -11,6 +11,7 @@ const LevelScript := preload("res://scripts/level_manager.gd")
 const ScoreScript := preload("res://scripts/score_manager.gd")
 const BowlScript := preload("res://scripts/bowl.gd")
 const FeelScript := preload("res://scripts/feel.gd")
+const Kit := preload("res://scripts/kit.gd")
 
 var disc
 var ui
@@ -228,9 +229,7 @@ func _wire_shot() -> void:
 	cue_solid.name = "AimCueSolid"
 	add_child(cue_solid)
 	cue = cue_blocks
-	cue_kind = 0
-	if ui != null:
-		ui.show_cue_kind(0)
+	_apply_guide(cue_kind)
 
 
 func _begin_ready() -> void:
@@ -427,7 +426,7 @@ func _sync_direct(cam: Camera3D, placed: Vector3) -> void:
 		bowl_r = maxf(bowl_r, centre.distance_to(rim))
 	fan.present(bowl_px, power, 0.0, false, -PI * 0.5, 120.0)
 	if pulling:
-		if cue != null:
+		if cue != null and cue_kind != 3:
 			cue.present(disc.grass_cue(power), power, disc.aim_direction)
 	elif cue != null:
 		cue.clear()
@@ -489,6 +488,7 @@ func _begin_end() -> void:
 	ui.set_power_ratio(0.0)
 	ui.show_ditch_mode(ditch_mode)
 	ui.show_camera_mode(rink.chase)
+	_apply_guide(cue_kind)
 	ui.show_match(_match_label())
 	ui.show_jack_prompt(end_number, _match_label(), _score_line())
 	_begin_ready()
@@ -602,18 +602,29 @@ func _on_bias_selected(index: int) -> void:
 
 func _on_cue_cycle_requested() -> void:
 	feel.tap()
-	_use_cue_kind(1 if cue_kind == 0 else 0)
+	_apply_guide((cue_kind + 1) % 4)
 
 
 func _use_cue_kind(kind: int) -> void:
+	_apply_guide(kind)
+
+
+func _apply_guide(kind: int) -> void:
 	if cue != null:
 		cue.clear()
-	cue_kind = 1 if kind == 1 else 0
-	cue = cue_solid if cue_kind == 1 else cue_blocks
+	cue_kind = clampi(kind, 0, 3)
+	cue = cue_blocks
+	if cue_solid != null:
+		cue_solid.clear()
+	if cue_blocks != null and cue_blocks.has_method("set_heads"):
+		var heads := 8
+		if cue_kind == 1:
+			heads = 5
+		elif cue_kind == 2:
+			heads = 3
+		cue_blocks.set_heads(heads)
 	if ui != null:
 		ui.show_cue_kind(cue_kind)
-	if _cue_compare:
-		_sync_compare_cue()
 
 
 func _on_camera_requested() -> void:
@@ -1937,10 +1948,13 @@ func _kitshot() -> void:
 		cam.fov = 42.0
 		cam.position = at + Vector3(0.0, 0.55, 1.35)
 		cam.look_at(at + Vector3(0.0, 0.10, -0.4), Vector3.UP)
+	Kit.seed_demo_photos()
 	var looks := [
 		{"file": "kit_bowl_club", "skin": "club", "color": 1},
 		{"file": "kit_bowl_camo", "skin": "camo", "color": 6},
 		{"file": "kit_bowl_split", "skin": "split", "color": 1},
+		{"file": "kit_bowl_photo", "skin": "photo_split", "color": 1},
+		{"file": "kit_bowl_photo_wrap", "skin": "photo_wrap", "color": 1},
 	]
 	for look in looks:
 		_apply_test_kit(str(look["skin"]), int(look["color"]))
@@ -2015,6 +2029,25 @@ func _kitshot() -> void:
 		await get_tree().process_frame
 		await RenderingServer.frame_post_draw
 		await _dump_compare_shot("kit_bowl_aim")
+		_apply_test_kit("photo_split", 1)
+		await get_tree().process_frame
+		cam.fov = 40.0
+		cam.position = at + Vector3(0.90, 0.28, 0.15)
+		cam.look_at(at + Vector3(0.0, 0.08, 0.0), Vector3.UP)
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		await _dump_compare_shot("kit_bowl_photo_face")
+		cam.position = at + Vector3(-0.90, 0.28, 0.15)
+		cam.look_at(at + Vector3(0.0, 0.08, 0.0), Vector3.UP)
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		await _dump_compare_shot("kit_bowl_photo_face_b")
+		cam.fov = 42.0
+		cam.position = Vector3(0.0, 0.96, at.z + 2.55)
+		cam.look_at(Vector3(0.0, 0.08, at.z - 12.5), Vector3.UP)
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		await _dump_compare_shot("kit_bowl_photo_aim")
 	print("KITSHOT done")
 	get_tree().quit(0)
 

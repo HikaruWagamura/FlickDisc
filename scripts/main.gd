@@ -6,6 +6,7 @@ const CROKINOLE_SCENE := preload("res://scenes/Crokinole.tscn")
 const LAWN_SCENE := preload("res://scenes/Lawn.tscn")
 const MenuScript := preload("res://scripts/flickdisc_menu.gd")
 const ProfileScript := preload("res://scripts/flickdisc_profile.gd")
+const Kit := preload("res://scripts/kit.gd")
 
 var profile
 var menu
@@ -99,6 +100,7 @@ func _play(setup: Dictionary) -> void:
 		current.opponent = str(setup.get("opponent", "local"))
 		current.difficulty = int(setup.get("difficulty", 1))
 		current.ditch_mode = bool(setup.get("ditch", true))
+		current.cue_kind = int(setup.get("guide", 0))
 		current.distance_play = bool(setup.get("distance", false))
 		current.solo_play = bool(setup.get("solo", false))
 	get_tree().root.set_meta("flickdisc_sound", profile.sound)
@@ -150,7 +152,8 @@ func _menutest() -> void:
 	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
 	_dump_menu("menu_kit_arctic")
-	menu._pick_skin("photo")
+	Kit.seed_demo_photos()
+	menu._pick_skin("photo_split")
 	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
 	_dump_menu("menu_kit_photo")

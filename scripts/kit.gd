@@ -10,7 +10,11 @@ const DISC_SHADER := preload("res://shaders/disc_kit.gdshader")
 const LOOK_SPLIT := 0
 const LOOK_BOTH := 1
 const LOOK_GRAPHIC := 2
-const LOOK_GRAPHIC_ONE := 3
+const LOOK_PHOTO_LEFT := 3
+const LOOK_PHOTO_RIGHT := 4
+const LOOK_PHOTO_SPLIT := 5
+const PHOTO_A_PATH := "user://kit/photo_a.png"
+const PHOTO_B_PATH := "user://kit/photo_b.png"
 
 const PALETTES := [
 	{"id": "pink", "name": "Club pink", "a": Color("#ff3d9a"), "b": Color("#fff6f0")},
@@ -51,9 +55,15 @@ const SKINS := [
 	{"id": "metal", "name": "METAL", "look": LOOK_GRAPHIC},
 	{"id": "flame", "name": "FLAME", "look": LOOK_GRAPHIC},
 	{"id": "galaxy", "name": "GALAXY", "look": LOOK_GRAPHIC},
-	{"id": "photo", "name": "PHOTO FACE", "look": LOOK_GRAPHIC_ONE},
-	{"id": "photo_both", "name": "PHOTO WRAP", "look": LOOK_GRAPHIC},
+	{"id": "photo_left", "name": "LEFT FACE", "look": LOOK_PHOTO_LEFT},
+	{"id": "photo_right", "name": "RIGHT FACE", "look": LOOK_PHOTO_RIGHT},
+	{"id": "photo_both", "name": "BOTH FACES", "look": LOOK_PHOTO_SPLIT},
+	{"id": "photo_split", "name": "ONE EACH", "look": LOOK_PHOTO_SPLIT},
+	{"id": "photo_wrap", "name": "FULL WRAP", "look": LOOK_GRAPHIC},
 ]
+
+const PHOTO_SKINS := ["photo_left", "photo_right", "photo_both", "photo_split", "photo_wrap"]
+const THEME_SKINS := ["club", "split", "both", "camo", "arctic", "desert", "digital", "urban", "carbon", "marble", "metal", "flame", "galaxy"]
 
 const WRAPS := {
 	"camo": "res://assets/wraps/woodland.png",
@@ -76,7 +86,17 @@ static func default_kit() -> Dictionary:
 		"bowl_color": 1,
 		"disc_skin": "club",
 		"disc_color": 0,
+		"photo_a": "",
+		"photo_b": "",
 	}
+
+
+static func is_photo_skin(skin_id: String) -> bool:
+	return skin_id in PHOTO_SKINS
+
+
+static func is_theme_skin(skin_id: String) -> bool:
+	return skin_id in THEME_SKINS
 
 
 static func uses_custom_bowl(kit: Dictionary) -> bool:
@@ -94,8 +114,11 @@ static func palette(index: int) -> Dictionary:
 
 
 static func skin(skin_id: String) -> Dictionary:
+	var wanted := skin_id
+	if wanted == "photo":
+		wanted = "photo_left"
 	for item in SKINS:
-		if str(item["id"]) == skin_id:
+		if str(item["id"]) == wanted:
 			return item
 	return SKINS[0]
 
@@ -159,8 +182,10 @@ static func _paint_mesh(mi: MeshInstance3D, kit: Dictionary, for_disc: bool) -> 
 	mat.set_shader_parameter("look", int(look_info["look"]))
 	mat.set_shader_parameter("seam", 0.02)
 	var skin_id := str(look_info["id"])
-	var graphic := graphic_texture(skin_id, pal["a"], pal["b"])
+	var graphic := graphic_texture(skin_id, pal["a"], pal["b"], kit)
 	mat.set_shader_parameter("graphic_tex", graphic)
+	var graphic_b := graphic_texture_b(skin_id, pal["a"], pal["b"], kit)
+	mat.set_shader_parameter("graphic_tex_b", graphic_b if graphic_b != null else graphic)
 	mat.set_shader_parameter("graphic_mix", 1.0)
 	mat.set_shader_parameter("graphic_scale", _wrap_scale(skin_id))
 	if not for_disc:
@@ -174,6 +199,11 @@ static func _paint_mesh(mi: MeshInstance3D, kit: Dictionary, for_disc: bool) -> 
 			mat.set_shader_parameter("pole_half", mi.get_meta("pole_half"))
 		if mi.has_meta("groove_inner"):
 			mat.set_shader_parameter("groove_inner", mi.get_meta("groove_inner"))
+		var up := Vector3.UP
+		var xf: Transform3D = mi.global_transform
+		var inv := xf.basis.inverse()
+		up = (inv * Vector3.UP).normalized()
+		mat.set_shader_parameter("face_up", up)
 	if for_disc:
 		var span := 0.22
 		var face := 0
@@ -210,7 +240,17 @@ static func disc_colors(kit: Dictionary) -> Dictionary:
 	}
 
 
-static func graphic_texture(skin_id: String, color_a: Color, color_b: Color) -> Texture2D:
+static func graphic_texture(skin_id: String, color_a: Color, color_b: Color, kit: Dictionary = {}) -> Texture2D:
+	if is_photo_skin(skin_id):
+		var slot := "a"
+		if skin_id == "photo_right":
+			slot = "a"
+		var tex := load_user_photo(slot)
+		if tex == null and skin_id == "photo_wrap":
+			tex = load_user_photo("a")
+		if tex != null:
+			return tex
+		return ImageTexture.create_from_image(_demo_face())
 	if WRAPS.has(skin_id):
 		var wrap_key := "wrap_%s" % skin_id
 		if _graphic_cache.has(wrap_key):
@@ -228,14 +268,79 @@ static func graphic_texture(skin_id: String, color_a: Color, color_b: Color) -> 
 			image = _flame(color_a)
 		"galaxy":
 			image = _galaxy()
-		"photo", "photo_both":
-			image = _photo_face()
 		_:
 			image = Image.create(8, 8, false, Image.FORMAT_RGBA8)
 			image.fill(Color(1, 1, 1, 0))
+	var baked := ImageTexture.create_from_image(image)
+	_graphic_cache[key] = baked
+	return baked
+
+
+static func graphic_texture_b(skin_id: String, color_a: Color, color_b: Color, kit: Dictionary = {}) -> Texture2D:
+	if skin_id == "photo_split":
+		var tex := load_user_photo("b")
+		if tex != null:
+			return tex
+		return ImageTexture.create_from_image(_demo_dog())
+	if skin_id == "photo_both" or skin_id == "photo_left" or skin_id == "photo_right" or skin_id == "photo_wrap":
+		return graphic_texture(skin_id, color_a, color_b, kit)
+	return graphic_texture(skin_id, color_a, color_b, kit)
+
+
+static func load_user_photo(slot: String) -> Texture2D:
+	var path := PHOTO_A_PATH if slot != "b" else PHOTO_B_PATH
+	var cache_key := "user_%s_%s" % [slot, str(FileAccess.get_modified_time(path))]
+	if _graphic_cache.has(cache_key):
+		return _graphic_cache[cache_key]
+	if not FileAccess.file_exists(path):
+		return null
+	var image := Image.new()
+	if image.load(path) != OK:
+		return null
+	if image.is_compressed():
+		image.decompress()
+	image.convert(Image.FORMAT_RGBA8)
 	var tex := ImageTexture.create_from_image(image)
-	_graphic_cache[key] = tex
+	_graphic_cache[cache_key] = tex
 	return tex
+
+
+static func save_user_photo(slot: String, image: Image) -> String:
+	if image == null:
+		return ""
+	var copy := image.duplicate() as Image
+	if copy.is_compressed():
+		copy.decompress()
+	copy.convert(Image.FORMAT_RGBA8)
+	var wide := copy.get_width()
+	var high := copy.get_height()
+	var side := mini(wide, high)
+	if side > 512:
+		var scale := 512.0 / float(side)
+		copy.resize(maxi(1, int(round(float(wide) * scale))), maxi(1, int(round(float(high) * scale))), Image.INTERPOLATE_LANCZOS)
+		wide = copy.get_width()
+		high = copy.get_height()
+		side = mini(wide, high)
+	if wide != high:
+		var x := (wide - side) / 2
+		var y := (high - side) / 2
+		copy = copy.get_region(Rect2i(x, y, side, side))
+	DirAccess.make_dir_recursive_absolute("user://kit")
+	var path := PHOTO_A_PATH if slot != "b" else PHOTO_B_PATH
+	copy.save_png(path)
+	_graphic_cache.clear()
+	_preview_cache.clear()
+	return path
+
+
+static func has_user_photo(slot: String) -> bool:
+	var path := PHOTO_A_PATH if slot != "b" else PHOTO_B_PATH
+	return FileAccess.file_exists(path)
+
+
+static func seed_demo_photos() -> void:
+	save_user_photo("a", _demo_face())
+	save_user_photo("b", _demo_dog())
 
 
 static func _wrap_scale(skin_id: String) -> float:
@@ -275,14 +380,18 @@ static func preview(kit: Dictionary, for_disc: bool) -> Texture2D:
 	var skin_id := str(kit.get("disc_skin" if for_disc else "bowl_skin", "split"))
 	var color_a: Color = pal["a"]
 	var color_b: Color = pal["b"]
-	var key := "%s_%s_%s_%s" % [skin_id, color_a.to_html(false), color_b.to_html(false), for_disc]
+	var key := "%s_%s_%s_%s_%s" % [skin_id, color_a.to_html(false), color_b.to_html(false), for_disc, str(FileAccess.get_modified_time(PHOTO_A_PATH))]
 	if _preview_cache.has(key):
 		return _preview_cache[key]
 	var look_info := skin(skin_id)
-	var graphic := graphic_texture(skin_id, pal["a"], pal["b"])
+	var graphic := graphic_texture(skin_id, pal["a"], pal["b"], kit)
+	var graphic_b := graphic_texture_b(skin_id, pal["a"], pal["b"], kit)
 	var gimg: Image = graphic.get_image() if graphic != null else null
+	var gimg_b: Image = graphic_b.get_image() if graphic_b != null else gimg
 	if gimg != null and gimg.is_compressed():
 		gimg.decompress()
+	if gimg_b != null and gimg_b.is_compressed():
+		gimg_b.decompress()
 	var size := 160
 	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
 	img.fill(Color(0, 0, 0, 0))
@@ -305,16 +414,24 @@ static func preview(kit: Dictionary, for_disc: bool) -> Texture2D:
 				col = color_a
 			else:
 				if gimg != null:
-					var u := 0.5 + atan2(nx, nz) / TAU
-					var v := 0.5 - ny * 0.5
+					var u := clampf(0.5 + nx * 0.52, 0.0, 1.0)
+					var v := clampf(0.5 + ny * 0.52, 0.0, 1.0)
+					if look == LOOK_GRAPHIC:
+						u = 0.5 + atan2(nx, nz) / TAU
+						v = 0.5 - ny * 0.5
 					if for_disc:
 						u = clampf(0.5 + nx * 0.5, 0.0, 1.0)
 						v = clampf(0.5 + ny * 0.5, 0.0, 1.0)
-					var sx := clampi(int(u * float(gimg.get_width())), 0, gimg.get_width() - 1)
-					var sy := clampi(int(v * float(gimg.get_height())), 0, gimg.get_height() - 1)
-					var sample: Color = gimg.get_pixel(sx, sy)
-					if look == LOOK_GRAPHIC_ONE:
-						col = color_b.lerp(sample, (1.0 - side) * sample.a)
+					var sample := _sample_image(gimg, u, v)
+					var sample_b := _sample_image(gimg_b if gimg_b != null else gimg, u, v)
+					if look == LOOK_PHOTO_LEFT:
+						col = color_a.lerp(sample, (1.0 - side) * sample.a)
+					elif look == LOOK_PHOTO_RIGHT:
+						col = color_a.lerp(sample, side * sample.a)
+					elif look == LOOK_PHOTO_SPLIT:
+						var left := color_a.lerp(sample, sample.a)
+						var right := color_a.lerp(sample_b, sample_b.a)
+						col = left.lerp(right, side)
 					else:
 						col = sample if sample.a > 0.12 else color_a
 			if for_disc and r2 < 0.08:
@@ -531,6 +648,67 @@ static func _gold() -> Image:
 			var col := Color("#6a4a12").lerp(Color("#f0d070"), n)
 			if _hash(x, y, 4) > 0.94:
 				col = Color("#fff4c8")
+			img.set_pixel(x, y, Color(col.r, col.g, col.b, 1.0))
+	return img
+
+
+static func _sample_image(image: Image, u: float, v: float) -> Color:
+	if image == null:
+		return Color(1, 1, 1, 0)
+	var sx := clampi(int(clampf(u, 0.0, 1.0) * float(image.get_width() - 1)), 0, image.get_width() - 1)
+	var sy := clampi(int(clampf(v, 0.0, 1.0) * float(image.get_height() - 1)), 0, image.get_height() - 1)
+	return image.get_pixel(sx, sy)
+
+
+static func _demo_face() -> Image:
+	var size := 256
+	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
+	var cx := float(size) * 0.5
+	var cy := float(size) * 0.48
+	for y in size:
+		for x in size:
+			var dx := (float(x) + 0.5 - cx) / (float(size) * 0.42)
+			var dy := (float(y) + 0.5 - cy) / (float(size) * 0.48)
+			var r := sqrt(dx * dx + dy * dy)
+			if r > 1.0:
+				img.set_pixel(x, y, Color(0, 0, 0, 0))
+				continue
+			var skin := Color(0.93, 0.74, 0.58)
+			var shade := clampf(0.88 + dx * 0.12 - dy * 0.08, 0.7, 1.1)
+			var col := Color(skin.r * shade, skin.g * shade, skin.b * shade, 1.0)
+			var eye_l := Vector2(dx + 0.28, dy + 0.12)
+			var eye_r := Vector2(dx - 0.28, dy + 0.12)
+			if eye_l.length() < 0.12 or eye_r.length() < 0.12:
+				col = Color(0.12, 0.14, 0.18, 1.0)
+			var mouth := absf(dy - 0.28) + absf(dx) * 0.45
+			if dy > 0.18 and mouth < 0.12:
+				col = Color(0.72, 0.28, 0.32, 1.0)
+			img.set_pixel(x, y, col)
+	return img
+
+
+static func _demo_dog() -> Image:
+	var size := 256
+	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
+	var cx := float(size) * 0.5
+	var cy := float(size) * 0.52
+	for y in size:
+		for x in size:
+			var dx := (float(x) + 0.5 - cx) / (float(size) * 0.42)
+			var dy := (float(y) + 0.5 - cy) / (float(size) * 0.42)
+			var r := sqrt(dx * dx + dy * dy)
+			var ear := minf(Vector2(dx + 0.62, dy + 0.55).length() / 0.38, Vector2(dx - 0.62, dy + 0.55).length() / 0.38)
+			if r > 1.0 and ear > 1.0:
+				img.set_pixel(x, y, Color(0, 0, 0, 0))
+				continue
+			var fur := Color(0.72, 0.48, 0.22)
+			if ear <= 1.0 and r > 0.92:
+				fur = Color(0.42, 0.24, 0.10)
+			var col := fur
+			if Vector2(dx + 0.22, dy + 0.08).length() < 0.11 or Vector2(dx - 0.22, dy + 0.08).length() < 0.11:
+				col = Color(0.08, 0.08, 0.08, 1.0)
+			if Vector2(dx, dy - 0.08).length() < 0.14:
+				col = Color(0.18, 0.12, 0.08, 1.0)
 			img.set_pixel(x, y, Color(col.r, col.g, col.b, 1.0))
 	return img
 

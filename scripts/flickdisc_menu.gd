@@ -107,6 +107,20 @@ var kit_caption: Label
 var kit_bowl_tab: Button
 var kit_disc_tab: Button
 var customize_button: Button
+var guide := 0
+var ditch_on := true
+var guide_kicker: Label
+var ditch_kicker: Label
+var guide_chips: Array = []
+var ditch_chips: Array = []
+var photo_kicker: Label
+var photo_blurb: Label
+var photo_a_button: Button
+var photo_b_button: Button
+var photo_place_row: Control
+var photo_place_chips: Array = []
+var photo_picker: FileDialog
+var photo_slot := "a"
 
 
 func setup(player_profile) -> void:
@@ -429,36 +443,49 @@ func _build_setup() -> void:
 		rink = "crokinole"
 		_sync_setup()
 	)
-	_place(page, crokin_card, Vector2(20, 154), Vector2(244, 204))
-	_place(page, lawn_card, Vector2(276, 154), Vector2(244, 204))
+	_place(page, crokin_card, Vector2(20, 148), Vector2(244, 148))
+	_place(page, lawn_card, Vector2(276, 148), Vector2(244, 148))
 
 	hint_label = _label("", 13, MUTED, body_font)
 	hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_place(page, hint_label, Vector2(20, 368), Vector2(500, 22))
+	_place(page, hint_label, Vector2(20, 312), Vector2(500, 18))
 
 	customize_button = _row_button("CUSTOMIZE BOWLS", func() -> void:
 		_tap()
 		_open_kit(kind if kind != "" else "classic")
 	)
-	_place(page, customize_button, Vector2(20, 396), Vector2(500, 52))
+	_place(page, customize_button, Vector2(20, 332), Vector2(500, 48))
+
+	guide_kicker = _kicker("AIM GUIDE")
+	_place(page, guide_kicker, Vector2(28, 388), Vector2(240, 16))
+	guide_chips = _chip_row(page, Vector2(20, 406), PackedStringArray(["5 + 3", "5", "3", "NONE"]), func(i: int) -> void:
+		guide = i
+		_sync_setup()
+	)
+	ditch_kicker = _kicker("DITCH")
+	_place(page, ditch_kicker, Vector2(28, 460), Vector2(200, 16))
+	ditch_chips = _chip_row(page, Vector2(20, 478), PackedStringArray(["ON", "OFF"]), func(i: int) -> void:
+		ditch_on = i == 0
+		_sync_setup()
+	)
 
 	match_kicker = _kicker("MATCH")
-	_place(page, match_kicker, Vector2(28, 470), Vector2(200, 18))
-	match_chips = _chip_row(page, Vector2(20, 492), PackedStringArray(["1 END", "4 ENDS", "TO 10", "TO 21"]), func(i: int) -> void:
+	_place(page, match_kicker, Vector2(28, 532), Vector2(200, 16))
+	match_chips = _chip_row(page, Vector2(20, 550), PackedStringArray(["1 END", "4 ENDS", "TO 10", "TO 21"]), func(i: int) -> void:
 		race = i
 		_sync_setup()
 	)
 	skill_kicker = _kicker("AI")
-	_place(page, skill_kicker, Vector2(28, 562), Vector2(200, 18))
-	skill_chips = _chip_row(page, Vector2(20, 584), PackedStringArray(["EASY", "MEDIUM", "HARD"]), func(i: int) -> void:
+	_place(page, skill_kicker, Vector2(28, 604), Vector2(200, 16))
+	skill_chips = _chip_row(page, Vector2(20, 622), PackedStringArray(["EASY", "MEDIUM", "HARD"]), func(i: int) -> void:
 		difficulty = i
 		_sync_setup()
 	)
 
 	big_play = _primary("PLAY VERSUS AI", func() -> void: _launch("ai"))
-	_place(page, big_play, Vector2(20, 656), Vector2(500, 76))
+	_place(page, big_play, Vector2(20, 680), Vector2(500, 64))
 	friend_button = _row_button("PLAY A FRIEND", func() -> void: _launch("local"))
-	_place(page, friend_button, Vector2(20, 748), Vector2(500, 64))
+	_place(page, friend_button, Vector2(20, 752), Vector2(500, 56))
 
 	duo_note = _label("Both teams play on this device. Pass the phone each shot.", 13, MUTED, body_font)
 	duo_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -722,7 +749,41 @@ func _build_customise() -> void:
 	var center := CenterContainer.new()
 	center.add_child(grid)
 	box.add_child(center)
-	box.add_child(_kicker("LOOK"))
+	photo_kicker = _kicker("YOUR PHOTOS")
+	box.add_child(photo_kicker)
+	photo_blurb = _wrapped("Upload a face, a dog, a badge. Put it on the left face, the right face, both, one on each, or wrap the whole bowl.")
+	box.add_child(photo_blurb)
+	var photo_row := HBoxContainer.new()
+	photo_row.add_theme_constant_override("separation", 8)
+	box.add_child(photo_row)
+	photo_a_button = _button("ADD LEFT PHOTO", 12)
+	photo_a_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	photo_a_button.custom_minimum_size = Vector2(0, 48)
+	photo_a_button.pressed.connect(func() -> void: _pick_photo("a"))
+	photo_row.add_child(photo_a_button)
+	photo_b_button = _button("ADD RIGHT PHOTO", 12)
+	photo_b_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	photo_b_button.custom_minimum_size = Vector2(0, 48)
+	photo_b_button.pressed.connect(func() -> void: _pick_photo("b"))
+	photo_row.add_child(photo_b_button)
+	photo_place_row = GridContainer.new()
+	photo_place_row.columns = 3
+	photo_place_row.add_theme_constant_override("h_separation", 6)
+	photo_place_row.add_theme_constant_override("v_separation", 6)
+	photo_place_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_child(photo_place_row)
+	for item in Kit.SKINS:
+		if not Kit.is_photo_skin(str(item["id"])):
+			continue
+		var place := _button(str(item["name"]), 11)
+		place.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		place.custom_minimum_size = Vector2(0, 40)
+		place.set_meta("skin_id", str(item["id"]))
+		place.pressed.connect(_pick_skin.bind(str(item["id"])))
+		photo_place_row.add_child(place)
+		photo_place_chips.append(place)
+	_build_photo_picker()
+	box.add_child(_kicker("THEMES"))
 	kit_skin_row = GridContainer.new()
 	kit_skin_row.columns = 3
 	kit_skin_row.add_theme_constant_override("h_separation", 8)
@@ -730,10 +791,13 @@ func _build_customise() -> void:
 	kit_skin_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.add_child(kit_skin_row)
 	for item in Kit.SKINS:
+		if Kit.is_photo_skin(str(item["id"])):
+			continue
 		var chip := _button(str(item["name"]), 11)
 		chip.custom_minimum_size = Vector2(0, 36)
 		chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		chip.pressed.connect(_pick_skin.bind(str(item["id"])))
+		chip.set_meta("skin_id", str(item["id"]))
 		kit_skin_row.add_child(chip)
 	var play_kit := _button("BACK TO PLAY", 16)
 	play_kit.custom_minimum_size = Vector2(0, 52)
@@ -956,12 +1020,27 @@ func _sync_setup() -> void:
 		race_button.text = _race_options()[race]
 	if customize_button != null:
 		customize_button.text = "CUSTOMIZE BOWLS" if rink == "lawn" else "CUSTOMIZE DISCS"
-	_layout_chips(match_chips, match_captions, Vector2(20, 492))
+	var lawn := rink == "lawn"
+	if guide_kicker != null:
+		guide_kicker.visible = lawn
+	if ditch_kicker != null:
+		ditch_kicker.visible = lawn
+	if lawn:
+		_layout_chips(guide_chips, PackedStringArray(["5 + 3", "5", "3", "NONE"]), Vector2(20, 406))
+		_paint_chips(guide_chips, guide)
+		_layout_chips(ditch_chips, PackedStringArray(["ON", "OFF"]), Vector2(20, 478))
+		_paint_chips(ditch_chips, 0 if ditch_on else 1)
+	else:
+		for chip in guide_chips:
+			chip.visible = false
+		for chip in ditch_chips:
+			chip.visible = false
+	_layout_chips(match_chips, match_captions, Vector2(20, 550))
 	_paint_chips(match_chips, race)
 	if skill_kicker != null:
 		skill_kicker.visible = classic
 	if classic:
-		_layout_chips(skill_chips, PackedStringArray(["EASY", "MEDIUM", "HARD"]), Vector2(20, 584))
+		_layout_chips(skill_chips, PackedStringArray(["EASY", "MEDIUM", "HARD"]), Vector2(20, 622))
 		_paint_chips(skill_chips, difficulty)
 	else:
 		for chip in skill_chips:
@@ -1124,7 +1203,8 @@ func _launch(channel: String) -> void:
 		setup["match_index"] = mini(race, 3)
 		setup["opponent"] = "ai" if channel == "ai" else "local"
 		setup["difficulty"] = difficulty
-		setup["ditch"] = true
+		setup["ditch"] = ditch_on
+		setup["guide"] = guide
 	else:
 		setup["target"] = [50, 100, 150][mini(race, 2)]
 		setup["level"] = [0, 1, 4][mini(difficulty, 2)]
@@ -1294,7 +1374,64 @@ func _pick_skin(skin_id: String) -> void:
 	if kit_tab == "bowl":
 		profile.bowl_skin = skin_id
 	else:
+		if Kit.is_photo_skin(skin_id):
+			return
 		profile.disc_skin = skin_id
+	profile.save_profile()
+	_paint_kit()
+	_sync_identity()
+
+
+func _build_photo_picker() -> void:
+	if photo_picker != null:
+		return
+	photo_picker = FileDialog.new()
+	photo_picker.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	photo_picker.access = FileDialog.ACCESS_FILESYSTEM
+	photo_picker.title = "Choose a photo"
+	photo_picker.filters = PackedStringArray(["*.png,*.jpg,*.jpeg,*.webp ; Photos"])
+	photo_picker.use_native_dialog = true
+	photo_picker.size = Vector2i(720, 520)
+	photo_picker.visible = false
+	photo_picker.file_selected.connect(_on_photo_picked)
+	root.add_child(photo_picker)
+
+
+func _pick_photo(slot: String) -> void:
+	_tap()
+	photo_slot = slot
+	kit_tab = "bowl"
+	if DisplayServer.has_feature(DisplayServer.FEATURE_NATIVE_DIALOG_FILE):
+		DisplayServer.file_dialog_show(
+			"Choose a photo",
+			OS.get_system_dir(OS.SYSTEM_DIR_PICTURES),
+			"",
+			false,
+			DisplayServer.FILE_DIALOG_MODE_OPEN_FILE,
+			PackedStringArray(["*.png,*.jpg,*.jpeg,*.webp ; Photos"]),
+			_on_native_photo
+		)
+		return
+	_build_photo_picker()
+	if photo_picker != null:
+		photo_picker.popup_centered()
+
+
+func _on_native_photo(status: bool, selected_paths: PackedStringArray, _filter_index: int) -> void:
+	if not status or selected_paths.is_empty():
+		return
+	_on_photo_picked(selected_paths[0])
+
+
+func _on_photo_picked(path: String) -> void:
+	var image := Image.new()
+	if image.load(path) != OK:
+		return
+	Kit.save_user_photo(photo_slot, image)
+	if photo_slot == "b":
+		profile.bowl_skin = "photo_split"
+	elif not Kit.is_photo_skin(profile.bowl_skin):
+		profile.bowl_skin = "photo_left"
 	profile.save_profile()
 	_paint_kit()
 	_sync_identity()
@@ -1325,9 +1462,30 @@ func _paint_kit() -> void:
 	if kit_skin_row != null:
 		for i in kit_skin_row.get_child_count():
 			var chip := kit_skin_row.get_child(i) as Button
-			var item: Dictionary = Kit.SKINS[i]
-			var on: bool = str(item["id"]) == skin_id
+			var id := str(chip.get_meta("skin_id")) if chip.has_meta("skin_id") else ""
+			var on: bool = id == skin_id
 			_paint_button(chip, PINK if on else PLUM, Color("#ffe4f4") if on else Color(1, 1, 1, 0.18), CREAM if on else MUTED, 12, 8, 2 if on else 1)
+	var photos := kit_tab == "bowl"
+	if photo_kicker != null:
+		photo_kicker.visible = photos
+	if photo_blurb != null:
+		photo_blurb.visible = photos
+	if photo_a_button != null:
+		photo_a_button.visible = photos
+		photo_a_button.text = "CHANGE LEFT PHOTO" if Kit.has_user_photo("a") else "ADD LEFT PHOTO"
+		_paint_button(photo_a_button, PINK_DEEP if Kit.has_user_photo("a") else PLUM, Color("#ffe4f4"), CREAM, 12, 8, 2)
+		if photo_a_button.get_parent() is Control:
+			(photo_a_button.get_parent() as Control).visible = photos
+	if photo_b_button != null:
+		photo_b_button.visible = photos
+		photo_b_button.text = "CHANGE RIGHT PHOTO" if Kit.has_user_photo("b") else "ADD RIGHT PHOTO"
+		_paint_button(photo_b_button, PINK_DEEP if Kit.has_user_photo("b") else PLUM, Color("#ffe4f4"), CREAM, 12, 8, 2)
+	if photo_place_row != null:
+		photo_place_row.visible = photos
+	for chip in photo_place_chips:
+		var id := str(chip.get_meta("skin_id")) if chip.has_meta("skin_id") else ""
+		var on: bool = photos and id == skin_id
+		_paint_button(chip, PINK if on else PLUM, Color("#ffe4f4") if on else Color(1, 1, 1, 0.18), CREAM if on else MUTED, 11, 8, 2 if on else 1)
 	var selected: int = color_index
 	for i in swatch_buttons.size():
 		var swatch := swatch_buttons[i] as Button

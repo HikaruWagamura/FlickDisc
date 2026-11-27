@@ -47,6 +47,8 @@ func disc_color() -> Color:
 
 
 func kit() -> Dictionary:
+	if bowl_skin == "photo":
+		bowl_skin = "photo_left"
 	return {
 		"bowl_skin": bowl_skin,
 		"bowl_color": bowl_color,
@@ -84,7 +86,11 @@ func load_profile() -> void:
 	disc_skin = str(cfg.get_value("player", "disc_skin", "club"))
 	if bowl_skin == "split":
 		bowl_skin = "club"
+	if bowl_skin == "photo":
+		bowl_skin = "photo_left"
 	if disc_skin == "both":
+		disc_skin = "club"
+	if disc_skin.begins_with("photo"):
 		disc_skin = "club"
 	sound = bool(cfg.get_value("player", "sound", true))
 	haptics = bool(cfg.get_value("player", "haptics", true))
