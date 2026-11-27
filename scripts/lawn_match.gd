@@ -1949,11 +1949,12 @@ func _kitshot() -> void:
 		await RenderingServer.frame_post_draw
 		await get_tree().create_timer(0.45).timeout
 		await _dump_compare_shot(str(look["file"]))
+	var mi: MeshInstance3D = null
 	if disc != null:
 		var holder: Node3D = disc.get_node_or_null("ClubBowl")
 		if holder == null:
 			holder = disc.find_child("ClubBowl", true, false) as Node3D
-		var mi := BowlScript._first_mesh(holder) if holder != null else null
+		mi = BowlScript._first_mesh(holder) if holder != null else null
 		if mi != null and mi.mesh != null:
 			var box: AABB = mi.global_transform * mi.mesh.get_aabb()
 			print("BOWL_AABB size=%.3f,%.3f,%.3f sit=%.3f pole=%s" % [
@@ -1972,6 +1973,41 @@ func _kitshot() -> void:
 		await get_tree().process_frame
 		await RenderingServer.frame_post_draw
 		await _dump_compare_shot("kit_bowl_top")
+		# Whole bowl: face-on to a pole, from behind, and 3/4, so the two
+		# parallel hand grooves can be checked against the equator.
+		_apply_test_kit("club", 1)
+		await get_tree().process_frame
+		cam.fov = 42.0
+		cam.position = at + Vector3(0.90, 0.28, 0.15)
+		cam.look_at(at + Vector3(0.0, 0.08, 0.0), Vector3.UP)
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		await _dump_compare_shot("kit_bowl_face")
+		cam.position = at + Vector3(0.0, 0.50, 1.30)
+		cam.look_at(at + Vector3(0.0, 0.10, -0.35), Vector3.UP)
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		await _dump_compare_shot("kit_bowl_behind_geo")
+		cam.position = at + Vector3(0.55, 0.22, 0.85)
+		cam.look_at(at + Vector3(0.0, 0.06, 0.0), Vector3.UP)
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		await _dump_compare_shot("kit_bowl_rings")
+		# 3/4 of the red face: two parallel hand grooves should read as
+		# concentric rings, with the colour split exactly between them.
+		cam.fov = 40.0
+		cam.position = at + Vector3(-0.62, 0.24, 0.78)
+		cam.look_at(at + Vector3(0.0, 0.06, 0.0), Vector3.UP)
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		await _dump_compare_shot("kit_bowl_sit")
+		# Player-behind, bowl low in the frame like square-of-aces.
+		cam.fov = 48.0
+		cam.position = at + Vector3(0.0, 0.72, 1.55)
+		cam.look_at(at + Vector3(0.0, 0.08, -0.55), Vector3.UP)
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		await _dump_compare_shot("kit_bowl_player")
 	print("KITSHOT done")
 	get_tree().quit(0)
 

@@ -168,6 +168,12 @@ static func _paint_mesh(mi: MeshInstance3D, kit: Dictionary, for_disc: bool) -> 
 		mat.set_shader_parameter("metallic_val", _wrap_metal(skin_id))
 		if mi.has_meta("pole_axis"):
 			mat.set_shader_parameter("pole_axis", mi.get_meta("pole_axis"))
+		if mi.has_meta("mesh_center"):
+			mat.set_shader_parameter("mesh_center", mi.get_meta("mesh_center"))
+		if mi.has_meta("pole_half"):
+			mat.set_shader_parameter("pole_half", mi.get_meta("pole_half"))
+		if mi.has_meta("groove_inner"):
+			mat.set_shader_parameter("groove_inner", mi.get_meta("groove_inner"))
 	if for_disc:
 		var span := 0.22
 		var face := 0

@@ -594,19 +594,19 @@ static func _dress_club(parent: Node3D, index: int, hand: float, variant: int = 
 		# Paint the pack two-tone on the smooth mesh instead of the
 		# white default MTL, which is the cage-preview look, not the
 		# finished bowl.
-		mi.material_override = _club_finish_mat(index, pole_of(mi))
+		mi.material_override = _club_finish_mat(index, mi)
 	return {"rim": ring, "body": body, "cap": mark, "mark": mark, "weight": holder}
 
 
-static func _club_finish_mat(index: int, pole: Vector3 = Vector3.RIGHT) -> ShaderMaterial:
+static func _club_finish_mat(index: int, mi: MeshInstance3D = null) -> ShaderMaterial:
 	var mat := ShaderMaterial.new()
 	mat.shader = CLUB_FINISH_SHADER
 	var cream := Color(0.96, 0.92, 0.88) if index % 2 == 0 else Color(0.90, 0.94, 0.98)
 	mat.set_shader_parameter("color_a", team_color(index))
 	mat.set_shader_parameter("color_b", cream)
 	mat.set_shader_parameter("look", 0)
-	mat.set_shader_parameter("seam", 0.10)
-	mat.set_shader_parameter("pole_axis", pole)
+	mat.set_shader_parameter("seam", 0.06)
+	_apply_pole_params(mat, mi)
 	var maps := _club_maps()
 	var tex: Texture2D = maps["red"] if index % 2 == 0 else maps["blue"]
 	if tex == null:
@@ -619,13 +619,25 @@ static func _club_finish_mat(index: int, pole: Vector3 = Vector3.RIGHT) -> Shade
 	return mat
 
 
+static func _apply_pole_params(mat: ShaderMaterial, mi: MeshInstance3D) -> void:
+	if mat == null:
+		return
+	mat.set_shader_parameter("pole_axis", pole_of(mi) if mi != null else Vector3.RIGHT)
+	if mi != null and mi.has_meta("mesh_center"):
+		mat.set_shader_parameter("mesh_center", mi.get_meta("mesh_center"))
+	if mi != null and mi.has_meta("pole_half"):
+		mat.set_shader_parameter("pole_half", mi.get_meta("pole_half"))
+	if mi != null and mi.has_meta("groove_inner"):
+		mat.set_shader_parameter("groove_inner", mi.get_meta("groove_inner"))
+
+
 static func _apply_club_finish(holder: Node3D, index: int) -> void:
 	if holder == null:
 		return
 	for child in holder.get_children():
 		if child is MeshInstance3D:
 			var mi := child as MeshInstance3D
-			mi.material_override = _club_finish_mat(index, pole_of(mi))
+			mi.material_override = _club_finish_mat(index, mi)
 
 
 static func club_mesh(variant: int = 0) -> Mesh:
@@ -785,7 +797,15 @@ static func _seat_running_surface(mi: MeshInstance3D, target_span: float) -> voi
 	)
 	mi.basis = rot * Basis.from_scale(Vector3.ONE * scale)
 	mi.position = rot * (-aabb.get_center() * scale)
+	var pole_half := 0.5 * absf(pole.x * s.x + pole.y * s.y + pole.z * s.z)
+	if pole_half < 0.0001:
+		pole_half = 0.5 * maxf(s.x, maxf(s.y, s.z))
 	mi.set_meta("pole_axis", pole)
+	mi.set_meta("mesh_center", aabb.get_center())
+	mi.set_meta("pole_half", pole_half)
+	# Inner grip is the shoulder where the face meets the running surface.
+	# Same fraction on both faces, so the equator is the midpoint.
+	mi.set_meta("groove_inner", 0.55)
 
 
 static func _fit_mesh(mi: MeshInstance3D, target_span: float, keep_bias: bool = false) -> void:
