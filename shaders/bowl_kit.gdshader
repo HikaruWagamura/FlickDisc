@@ -12,22 +12,31 @@ uniform float roughness_val = 0.42;
 uniform float metallic_val = 0.04;
 
 varying vec3 obj_pos;
+varying vec3 obj_n;
 
 void vertex() {
 	obj_pos = VERTEX;
+	obj_n = NORMAL;
 }
 
 void fragment() {
-	vec3 n = normalize(obj_pos);
+	// Normals follow the bowl even if the pack mesh is still in C4D
+	// scene space. Vertex position is not centred in that export.
+	vec3 n = normalize(obj_n);
 	float side = smoothstep(-seam, seam, n.x);
+	vec2 suv = vec2(0.5 + atan(n.x, n.z) / TAU, 0.5 - n.y * 0.5);
+	suv *= max(graphic_scale, 0.25);
+	vec4 graphic = texture(graphic_tex, suv);
 	vec3 paint = color_a.rgb;
 	if (look == 0) {
-		paint = mix(color_a.rgb, color_b.rgb, side);
+		// Club pack: terrazzo on the coloured half, cream on the other.
+		// Object-space split, so the tessellated mesh does not need the
+		// C4D multi-material layers Godot cannot load from the cage FBX.
+		vec3 colored = mix(color_a.rgb, graphic.rgb, graphic.a * graphic_mix);
+		// n.x > 0 is the face that sits toward the bowler after hand_yaw.
+		paint = mix(color_b.rgb, colored, side);
 	}
 	if (look >= 2) {
-		vec2 suv = vec2(0.5 + atan(n.x, n.z) / TAU, 0.5 - n.y * 0.5);
-		suv *= max(graphic_scale, 0.25);
-		vec4 graphic = texture(graphic_tex, suv);
 		float mask = graphic.a * graphic_mix;
 		if (look == 3) {
 			mask *= 1.0 - side;

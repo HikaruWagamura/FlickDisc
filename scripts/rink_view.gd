@@ -277,32 +277,32 @@ func _process(delta: float) -> void:
 		goal_fov = 42.0
 		response = 3.4
 	elif _shot_live and chase:
-		# Pin the bowl in the aiming frame while it rolls. Changing height
-		# or look as it moves made the pack texture go fuzzy. The grass
-		# streams past; the stone stays put on the screen.
+		# Ride behind the running bowl. Stay on its line, not the rink
+		# centre, so a drawing stone does not slide off the frame.
 		var long_green := LENGTH > 200.0
 		var side := clampf(absf(_shot_pos.x) / (8.0 if long_green else 2.8), 0.0, 1.0)
 		var sunk := clampf(-_shot_pos.y / 0.16, 0.0, 1.0)
+		var x_cap := HALF_WIDTH * 0.72 if long_green else HALF_WIDTH - 1.15
+		var cam_x := clampf(_shot_pos.x, -x_cap, x_cap)
 		if long_green:
 			var run := clampf((_mat.z - _shot_pos.z) / 28.0, 0.0, 1.0)
 			var lift := maxf(maxf(side, sunk), run)
 			var trail := lerpf(2.8, 12.0, lift)
-			var height := lerpf(1.05, 7.0, lift)
-			var x_cap := HALF_WIDTH * 0.45
-			var ahead := lerpf(14.0, 6.0, lift)
-			goal_pos = Vector3(clampf(_shot_pos.x * 0.22, -x_cap, x_cap), height, _shot_pos.z + trail)
-			goal_look = Vector3(_shot_pos.x * 0.18, 0.10, _shot_pos.z - ahead)
-			response = 2.4
+			var height := lerpf(1.15, 7.0, lift)
+			var ahead := lerpf(8.0, 6.0, lift)
+			goal_pos = Vector3(cam_x, height, _shot_pos.z + trail)
+			goal_look = Vector3(cam_x, 0.12, _shot_pos.z - ahead)
+			response = 3.6
 		else:
-			goal_pos = Vector3(clampf(_shot_pos.x * 0.05, -0.55, 0.55), 0.96, _shot_pos.z + 2.55)
-			goal_look = Vector3(_shot_pos.x * 0.10, 0.08, _shot_pos.z - 12.5)
+			goal_pos = Vector3(cam_x, 1.08, _shot_pos.z + 2.65)
+			goal_look = Vector3(cam_x, 0.14, _shot_pos.z - 4.8)
 			var to_head := _shot_pos.distance_to(_head)
 			if to_head < 10.0:
 				var ease := 1.0 - clampf(to_head / 10.0, 0.0, 1.0)
-				goal_pos.y = lerpf(0.96, 1.55, ease)
-				goal_pos.z = _shot_pos.z + lerpf(2.55, 3.8, ease)
-				goal_look.z = _shot_pos.z - lerpf(12.5, 6.0, ease)
-			response = 7.5
+				goal_pos.y = lerpf(1.08, 1.55, ease)
+				goal_pos.z = _shot_pos.z + lerpf(2.65, 3.6, ease)
+				goal_look.z = _shot_pos.z - lerpf(4.8, 3.4, ease)
+			response = 5.8
 		goal_fov = 42.0
 	elif _shot_live:
 		# Stay behind the mat and watch the bowl run away down the line.

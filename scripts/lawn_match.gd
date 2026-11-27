@@ -1935,8 +1935,8 @@ func _kitshot() -> void:
 	if cam != null and disc != null:
 		var at: Vector3 = disc.global_position
 		cam.fov = 42.0
-		cam.position = at + Vector3(0.0, 0.72, 1.55)
-		cam.look_at(at + Vector3(0.0, 0.08, -8.0), Vector3.UP)
+		cam.position = at + Vector3(0.0, 0.55, 1.35)
+		cam.look_at(at + Vector3(0.0, 0.10, -0.4), Vector3.UP)
 	var looks := [
 		{"file": "kit_bowl_club", "skin": "club", "color": 1},
 		{"file": "kit_bowl_camo", "skin": "camo", "color": 6},
@@ -1985,7 +1985,7 @@ func _rollshot() -> void:
 	await _dump_compare_shot("roll_aim")
 	disc.is_aiming = false
 	var power: float = disc.weight_for_length(23.0, disc.bias_ratio)
-	disc.fire_taken(Vector3(0.10, 0.0, -1.0).normalized(), power)
+	disc.fire_taken(Vector3(0.22, 0.0, -1.0).normalized(), power)
 	DirAccess.make_dir_recursive_absolute("/tmp/roll_anim")
 	var frames := 0
 	for i in 36:

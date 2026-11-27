@@ -1024,11 +1024,15 @@ func _refresh_sit() -> void:
 
 
 func _paint_club_bowl() -> void:
-	if palette_index % 2 != 0:
-		return
 	var holder := _spin.get_node_or_null("ClubBowl") if _spin != null else null
-	if holder is Node3D:
-		Kit.paint_holder(holder, Kit.from_meta(get_tree()), false)
+	if holder == null:
+		return
+	if palette_index % 2 == 0:
+		var kit := Kit.from_meta(get_tree())
+		if Kit.uses_custom_bowl(kit):
+			Kit.paint_holder(holder, kit, false)
+			return
+	BowlScript._apply_club_finish(holder, palette_index)
 
 
 func _place_pip() -> void:

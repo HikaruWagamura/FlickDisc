@@ -4,9 +4,13 @@ extends Node3D
 ## A bowl or the jack on the green. Motion is owned by the table in DiscController.
 ## Settled bowls stay where they stop, and later bowls can knock them.
 ## Red is one side, blue is the other. Each side bowls four in an end.
-## Playable bowls are the purchased CGTrader set: four full lawn-bowl
-## meshes (LAZER / BLAZE / ACE / CLASSIC) plus a half-size jack, with the
-## four pack colours. The earlier Tripo sculpt is not used on the green.
+## Playable bowls are the purchased CGTrader Modern Lawn Bowls pack
+## (alswart): Cinema 4D native with a polygon cage AND a smooth SDS
+## display. Godot cannot load the .c4d or apply C4D subdivision, so
+## GitHub had only the 539 KB FBX cage. The tessellated club OBJ is
+## that same pack's smooth display mesh (Drive OBJ export). Club play
+## uses those meshes plus the pack terrazzo / cream finish. The FBX
+## cage is fallback only. The earlier Tripo sculpt is not used.
 
 const DISC_RADIUS := 0.20
 const JACK_RADIUS := 0.16
@@ -25,6 +29,14 @@ const CLUB_SCENE := preload("res://assets/bowls/modern_lawn_bowls.fbx")
 const Kit := preload("res://scripts/kit.gd")
 const CLUB_NAMES := ["ball_1", "ball_2", "ball_3", "ball_4"]
 const JACK_NAME := "ball_1_1"
+const CLUB_MESH_PATHS := [
+	"res://assets/bowls/club/lazer.obj",
+	"res://assets/bowls/club/blaze.obj",
+	"res://assets/bowls/club/ace.obj",
+	"res://assets/bowls/club/classic.obj",
+]
+const JACK_MESH_PATH := "res://assets/bowls/club/jack.obj"
+const CLUB_FINISH_SHADER := preload("res://shaders/bowl_kit.gdshader")
 
 static var _club_meshes: Array[Mesh] = []
 static var _jack_mesh: Mesh
@@ -189,8 +201,7 @@ static func _classify_tex(path: String) -> String:
 
 
 static func _apply_pbr(mat: StandardMaterial3D, maps: Dictionary) -> void:
-	# No mipmaps: spinning with mips is what made the pack grain go fuzzy.
-	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 	# Pack albedo keeps the square bite. The baked normal reprints that
 	# grid and shimmers while the bowl rolls, which reads as blur.
 	mat.normal_enabled = false
@@ -357,11 +368,15 @@ func paint(index: int, hand: float = -1.0, bias: int = -1) -> void:
 
 
 func _paint_club_if_custom(index: int) -> void:
-	if index % 2 != 0:
-		return
 	var holder := _spin.get_node_or_null("ClubBowl") if _spin != null else null
-	if holder is Node3D:
-		Kit.paint_holder(holder, Kit.from_meta(Engine.get_main_loop() as SceneTree), false)
+	if holder == null:
+		return
+	if index % 2 == 0:
+		var kit := Kit.from_meta(Engine.get_main_loop() as SceneTree)
+		if Kit.uses_custom_bowl(kit):
+			Kit.paint_holder(holder, kit, false)
+			return
+	_apply_club_finish(holder, index)
 
 
 static func roll_basis_by(current: Basis, travel: Vector3, body_radius: float) -> Basis:
@@ -552,8 +567,41 @@ static func _dress_club(parent: Node3D, index: int, hand: float, variant: int = 
 		if mi.mesh.get_surface_count() > 2:
 			mi.set_surface_override_material(2, mark)
 	else:
-		mi.material_override = body
+		# One-surface tessellated OBJ has no C4D material layers.
+		# Paint the pack two-tone on the smooth mesh instead of the
+		# white default MTL, which is the cage-preview look, not the
+		# finished bowl.
+		mi.material_override = _club_finish_mat(index)
 	return {"rim": ring, "body": body, "cap": mark, "mark": mark, "weight": holder}
+
+
+static func _club_finish_mat(index: int) -> ShaderMaterial:
+	var mat := ShaderMaterial.new()
+	mat.shader = CLUB_FINISH_SHADER
+	var cream := Color(0.96, 0.92, 0.88) if index % 2 == 0 else Color(0.90, 0.94, 0.98)
+	mat.set_shader_parameter("color_a", team_color(index))
+	mat.set_shader_parameter("color_b", cream)
+	mat.set_shader_parameter("look", 0)
+	mat.set_shader_parameter("seam", 0.10)
+	var maps := _club_maps()
+	var tex: Texture2D = maps["red"] if index % 2 == 0 else maps["blue"]
+	if tex == null:
+		tex = maps["albedo"]
+	mat.set_shader_parameter("graphic_tex", tex)
+	mat.set_shader_parameter("graphic_mix", 1.0 if tex != null else 0.0)
+	mat.set_shader_parameter("graphic_scale", 2.4)
+	mat.set_shader_parameter("roughness_val", 0.34)
+	mat.set_shader_parameter("metallic_val", 0.05)
+	return mat
+
+
+static func _apply_club_finish(holder: Node3D, index: int) -> void:
+	if holder == null:
+		return
+	var finish := _club_finish_mat(index)
+	for child in holder.get_children():
+		if child is MeshInstance3D:
+			(child as MeshInstance3D).material_override = finish
 
 
 static func club_mesh(variant: int = 0) -> Mesh:
@@ -571,6 +619,21 @@ static func jack_mesh() -> Mesh:
 static func _ensure_club_meshes() -> void:
 	if not _club_meshes.is_empty():
 		return
+	# Prefer the tessellated club OBJ. The FBX is the C4D cage under
+	# Subdivision_Surface, so Godot drew the polygons, not the smooth bowl.
+	for path in CLUB_MESH_PATHS:
+		if not ResourceLoader.exists(path):
+			continue
+		var mesh := load(path)
+		if mesh is Mesh:
+			_club_meshes.append(mesh)
+	if ResourceLoader.exists(JACK_MESH_PATH):
+		var jack := load(JACK_MESH_PATH)
+		if jack is Mesh:
+			_jack_mesh = jack
+	if not _club_meshes.is_empty():
+		_log_club_meshes("obj")
+		return
 	if CLUB_SCENE == null:
 		return
 	var root: Node = CLUB_SCENE.instantiate()
@@ -584,6 +647,21 @@ static func _ensure_club_meshes() -> void:
 	if _club_meshes.is_empty():
 		_collect_club_meshes(root, jack_mi)
 	root.free()
+	_log_club_meshes("fbx")
+
+
+static func _log_club_meshes(source: String) -> void:
+	var faces := 0
+	if not _club_meshes.is_empty() and _club_meshes[0] != null:
+		var mesh := _club_meshes[0]
+		for s in mesh.get_surface_count():
+			faces += mesh.surface_get_array_len(s)
+	print("CLUB_MESH source=%s bowls=%d verts0=%d jack=%s" % [
+		source,
+		_club_meshes.size(),
+		faces,
+		_jack_mesh != null,
+	])
 
 
 static func _collect_club_meshes(node: Node, jack_mi: MeshInstance3D) -> void:
