@@ -13,17 +13,19 @@ uniform float metallic_val = 0.04;
 
 varying vec3 obj_pos;
 varying vec3 obj_n;
+varying vec3 world_n;
 
 void vertex() {
 	obj_pos = VERTEX;
 	obj_n = NORMAL;
+	world_n = (MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz;
 }
 
 void fragment() {
-	// Normals follow the bowl even if the pack mesh is still in C4D
-	// scene space. Vertex position is not centred in that export.
 	vec3 n = normalize(obj_n);
-	float side = smoothstep(-seam, seam, n.x);
+	// World X is left-right on the green: the two faces, with the wide
+	// equator standing on the grass.
+	float side = smoothstep(-seam, seam, normalize(world_n).x);
 	vec2 suv = vec2(0.5 + atan(n.x, n.z) / TAU, 0.5 - n.y * 0.5);
 	suv *= max(graphic_scale, 0.25);
 	vec4 graphic = texture(graphic_tex, suv);
@@ -33,7 +35,6 @@ void fragment() {
 		// Object-space split, so the tessellated mesh does not need the
 		// C4D multi-material layers Godot cannot load from the cage FBX.
 		vec3 colored = mix(color_a.rgb, graphic.rgb, graphic.a * graphic_mix);
-		// n.x > 0 is the face that sits toward the bowler after hand_yaw.
 		paint = mix(color_b.rgb, colored, side);
 	}
 	if (look >= 2) {

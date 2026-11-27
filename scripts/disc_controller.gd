@@ -982,9 +982,8 @@ func _mount_pack_jack() -> void:
 	_jack_sit = BowlScript.JACK_RADIUS + BowlScript.GROUND_CLEAR
 	if mesh != null:
 		ball.mesh = mesh
-		BowlScript._fit_mesh(ball, BowlScript.JACK_RADIUS * 2.0, true)
-		var aabb := ball.mesh.get_aabb()
-		_jack_sit = aabb.size.y * absf(ball.scale.y) * 0.5 + BowlScript.GROUND_CLEAR
+		BowlScript._seat_running_surface(ball, BowlScript.JACK_RADIUS * 2.0)
+		_jack_sit = BowlScript.JACK_RADIUS + BowlScript.GROUND_CLEAR
 	else:
 		var sphere := SphereMesh.new()
 		sphere.radius = BowlScript.JACK_RADIUS

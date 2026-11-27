@@ -215,9 +215,9 @@ static func _apply_pbr(mat: StandardMaterial3D, maps: Dictionary) -> void:
 
 
 static func hand_yaw(hand: float) -> float:
-	# The coloured grip faces the bowler, so the grooves read from the mat.
-	# The other hand turns half a turn and the bias still follows the hand.
-	return 1.5 * PI if signf(hand) < 0.0 else 0.5 * PI
+	# Faces stay left and right so the bowl rolls on its equator.
+	# A half turn swaps which coloured face is the bias side.
+	return PI if signf(hand) < 0.0 else 0.0
 
 
 static func bowl_type(index: int) -> Dictionary:
@@ -479,7 +479,7 @@ func _build_jack() -> void:
 	var ball := MeshInstance3D.new()
 	if mesh != null:
 		ball.mesh = mesh
-		_fit_mesh(ball, JACK_RADIUS * 2.0, true)
+		_seat_running_surface(ball, JACK_RADIUS * 2.0)
 	else:
 		var sphere := SphereMesh.new()
 		sphere.radius = JACK_RADIUS
@@ -536,7 +536,7 @@ static func _dress_club(parent: Node3D, index: int, hand: float, variant: int = 
 	var mi := MeshInstance3D.new()
 	mi.mesh = club_mesh(variant)
 	if mi.mesh != null:
-		_fit_mesh(mi, DISC_RADIUS * 2.0, true)
+		_seat_running_surface(mi, DISC_RADIUS * 2.0)
 	else:
 		var sphere := SphereMesh.new()
 		sphere.radius = DISC_RADIUS
@@ -710,13 +710,51 @@ static func sit_from_holder(holder: Node3D) -> float:
 	return -bottom + GROUND_CLEAR
 
 
+static func _seat_running_surface(mi: MeshInstance3D, target_span: float) -> void:
+	# Pack bowls were posed in C4D, so the short bias axis is not always Y.
+	# Scale by the wide equator, then rotate the flatten onto X so the
+	# running surface stands on the grass. Translation must use the same
+	# rotation or the bowl slides off its own shadow.
+	if mi.mesh == null:
+		return
+	var aabb := mi.mesh.get_aabb()
+	var s := aabb.size
+	var running := s.x
+	if s.y <= s.x and s.y <= s.z:
+		running = maxf(s.x, s.z)
+	elif s.z <= s.x and s.z <= s.y:
+		running = maxf(s.x, s.y)
+	else:
+		running = maxf(s.y, s.z)
+	if running < 0.0001:
+		return
+	var scale := target_span / running
+	var rot := Basis.IDENTITY
+	if s.y <= s.x and s.y <= s.z:
+		rot = Basis(Vector3.FORWARD, 0.5 * PI)
+	elif s.z <= s.x and s.z <= s.y:
+		rot = Basis(Vector3.UP, 0.5 * PI)
+	mi.basis = rot.scaled(Vector3.ONE * scale)
+	mi.position = rot * (-aabb.get_center() * scale)
+
+
 static func _fit_mesh(mi: MeshInstance3D, target_span: float, keep_bias: bool = false) -> void:
 	if mi.mesh == null:
 		return
 	var aabb := mi.mesh.get_aabb()
-	var span := maxf(aabb.size.x, maxf(aabb.size.y, aabb.size.z))
+	var s := aabb.size
+	var span := maxf(s.x, maxf(s.y, s.z))
 	if keep_bias:
-		span = maxf(aabb.size.x, aabb.size.z)
+		# Running diameter is the longest of the two axes that are not the
+		# short bias flatten, not "ignore Y".
+		var running := s.x
+		if s.y <= s.x and s.y <= s.z:
+			running = maxf(s.x, s.z)
+		elif s.z <= s.x and s.z <= s.y:
+			running = maxf(s.x, s.y)
+		else:
+			running = maxf(s.y, s.z)
+		span = running
 	if span < 0.0001:
 		return
 	mi.scale = Vector3.ONE * (target_span / span)
