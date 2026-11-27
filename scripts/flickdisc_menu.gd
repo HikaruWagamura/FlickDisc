@@ -349,13 +349,10 @@ func _build_home() -> void:
 	gear.pressed.connect(_show.bind("settings"))
 
 	var mark := _mark_rect()
-	_place(page, mark, Vector2(70, 72), Vector2(400, 268))
-	var line := _label("Pick the table. Then bowl.", 20, CREAM, script_font)
-	line.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_place(page, line, Vector2(20, 348), Vector2(500, 32))
+	_place(page, mark, Vector2(40, 36), Vector2(460, 320))
 
 	var play := _button("▶  PLAY A MATCH", 22)
-	_place(page, play, Vector2(28, 392), Vector2(484, 64))
+	_place(page, play, Vector2(28, 360), Vector2(484, 64))
 	_paint_button(play, GOLD, Color("#FFE9A0"), Color("#1A1208"), 20, 0, 2)
 	home_play = play
 	play.pressed.connect(func() -> void:
@@ -363,16 +360,16 @@ func _build_home() -> void:
 		_open_setup("classic")
 	)
 
-	_home_card(page, Rect2(28, 476, 236, 124), "LONG GREEN", "A full match rink.", "green", "🌿", "drive")
-	_home_card(page, Rect2(276, 476, 236, 124), "SOLO ENDS", "One bowl. The jack.", "solo", "🎯", "solo")
-	_home_card(page, Rect2(28, 616, 236, 124), "PRACTICE", "You and the jack.", "practice", "🔥", "practice")
-	_home_card(page, Rect2(276, 616, 236, 124), "THE BOARD", "Wins. Ends. Runs.", "board", "🏆", "rankings")
+	_home_card(page, Rect2(28, 444, 236, 124), "LONG GREEN", "A full match rink.", "green", "🌿", "drive")
+	_home_card(page, Rect2(276, 444, 236, 124), "SOLO ENDS", "One bowl. The jack.", "solo", "🎯", "solo")
+	_home_card(page, Rect2(28, 584, 236, 124), "PRACTICE", "You and the jack.", "practice", "🔥", "practice")
+	_home_card(page, Rect2(276, 584, 236, 124), "THE BOARD", "Wins. Ends. Runs.", "board", "🏆", "rankings")
 
 	home_record = _label("0W  ·  0L", 18, CREAM, bold_font)
-	_place(page, home_record, Vector2(20, 752), Vector2(500, 24))
+	_place(page, home_record, Vector2(20, 720), Vector2(500, 24))
 	home_record.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	home_tally = _label("ENDS 0  ·  NO DRIVE YET", 13, MUTED, bold_font)
-	_place(page, home_tally, Vector2(20, 776), Vector2(500, 18))
+	_place(page, home_tally, Vector2(20, 744), Vector2(500, 18))
 	home_tally.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
 
@@ -430,10 +427,10 @@ func _build_setup() -> void:
 
 	title_label = _label("PLAY", 40, CREAM, title_font)
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_place(page, title_label, Vector2(16, 96), Vector2(508, 44))
+	_place(page, title_label, Vector2(16, 128), Vector2(508, 44))
 	sub_label = _label("Pick the table. Then bowl.", 16, CREAM, script_font)
 	sub_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_place(page, sub_label, Vector2(16, 138), Vector2(508, 26))
+	_place(page, sub_label, Vector2(16, 170), Vector2(508, 26))
 
 	lawn_card = _rink_card("BOWLS", "The long green.", BOWLS_ART)
 	crokin_card = _rink_card("CROCK & HOLE", "The round board.", CROCK_ART)
@@ -447,8 +444,8 @@ func _build_setup() -> void:
 		rink = "crokinole"
 		_sync_setup()
 	)
-	_place(page, lawn_card, Vector2(20, 172), Vector2(244, 210))
-	_place(page, crokin_card, Vector2(276, 172), Vector2(244, 210))
+	_place(page, lawn_card, Vector2(20, 202), Vector2(244, 210))
+	_place(page, crokin_card, Vector2(276, 202), Vector2(244, 210))
 
 	hint_label = _label("", 13, MUTED, body_font)
 	hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -470,35 +467,35 @@ func _build_setup() -> void:
 	lawn_card.add_child(customize_button)
 
 	guide_kicker = _kicker("AIM GUIDE")
-	_place(page, guide_kicker, Vector2(28, 396), Vector2(240, 16))
-	guide_chips = _chip_row(page, Vector2(20, 416), PackedStringArray(["5 + 3", "5", "3", "NONE"]), func(i: int) -> void:
+	_place(page, guide_kicker, Vector2(28, 426), Vector2(240, 16))
+	guide_chips = _chip_row(page, Vector2(20, 446), PackedStringArray(["5 + 3", "5", "3", "NONE"]), func(i: int) -> void:
 		guide = i
 		_sync_setup()
 	)
 	ditch_kicker = _kicker("DITCH")
-	_place(page, ditch_kicker, Vector2(28, 478), Vector2(200, 16))
-	ditch_chips = _chip_row(page, Vector2(20, 498), PackedStringArray(["ON", "OFF"]), func(i: int) -> void:
+	_place(page, ditch_kicker, Vector2(28, 508), Vector2(200, 16))
+	ditch_chips = _chip_row(page, Vector2(20, 528), PackedStringArray(["ON", "OFF"]), func(i: int) -> void:
 		ditch_on = i == 0
 		_sync_setup()
 	)
 
 	match_kicker = _kicker("MATCH")
-	_place(page, match_kicker, Vector2(28, 560), Vector2(200, 16))
-	match_chips = _chip_row(page, Vector2(20, 580), PackedStringArray(["1 END", "4 ENDS", "TO 10", "TO 21"]), func(i: int) -> void:
+	_place(page, match_kicker, Vector2(28, 590), Vector2(200, 16))
+	match_chips = _chip_row(page, Vector2(20, 610), PackedStringArray(["1 END", "4 ENDS", "TO 10", "TO 21"]), func(i: int) -> void:
 		race = i
 		_sync_setup()
 	)
 	skill_kicker = _kicker("AI")
-	_place(page, skill_kicker, Vector2(28, 642), Vector2(200, 16))
-	skill_chips = _chip_row(page, Vector2(20, 662), PackedStringArray(["EASY", "MEDIUM", "HARD"]), func(i: int) -> void:
+	_place(page, skill_kicker, Vector2(28, 672), Vector2(200, 16))
+	skill_chips = _chip_row(page, Vector2(20, 692), PackedStringArray(["EASY", "MEDIUM", "HARD"]), func(i: int) -> void:
 		difficulty = i
 		_sync_setup()
 	)
 
 	big_play = _primary("▶  PLAY VERSUS AI", func() -> void: _launch("ai"))
-	_place(page, big_play, Vector2(20, 740), Vector2(500, 64))
+	_place(page, big_play, Vector2(20, 770), Vector2(500, 64))
 	friend_button = _row_button("PLAY A FRIEND", func() -> void: _launch("local"))
-	_place(page, friend_button, Vector2(20, 818), Vector2(500, 56))
+	_place(page, friend_button, Vector2(20, 848), Vector2(500, 56))
 
 	duo_note = _label("Both teams play on this device. Pass the phone each shot.", 13, MUTED, body_font)
 	duo_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -535,7 +532,7 @@ func _build_simple_pages() -> void:
 
 
 func _build_chaos() -> void:
-	var built: Dictionary = _column_page(96, 28)
+	var built: Dictionary = _column_page(122, 28)
 	var page := built["page"] as Control
 	var box := built["box"] as VBoxContainer
 	pages["chaos"] = page
@@ -565,7 +562,7 @@ func _build_chaos() -> void:
 
 
 func _build_practice() -> void:
-	var built: Dictionary = _column_page(96, 28)
+	var built: Dictionary = _column_page(122, 28)
 	var page := built["page"] as Control
 	var box := built["box"] as VBoxContainer
 	pages["practice"] = page
@@ -586,7 +583,7 @@ func _build_practice() -> void:
 
 
 func _build_challenges() -> void:
-	var built: Dictionary = _column_page(96, 28)
+	var built: Dictionary = _column_page(122, 28)
 	var page := built["page"] as Control
 	var box := built["box"] as VBoxContainer
 	pages["challenges"] = page
@@ -607,7 +604,7 @@ func _challenge_card(box: VBoxContainer, ident: String, title: String, body: Str
 
 
 func _build_friends() -> void:
-	var built: Dictionary = _column_page(96, 28)
+	var built: Dictionary = _column_page(122, 28)
 	var page := built["page"] as Control
 	var box := built["box"] as VBoxContainer
 	pages["friends"] = page
@@ -624,7 +621,7 @@ func _build_friends() -> void:
 
 
 func _build_rankings() -> void:
-	var built: Dictionary = _column_page(96, 28)
+	var built: Dictionary = _column_page(122, 28)
 	var page := built["page"] as Control
 	var box := built["box"] as VBoxContainer
 	pages["rankings"] = page
@@ -1021,8 +1018,8 @@ func _sync_setup() -> void:
 
 
 func _layout_setup_rows(lawn: bool, classic: bool, match_captions: PackedStringArray) -> void:
-	var match_y := 560.0 if lawn else 396.0
-	var skill_y := 642.0 if lawn else 478.0
+	var match_y := 590.0 if lawn else 426.0
+	var skill_y := 672.0 if lawn else 508.0
 	var lawn_art := lawn_card.get_node_or_null("Art") as Control if lawn_card != null else null
 	if lawn_art != null:
 		lawn_art.position = Vector2(8, 76)
@@ -1033,14 +1030,14 @@ func _layout_setup_rows(lawn: bool, classic: bool, match_captions: PackedStringA
 		crock_art.size = Vector2(228, 122)
 	if guide_kicker != null:
 		guide_kicker.visible = lawn
-		guide_kicker.position = Vector2(28, 396)
+		guide_kicker.position = Vector2(28, 426)
 	if ditch_kicker != null:
 		ditch_kicker.visible = lawn
-		ditch_kicker.position = Vector2(28, 478)
+		ditch_kicker.position = Vector2(28, 508)
 	if lawn:
-		_layout_chips(guide_chips, PackedStringArray(["5 + 3", "5", "3", "NONE"]), Vector2(20, 416))
+		_layout_chips(guide_chips, PackedStringArray(["5 + 3", "5", "3", "NONE"]), Vector2(20, 446))
 		_paint_chips(guide_chips, guide)
-		_layout_chips(ditch_chips, PackedStringArray(["ON", "OFF"]), Vector2(20, 498))
+		_layout_chips(ditch_chips, PackedStringArray(["ON", "OFF"]), Vector2(20, 528))
 		_paint_chips(ditch_chips, 0 if ditch_on else 1)
 	else:
 		for chip in guide_chips:
@@ -1063,11 +1060,11 @@ func _layout_setup_rows(lawn: bool, classic: bool, match_captions: PackedStringA
 		for chip in skill_chips:
 			chip.visible = false
 	if big_play != null:
-		big_play.position = Vector2(20, 740)
+		big_play.position = Vector2(20, 770)
 	if friend_button != null:
-		friend_button.position = Vector2(20, 818)
+		friend_button.position = Vector2(20, 848)
 	if duo_note != null:
-		duo_note.position = Vector2(20, 818)
+		duo_note.position = Vector2(20, 848)
 
 
 func _paint_rinks() -> void:
@@ -1584,27 +1581,15 @@ func _column_page(top: float, bottom: float) -> Dictionary:
 
 
 func _back_on(page: Control, target: String) -> void:
-	var shield := ColorRect.new()
-	shield.position = Vector2(0, 0)
-	shield.size = Vector2(540, 88)
-	shield.color = Color(0.04, 0.08, 0.16, 0.92)
-	shield.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	page.add_child(shield)
-	var hairline := ColorRect.new()
-	hairline.position = Vector2(0, 86)
-	hairline.size = Vector2(540, 2)
-	hairline.color = GOLD
-	hairline.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	page.add_child(hairline)
 	var button := _button("‹  Back", 14)
-	button.position = Vector2(16, 24)
+	button.position = Vector2(16, 16)
 	button.size = Vector2(110, 40)
-	_paint_button(button, PLUM, BLUE, CREAM, 18, 10)
+	_paint_button(button, Color(0.06, 0.12, 0.24, 0.72), BLUE, CREAM, 18, 10)
 	button.pressed.connect(_show.bind(target))
 	page.add_child(button)
 	var mark := _mark_rect()
-	mark.position = Vector2(150, 6)
-	mark.size = Vector2(240, 76)
+	mark.position = Vector2(80, 2)
+	mark.size = Vector2(380, 118)
 	page.add_child(mark)
 
 
