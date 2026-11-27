@@ -19,8 +19,11 @@ const DISC_CENTER_Y := 0.016
 const DITCH_Y := -0.006
 const PLAYER_START_Z := 12.35 * INCH
 const LANE_HALF := 3.2 * INCH
-const DISCS_PER_PLAYER := 12
-const DISCS_PER_ROUND := 12
+const DISCS_PER_PLAYER := 8
+const DISCS_PER_ROUND := 8
+const ROUNDS_PER_GAME := 4
+const YOU_TINT := Color("#f4ece6")
+const THEM_TINT := Color("#6b3a18")
 const MOVE_THRESHOLD := DISC_RADIUS * 0.7
 
 const MIN_SPEED := 1.15
@@ -58,7 +61,7 @@ static func sit_y(in_ditch: bool) -> float:
 
 
 static func club_disc_mesh(player_disc: bool, kit_index: int) -> Mesh:
-	var bank: Array = club_dark if player_disc else club_light
+	var bank: Array = club_light if player_disc else club_dark
 	if bank.is_empty():
 		bank = club_light if player_disc else club_dark
 	if bank.is_empty():
@@ -81,6 +84,15 @@ static func points_for(distance_from_center: float, sunk: bool) -> int:
 
 static func inside_15(distance_from_center: float) -> bool:
 	return distance_from_center + DISC_RADIUS <= RING_15
+
+
+static func touches_15(distance_from_center: float) -> bool:
+	# A legal clear-board shot may touch the 15 line, not only sit inside it.
+	return distance_from_center - DISC_RADIUS <= RING_15
+
+
+static func start_radius() -> float:
+	return SURFACE_RADIUS - DISC_RADIUS
 
 static func plastic(color: Color, roughness: float, emission: float = 0.0) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()

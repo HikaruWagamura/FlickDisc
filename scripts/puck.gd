@@ -55,7 +55,24 @@ func in_15_or_20() -> bool:
 		return false
 	if sunk:
 		return true
-	return Metrics.inside_15(flat().length())
+	return Metrics.touches_15(flat().length())
+
+
+func park_twenty(index: int) -> void:
+	sunk = true
+	moving = false
+	in_ditch = false
+	removed = false
+	velocity = Vector3.ZERO
+	scale = Vector3.ONE
+	var side := 1.0 if is_player else -1.0
+	var col := index % 4
+	var row := int(index / 4)
+	position = Vector3(
+		side * (Metrics.DITCH_OUTER * 0.62 + float(col) * Metrics.DISC_RADIUS * 2.2),
+		Metrics.DISC_CENTER_Y,
+		Metrics.DITCH_OUTER * 0.22 + float(row) * Metrics.DISC_RADIUS * 2.2
+	)
 
 func displaced_from_start() -> float:
 	return flat().distance_to(start_flat)
@@ -110,20 +127,12 @@ func sink_into_hole() -> void:
 func _build_visual() -> void:
 	_visual = Node3D.new()
 	add_child(_visual)
-	if is_player:
-		var kit: Dictionary = Kit.from_meta(Engine.get_main_loop() as SceneTree)
-		if Kit.uses_custom_disc(kit):
-			var kit_look: Dictionary = Kit.disc_colors(kit)
-			var center: Color = kit_look["center"]
-			tint = center
-			_build_kit_disc(kit)
-			return
 	if _wear_club():
 		return
-	var body_color := Color("#f3e6cf")
-	var rim_color := Color("#c4a574")
-	var center_color := Color("#3d5cff")
-	var ring_color := Color("#f0d48a")
+	var body_color := tint
+	var rim_color := Color("#c4a574") if is_player else Color("#3a1c0c")
+	var center_color := Color("#fff8f0") if is_player else Color("#4a2410")
+	var ring_color := Color("#e8d2a8") if is_player else Color("#8a5228")
 
 	var body := CylinderMesh.new()
 	body.top_radius = Metrics.DISC_RADIUS

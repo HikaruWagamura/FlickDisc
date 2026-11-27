@@ -1003,7 +1003,8 @@ func _sync_setup() -> void:
 		difficulty_button.text = _difficulty_options()[difficulty]
 	var match_captions := PackedStringArray(["1 END", "4 ENDS", "TO 10", "TO 21"])
 	if rink == "crokinole":
-		match_captions = PackedStringArray(["TO 50", "TO 100", "TO 150"])
+		match_captions = PackedStringArray(["4 ROUNDS"])
+		race = 0
 	if race >= match_captions.size():
 		race = mini(1, match_captions.size() - 1)
 	if race_button != null:
@@ -1050,6 +1051,7 @@ func _layout_setup_rows(lawn: bool, classic: bool, match_captions: PackedStringA
 			chip.visible = false
 	if match_kicker != null:
 		match_kicker.visible = true
+		match_kicker.text = "GAME" if not lawn else "MATCH"
 		match_kicker.position = Vector2(28, match_y)
 	_layout_chips(match_chips, match_captions, Vector2(20, match_y + 22.0))
 	_paint_chips(match_chips, race)
@@ -1091,7 +1093,7 @@ func _difficulty_options() -> PackedStringArray:
 func _race_options() -> PackedStringArray:
 	if rink == "lawn":
 		return PackedStringArray(["1 end", "4 ends", "First to 10", "First to 21"])
-	return PackedStringArray(["Quick — first to 50", "Standard — first to 100", "Long — first to 150"])
+	return PackedStringArray(["Four rounds make a game"])
 
 
 func _set_difficulty(index: int) -> void:

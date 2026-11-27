@@ -1,13 +1,12 @@
 extends Node
 
-## A 1v1 Crokinole round. Twelve discs each, empty board, same seats
-## every end. Match length lives on the Play sheet, not here.
+## A 1v1 FlickDisc round. Eight discs each, cream versus brown.
 
 const LEVELS := [
 	{
 		"number": 1,
 		"difficulty": "1v1",
-		"discs": 12,
+		"discs": 8,
 		"opponents": [],
 	},
 ]

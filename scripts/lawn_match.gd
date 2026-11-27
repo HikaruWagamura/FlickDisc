@@ -2126,7 +2126,7 @@ func _print_roll_facing(tag: String) -> void:
 		return
 	var vel := Vector3(disc.velocity.x, 0.0, disc.velocity.z)
 	var vel_yaw := -atan2(vel.x, -vel.z) if vel.length() > 0.05 else -atan2(disc.travel_facing.x, -disc.travel_facing.z)
-	var face := disc.travel_facing
+	var face: Vector3 = disc.travel_facing
 	var face_yaw := -atan2(face.x, -face.z) if face.length() > 0.01 else 0.0
 	print("ROLLFACE %s pos=%.2f,%.2f speed=%.2f vel_yaw=%.3f face_yaw=%.3f" % [
 		tag, disc.global_position.x, disc.global_position.z, vel.length(), vel_yaw, face_yaw

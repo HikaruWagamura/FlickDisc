@@ -37,8 +37,10 @@ var _callout_word: Label
 var _callout_tag: Label
 var _callout_used: Dictionary = {}
 var _callout_tween: Tween
-var you_left := 12
-var them_left := 12
+var you_left := 8
+var them_left := 8
+var rules_layer: Control
+var rules_button: Button
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -48,9 +50,9 @@ func _ready() -> void:
 	menu_button.add_theme_stylebox_override("normal", _button_style(Color("#ff4d9a"), Color("#ffd0e8")))
 	menu_button.add_theme_color_override("font_color", Color("#1a0a12"))
 	menu_button.pressed.connect(_open_pause)
-	level_label = _make_label(Vector2(300.0, 10.0), Vector2(216.0, 22.0), 16, Color("#f7fbff"), "END 01")
+	level_label = _make_label(Vector2(300.0, 10.0), Vector2(216.0, 22.0), 16, Color("#f7fbff"), "ROUND 01")
 	level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	throws_label = _make_label(Vector2(300.0, 34.0), Vector2(216.0, 18.0), 12, Color("#8fd7ea"), "YOU 12   THEM 12")
+	throws_label = _make_label(Vector2(300.0, 34.0), Vector2(216.0, 18.0), 12, Color("#8fd7ea"), "YOU 8   THEM 8")
 	throws_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 
 	status_label = _make_label(Vector2(22.0, 58.0), Vector2(496.0, 22.0), 13, Color("#FFF6FF"), "")
@@ -73,15 +75,20 @@ func _ready() -> void:
 	stop_button.add_theme_color_override("font_pressed_color", Color("#fff7fb"))
 	stop_button.pressed.connect(func() -> void: stop_requested.emit())
 	stop_button.visible = false
-	next_button.text = "NEXT END"
+	next_button.text = "NEXT ROUND"
 	_build_overview()
 	_build_pause()
 	_build_power()
 	_build_callout()
+	_build_rules()
+	rules_button = _make_button("?", Vector2(232.0, 10.0), Vector2(36.0, 32.0))
+	rules_button.add_theme_font_size_override("font_size", 20)
+	rules_button.z_index = 50
+	rules_button.pressed.connect(_toggle_rules)
 
 func show_touch(level_number: int, discs_left: int, you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0, them_remaining: int = -1, rule: String = "") -> void:
 	hide_overview()
-	status_label.text = rule if rule != "" else "PULL THE DISC  •  FIVE STRAIGHT"
+	status_label.text = rule if rule != "" else "PULL BACK  •  LET GO TO SHOOT"
 	show_match_status(level_number, discs_left, you_board, far_board, match_you, match_them, them_remaining)
 	reset_button.text = "RESET"
 	reset_button.visible = true
@@ -90,14 +97,14 @@ func show_touch(level_number: int, discs_left: int, you_board: int = 0, far_boar
 	show_power(0.0)
 
 func show_sliding() -> void:
-	status_label.text = "PULL THE DISC  •  FIVE STRAIGHT"
+	status_label.text = "SLIDE ON YOUR LINE  •  THEN PULL"
 
 
 func show_aim_ready() -> void:
 	status_label.text = "PULL THE DISC"
 
 func show_take() -> void:
-	status_label.text = "PULL BACK  •  RELEASE TO FLICK"
+	status_label.text = "PULL BACK  •  LET GO TO SHOOT"
 	_show_stop(false)
 
 func show_lane(level_number: int, discs_left: int, difficulty: String = "", you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0) -> void:
@@ -112,8 +119,8 @@ func _show_stop(_rolling: bool) -> void:
 
 func show_ready(level_number: int, discs_left: int, difficulty: String = "", you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0) -> void:
 	hide_overview()
-	var layout := difficulty.to_upper() if difficulty != "" else "CROKINOLE"
-	status_label.text = "END %02d  •  %s  •  PULL YOUR DISC" % [level_number, layout]
+	var layout := difficulty.to_upper() if difficulty != "" else "FLICKDISC"
+	status_label.text = "ROUND %02d  •  %s  •  PULL YOUR DISC" % [level_number, layout]
 	show_match_status(level_number, discs_left, you_board, far_board, match_you, match_them)
 	reset_button.text = "RESET"
 	reset_button.visible = true
@@ -123,15 +130,15 @@ func show_match_status(level_number: int, discs_left: int, you_board: int = 0, f
 	you_left = discs_left
 	if them_remaining >= 0:
 		them_left = them_remaining
-	level_label.text = "END %02d" % level_number
+	level_label.text = "ROUND %02d" % level_number
 	if discs_left <= 0 and them_left <= 0:
-		throws_label.text = "END"
+		throws_label.text = "ROUND"
 	else:
 		throws_label.text = "YOU %d   THEM %d" % [discs_left, them_left]
-	score_label.text = "BOARD %d–%d    MATCH %d–%d" % [you_board, far_board, match_you, match_them]
+	score_label.text = "BOARD %d–%d    GAME %d–%d" % [you_board, far_board, match_you, match_them]
 
 func show_aiming(_power_ratio: float) -> void:
-	status_label.text = "RELEASE TO FLICK"
+	status_label.text = "LET GO TO SHOOT"
 
 func _process(_delta: float) -> void:
 	if power_track == null:
@@ -213,34 +220,42 @@ func show_in_motion() -> void:
 
 func show_landed(shot_points: int, sunk: bool, ditched: bool, foul: String = "") -> void:
 	if foul == "no_hit":
-		status_label.text = "NO HIT  •  DISC COMES OFF"
+		status_label.text = "NO HIT  •  SHOT AND EVERYTHING STRUCK COME OFF"
 	elif foul == "not_inner":
-		status_label.text = "NOT IN 15  •  DISC COMES OFF"
+		status_label.text = "NOT IN 15  •  SHOT COMES OFF"
 	elif sunk:
 		status_label.text = "20 IN THE HOLE"
+	elif shot_points >= 15:
+		status_label.text = "IN 15"
+	elif shot_points == 10:
+		status_label.text = "10"
+	elif shot_points == 5:
+		status_label.text = "5"
 	elif shot_points > 0:
 		status_label.text = "LANDED FOR %d" % shot_points
 	elif ditched:
-		status_label.text = "IN THE DITCH  •  NO POINTS"
+		status_label.text = "IN THE DITCH"
 	else:
-		status_label.text = "ON THE LINE  •  NO POINTS"
+		status_label.text = "ON THE LINE  •  LOWER RING"
 	next_button.visible = false
 
 func hide_overview() -> void:
 	_count_token += 1
 	if overview != null:
 		overview.visible = false
+	show_rules(false)
 
 func show_end_overview(end_number: int, layout_name: String, you_items: Array, them_items: Array, award_you: int, award_them: int, match_you: int, match_them: int, match_target: int, has_next: bool) -> void:
 	_count_token += 1
 	var token := _count_token
 	_show_stop(false)
+	show_rules(false)
 	overview.visible = true
-	overview_title.text = "END %d" % end_number
-	overview_rules.text = "%s\nHIT THEIR COLOUR OR YOUR SHOT COMES OFF.\nCLEAR BOARD: 15 OR THE 20-HOLE.\n20 IN THE HOLE   •   15   •   10   •   5\nA DISC ON A LINE SCORES THE LOWER RING.\nTHE END SCORES THE DIFFERENCE." % layout_name.to_upper()
+	overview_title.text = "ROUND %d" % end_number
+	overview_rules.text = "%s\nTHEIR DISC ON: YOU MUST HIT IT.\nBOARD CLEAR: REACH 15 OR THE 20.\n20 IN THE HOLE   •   15   •   10   •   5\nA DISC ON A LINE SCORES THE LOWER RING.\nROUND WINNER +2   •   TIE +1 EACH   •   4 ROUNDS." % layout_name.to_upper()
 	overview_body.text = ""
 	_set_overview_height(230.0)
-	status_label.text = "END %d  •  COUNTING THE BOARD" % end_number
+	status_label.text = "ROUND %d  •  COUNTING THE BOARD" % end_number
 	reset_button.text = "REPLAY"
 	reset_button.visible = true
 	next_button.visible = false
@@ -263,23 +278,24 @@ func _play_end_count(token: int, end_number: int, you_items: Array, them_items: 
 	await get_tree().create_timer(0.4).timeout
 	if token != _count_token:
 		return
-	var verdict := "END IS LEVEL    +0"
-	if award_you > 0:
-		verdict = "YOU TAKE THE END    +%d" % award_you
-	elif award_them > 0:
-		verdict = "FAR SIDE TAKES THE END    +%d" % award_them
-	var match_line := "[color=#ffe27a]%s[/color]\n\n[color=#f7fbff]MATCH TO %d[/color]\n[color=#f7fbff]YOU %d[/color]          [color=#8fd7ea]FAR %d[/color]" % [verdict, match_target, match_you, match_them]
-	if match_you >= match_target and match_you >= match_them:
-		match_line += "\n[color=#ffe27a]YOU WIN THE MATCH[/color]"
-	elif match_them >= match_target and match_them > match_you:
-		match_line += "\n[color=#ffe27a]FAR SIDE WINS THE MATCH[/color]"
+	var verdict := "ROUND IS LEVEL    +1 EACH"
+	if award_you == 2:
+		verdict = "YOU TAKE THE ROUND    +2"
+	elif award_them == 2:
+		verdict = "FAR SIDE TAKES THE ROUND    +2"
+	var match_line := "[color=#ffe27a]%s[/color]\n\n[color=#f7fbff]GAME TO %d ROUNDS[/color]\n[color=#f7fbff]YOU %d[/color]          [color=#8fd7ea]FAR %d[/color]" % [verdict, match_target, match_you, match_them]
+	if end_number >= match_target:
+		if match_you >= match_them:
+			match_line += "\n[color=#ffe27a]YOU WIN THE GAME[/color]"
+		else:
+			match_line += "\n[color=#ffe27a]FAR SIDE WINS THE GAME[/color]"
 	overview_body.text = built + match_line
 	await _fit_overview()
 	if token != _count_token:
 		return
-	status_label.text = "END %d  •  %s" % [end_number, verdict]
-	next_button.visible = has_next
-	next_button.text = "NEXT END"
+	status_label.text = "ROUND %d  •  %s" % [end_number, verdict]
+	next_button.visible = true
+	next_button.text = "NEXT ROUND" if has_next else "NEW GAME"
 
 func _count_side(token: int, built: String, title: String, items: Array) -> String:
 	var block := "[color=#9fd8cc]%s[/color]\n" % title
@@ -418,6 +434,7 @@ func _open_pause() -> void:
 	if pause_layer != null and pause_layer.visible:
 		_resume_game()
 		return
+	show_rules(false)
 	if pause_layer != null:
 		pause_layer.visible = true
 	get_tree().paused = true
@@ -432,6 +449,90 @@ func _resume_game() -> void:
 func _leave_to_hub() -> void:
 	_resume_game()
 	leave_requested.emit()
+
+
+func _toggle_rules() -> void:
+	show_rules(rules_layer == null or not rules_layer.visible)
+
+
+func show_rules(open: bool) -> void:
+	if rules_layer == null:
+		return
+	rules_layer.visible = open
+	if open:
+		if pause_layer != null:
+			pause_layer.visible = false
+		get_tree().paused = true
+	elif pause_layer == null or not pause_layer.visible:
+		get_tree().paused = false
+
+
+func _build_rules() -> void:
+	rules_layer = Control.new()
+	rules_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	rules_layer.visible = false
+	rules_layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	rules_layer.process_mode = Node.PROCESS_MODE_ALWAYS
+	rules_layer.z_index = 45
+	add_child(rules_layer)
+	var dim := ColorRect.new()
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0.04, 0.02, 0.08, 0.86)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	dim.gui_input.connect(func(event: InputEvent) -> void:
+		if event is InputEventMouseButton and event.pressed:
+			show_rules(false)
+	)
+	rules_layer.add_child(dim)
+	var card := Panel.new()
+	card.position = Vector2(22.0, 72.0)
+	card.size = Vector2(496.0, 780.0)
+	card.mouse_filter = Control.MOUSE_FILTER_STOP
+	var sheet := StyleBoxFlat.new()
+	sheet.bg_color = Color("#1a120e")
+	sheet.border_color = Color("#e8d2a8")
+	sheet.set_border_width_all(2)
+	sheet.set_corner_radius_all(18)
+	card.add_theme_stylebox_override("panel", sheet)
+	rules_layer.add_child(card)
+	var title := Label.new()
+	title.text = "FLICKDISC"
+	title.position = Vector2(24.0, 18.0)
+	title.size = Vector2(448.0, 36.0)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 28)
+	title.add_theme_color_override("font_color", Color("#fff6e8"))
+	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(title)
+	var tag := Label.new()
+	tag.text = "HOW TO PLAY"
+	tag.position = Vector2(24.0, 52.0)
+	tag.size = Vector2(448.0, 20.0)
+	tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	tag.add_theme_font_size_override("font_size", 13)
+	tag.add_theme_color_override("font_color", Color("#c4a574"))
+	tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(tag)
+	var body := RichTextLabel.new()
+	body.bbcode_enabled = true
+	body.fit_content = true
+	body.scroll_active = false
+	body.position = Vector2(22.0, 80.0)
+	body.size = Vector2(452.0, 590.0)
+	body.add_theme_font_size_override("normal_font_size", 15)
+	body.add_theme_color_override("default_color", Color("#f4ece6"))
+	body.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	body.text = "[center]You are cream. They are brown. Eight discs each.\nFour rounds make a game.[/center]\n\n[color=#c4a574]SHOOT[/color]\nSit your disc on your outer line. Slide it along that line, then pull back and let go. The five bars show weight.\n\n[color=#c4a574]THEIR DISC IS ON[/color]\nYou must hit their colour, direct or off another disc. Miss, and your shot and every disc that was struck come off — even a 20.\n\n[color=#c4a574]BOARD CLEAR[/color]\nYour shot, or a disc it struck, must finish touching or inside 15, or go in the 20. If not, those discs come off.\n\n[color=#c4a574]SCORE[/color]\n20 in the hole  •  15  •  10  •  5\nA disc on a line scores the lower ring.\nTouch or cross the outer line and you are in the ditch — no score.\n20s sit in a pile and count at the end of the round.\n\n[color=#c4a574]THE ROUND[/color]\nBoard plus 20s. Winner +2. Tie +1 each."
+	card.add_child(body)
+	var close := Button.new()
+	close.text = "GOT IT"
+	close.position = Vector2(48.0, 696.0)
+	close.size = Vector2(400.0, 56.0)
+	close.add_theme_font_size_override("font_size", 20)
+	close.add_theme_stylebox_override("normal", _button_style(Color("#f4ece6"), Color("#c4a574")))
+	close.add_theme_color_override("font_color", Color("#1a120e"))
+	close.pressed.connect(func() -> void: show_rules(false))
+	card.add_child(close)
 
 
 func _make_scrim(rect: Rect2, color: Color) -> void:

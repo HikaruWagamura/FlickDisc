@@ -3,11 +3,9 @@ extends Node3D
 signal goal_cleared
 signal match_decided(you_won: bool)
 
-## Crokinole match. Twelve discs each, one colour. You must hit their colour
-## if any of theirs are on the surface, or your shot comes off. With the
-## board clear of their discs you may go for 15 or the 20-hole. Both colours
-## count, a disc on a line scores the lower ring, and only the difference
-## is added to the match.
+## FlickDisc round board. Eight discs each, cream versus brown. Pull and
+## the five bars stay. Legal shots, 20s, and the round score follow the
+## posted rules.
 
 const Metrics = preload("res://scripts/table_metrics.gd")
 const LevelScript = preload("res://scripts/crokinole_levels.gd")
@@ -32,7 +30,7 @@ var match_them := 0
 var end_applied := false
 var last_award_you := 0
 var last_award_them := 0
-var match_target := 100
+var match_target := 4
 var start_level := 0
 var goal := ""
 var goal_sent := false
@@ -55,6 +53,7 @@ var required_hit := false
 var required_inner := false
 var shot_hit_opp := false
 var shot_hit_speed := 0.0
+var shot_struck: Array = []
 var _test_hold_turns := false
 const PULL_BACK := 0.42
 const AIM_CONE := 0.58
@@ -246,6 +245,8 @@ func _solve_pucks() -> void:
 			var relative := Vector2(first.velocity.x - second.velocity.x, first.velocity.z - second.velocity.z)
 			var approach := relative.dot(normal)
 			if approach > 0.0:
+				_mark_struck(first)
+				_mark_struck(second)
 				var opposite: bool = bool(first.is_player) != bool(second.is_player)
 				if opposite:
 					shot_hit_opp = true
@@ -377,7 +378,7 @@ func _wire_shot() -> void:
 
 
 func _on_place_at(spot: Vector3) -> void:
-	place_x = clampf(spot.x, -Metrics.LANE_HALF, Metrics.LANE_HALF)
+	place_x = clampf(atan2(spot.x, maxf(spot.z, 0.02)), -PI * 0.25, PI * 0.25)
 	_snap_disc()
 	ui.show_sliding()
 
@@ -416,13 +417,40 @@ func _on_shot_fired(power: float, _needle: float) -> void:
 func _snap_disc() -> void:
 	if active_puck == null:
 		return
-	active_puck.set_flat(Vector2(place_x, Metrics.PLAYER_START_Z))
+	active_puck.set_flat(_spot_on_arc(place_x, true))
 	active_puck.rotation.y = 0.0
 	disc.global_position = active_puck.global_position
+	if gesture != null:
+		gesture.anchor = disc.global_position
+
+
+func _spot_on_arc(angle: float, south: bool) -> Vector2:
+	var r := Metrics.start_radius()
+	var a := clampf(angle, -PI * 0.25, PI * 0.25)
+	if south:
+		return Vector2(sin(a) * r, cos(a) * r)
+	return Vector2(sin(a) * r, -cos(a) * r)
+
+
+func _rest_flat() -> Vector2:
+	return _spot_on_arc(place_x, true)
+
+
+func _rest_pos() -> Vector3:
+	var at := _rest_flat()
+	return Vector3(at.x, 0.02, at.y)
+
+
+func _pull_flat(power: float) -> Vector2:
+	var at := _rest_flat()
+	if at.length() < 0.001:
+		return at + Vector2(0.0, power * PULL_BACK)
+	return at + at.normalized() * power * PULL_BACK
 
 
 func _aim_from(needle: float) -> Vector3:
-	var toward := Vector2(-place_x, -Metrics.PLAYER_START_Z)
+	var at := _spot_on_arc(place_x, true)
+	var toward := Vector2(-at.x, -at.y)
 	if toward.length() < 0.001:
 		toward = Vector2(0.0, -1.0)
 	var base := Vector3(toward.x, 0.0, toward.y).normalized()
@@ -449,14 +477,14 @@ func _sync_fan() -> void:
 	if gesture.direct:
 		_sync_direct()
 		return
-	var placed := Vector3(place_x, 0.02, Metrics.PLAYER_START_Z)
+	var placed := _rest_pos()
 	gesture.anchor = placed
 	var phase := str(gesture.phase)
 	var live: bool = active_puck != null and not resolving and not bool(disc.shot_in_progress) and phase != "busy"
 	var pulling: bool = phase == "pull"
 	var power: float = gesture.read_power() if pulling else 0.0
 	if live:
-		active_puck.set_flat(Vector2(place_x, Metrics.PLAYER_START_Z + power * PULL_BACK))
+		active_puck.set_flat(_pull_flat(power))
 		active_puck.rotation.y = 0.0
 		disc.global_position = active_puck.global_position
 		if pulling:
@@ -489,7 +517,7 @@ func _sync_fan() -> void:
 
 
 func _sync_direct() -> void:
-	var placed := Vector3(place_x, 0.02, Metrics.PLAYER_START_Z)
+	var placed := _rest_pos()
 	gesture.anchor = placed
 	var phase := str(gesture.phase)
 	var live: bool = active_puck != null and not resolving and not bool(disc.shot_in_progress) and phase != "busy"
@@ -507,7 +535,7 @@ func _sync_direct() -> void:
 			if feel != null:
 				feel.aim(power)
 		else:
-			active_puck.set_flat(Vector2(place_x, Metrics.PLAYER_START_Z))
+			active_puck.set_flat(_rest_flat())
 			active_puck.rotation.y = 0.0
 			disc.global_position = active_puck.global_position
 			disc.show_aim_line(Vector3.ZERO, false)
@@ -543,7 +571,7 @@ func _clear_pucks() -> void:
 
 func _spawn_puck(player_disc: bool, spot: Vector2):
 	var puck = PuckScript.new()
-	var tint_color := player_tint if player_disc else Color("#3d5cff")
+	var tint_color := Metrics.YOU_TINT if player_disc else Metrics.THEM_TINT
 	var kit_index := 0
 	for other in pucks:
 		if bool(other.is_player) == player_disc:
@@ -556,7 +584,7 @@ func _spawn_puck(player_disc: bool, spot: Vector2):
 	return puck
 
 func _spot_free(spot: Vector2) -> bool:
-	if spot.length() > Metrics.SURFACE_RADIUS - Metrics.DISC_RADIUS - 0.01:
+	if spot.length() > Metrics.start_radius() + 0.004:
 		return false
 	for peg in Metrics.peg_positions():
 		if spot.distance_to(Vector2(peg.x, peg.z)) < Metrics.PEG_RADIUS + Metrics.DISC_RADIUS + 0.02:
@@ -569,19 +597,12 @@ func _spot_free(spot: Vector2) -> bool:
 	return true
 
 func _start_spot() -> Vector2:
-	var candidates: Array[Vector2] = [
-		Vector2(0.0, Metrics.PLAYER_START_Z),
-		Vector2(0.14, 0.66),
-		Vector2(-0.14, 0.66),
-		Vector2(0.26, 0.62),
-		Vector2(-0.26, 0.62),
-		Vector2(0.36, 0.64),
-		Vector2(-0.36, 0.64),
-	]
-	for candidate in candidates:
+	var angles := [0.0, 0.12, -0.12, 0.22, -0.22, 0.35, -0.35]
+	for angle in angles:
+		var candidate := _spot_on_arc(float(angle), true)
 		if _spot_free(candidate):
 			return candidate
-	return candidates[0]
+	return _spot_on_arc(0.0, true)
 
 func _begin_ready() -> void:
 	place_x = 0.0
@@ -589,7 +610,8 @@ func _begin_ready() -> void:
 	_snap_disc()
 	if gesture != null:
 		gesture.arm()
-		gesture.anchor = Vector3(0.0, 0.02, Metrics.PLAYER_START_Z)
+		var at := _spot_on_arc(place_x, true)
+		gesture.anchor = Vector3(at.x, 0.02, at.y)
 	ui.show_touch(end_number, discs_left, _side_total(true), _side_total(false), match_you, match_them, opponent_left, _rule_prompt(false))
 
 
@@ -600,7 +622,7 @@ func _arm_next_disc(_announce := true) -> void:
 		active_puck = null
 		disc.bind_puck(null)
 		return
-	active_puck = _spawn_puck(true, Vector2(0.0, Metrics.PLAYER_START_Z))
+	active_puck = _spawn_puck(true, _spot_on_arc(0.0, true))
 	disc.bind_puck(active_puck)
 	_show_board()
 	_begin_ready()
@@ -704,9 +726,7 @@ func _begin_opponent_shot() -> void:
 	if token != _ai_token or not is_inside_tree():
 		return
 	opponent_left = maxi(0, opponent_left - 1)
-	var spread := Metrics.LANE_HALF * 0.55
-	var x := randf_range(-spread, spread)
-	var spot := Vector2(x, -Metrics.PLAYER_START_Z)
+	var spot := _spot_on_arc(randf_range(-PI * 0.18, PI * 0.18), false)
 	var puck = _spawn_puck(false, spot)
 	var plan := _ai_plan(puck.global_position)
 	var aim: Vector3 = plan["aim"]
@@ -770,10 +790,17 @@ func _surface_pucks(player_side: bool, except = null) -> Array:
 		found.append(puck)
 	return found
 
+func _mark_struck(puck) -> void:
+	if puck == null or puck in shot_struck:
+		return
+	shot_struck.append(puck)
+
+
 func _begin_shot_rules(puck) -> void:
 	shooting_puck = puck
 	shot_hit_opp = false
 	shot_hit_speed = 0.0
+	shot_struck.clear()
 	required_hit = false
 	required_inner = false
 	if puck != null:
@@ -797,7 +824,7 @@ func _shot_touched_opponent() -> bool:
 			continue
 		if bool(puck.is_player) == bool(shooting_puck.is_player):
 			continue
-		if puck.sunk or puck.in_ditch:
+		if puck in shot_struck:
 			return true
 		if puck.displaced_from_start() > Metrics.MOVE_THRESHOLD:
 			return true
@@ -806,35 +833,57 @@ func _shot_touched_opponent() -> bool:
 func _apply_shot_rules() -> String:
 	if shooting_puck == null:
 		return ""
-	if required_inner and not shooting_puck.in_15_or_20():
-		shooting_puck.take_off()
+	if required_inner and not _inner_satisfied():
+		_take_off_struck()
 		if ui != null:
 			ui.slap("foul")
 		return "not_inner"
 	if required_hit and not _shot_touched_opponent():
-		_take_off_displaced_own()
-		shooting_puck.take_off()
+		_take_off_struck()
 		if ui != null:
 			ui.slap("foul")
 		return "no_hit"
+	_park_twenties()
 	return ""
 
-func _take_off_displaced_own() -> void:
-	if shooting_puck == null:
-		return
+
+func _inner_satisfied() -> bool:
+	if shooting_puck != null and shooting_puck.in_15_or_20():
+		return true
+	for puck in shot_struck:
+		if puck != null and puck.in_15_or_20():
+			return true
+	return false
+
+
+func _take_off_struck() -> void:
+	if shooting_puck != null:
+		shooting_puck.take_off()
+	for puck in shot_struck:
+		if puck == null or puck == shooting_puck:
+			continue
+		puck.take_off()
+
+
+func _park_twenties() -> void:
+	var you_n := 0
+	var them_n := 0
 	for puck in pucks:
-		if puck == shooting_puck or puck.removed:
+		if puck == null or not bool(puck.sunk) or bool(puck.removed):
 			continue
-		if bool(puck.is_player) != bool(shooting_puck.is_player):
-			continue
-		if puck.displaced_from_start() > Metrics.MOVE_THRESHOLD:
-			puck.take_off()
+		if bool(puck.is_player):
+			puck.park_twenty(you_n)
+			you_n += 1
+		else:
+			puck.park_twenty(them_n)
+			them_n += 1
+
 
 func _rule_prompt(for_opponent: bool) -> String:
 	var foes := _surface_pucks(for_opponent)
 	if foes.size() > 0:
-		return "HIT THEIR DISC  •  OR YOURS COMES OFF"
-	return "BOARD IS CLEAR  •  15 OR THE HOLE"
+		return "THEIR DISC IS ON  •  YOU MUST HIT IT"
+	return "BOARD CLEAR  •  REACH 15 OR THE 20"
 
 func _show_board() -> void:
 	ui.show_match_status(end_number, discs_left, _side_total(true), _side_total(false), match_you, match_them, opponent_left)
@@ -847,19 +896,22 @@ func _present_end() -> void:
 	var award_you := 0
 	var award_them := 0
 	if you > them:
-		award_you = you - them
+		award_you = 2
 	elif them > you:
-		award_them = them - you
+		award_them = 2
+	else:
+		award_you = 1
+		award_them = 1
 	if not end_applied:
 		match_you += award_you
 		match_them += award_them
 		last_award_you = award_you
 		last_award_them = award_them
 		end_applied = true
-	var has_next := true
+	var has_next := end_number < Metrics.ROUNDS_PER_GAME
 	if feel != null:
 		feel.settled(0.4)
-	ui.show_end_overview(end_number, "1v1", you_items, them_items, award_you, award_them, match_you, match_them, match_target, has_next)
+	ui.show_end_overview(end_number, "FLICKDISC", you_items, them_items, award_you, award_them, match_you, match_them, Metrics.ROUNDS_PER_GAME, has_next)
 	_show_board()
 	_check_shot_goal()
 	_check_match_winner()
@@ -894,18 +946,19 @@ func _check_shot_goal() -> void:
 
 
 func _check_match_winner() -> void:
-	var you_won := match_you >= match_target and match_you >= match_them
-	var they_won := match_them >= match_target and match_them > match_you
-	if (you_won or they_won) and not match_reported:
-		match_reported = true
-		match_decided.emit(you_won)
+	if end_number < Metrics.ROUNDS_PER_GAME:
+		return
+	if match_reported:
+		return
+	match_reported = true
+	match_decided.emit(match_you >= match_them)
 
 
 func _on_reset_requested() -> void:
 	_load_level(current_level_index)
 
 func _on_next_level_requested() -> void:
-	if match_you >= match_target or match_them >= match_target:
+	if end_number >= Metrics.ROUNDS_PER_GAME:
 		match_you = 0
 		match_them = 0
 		match_reported = false
@@ -974,6 +1027,13 @@ func _crokrules() -> void:
 	if active_puck == null:
 		_arm_next_disc()
 	ui.status_label.text = _rule_prompt(false)
+	if ui != null:
+		ui.show_rules(true)
+	_show_board()
+	await RenderingServer.frame_post_draw
+	await _dump_cue_shot("crok_rules")
+	if ui != null:
+		ui.show_rules(false)
 	_show_board()
 	await RenderingServer.frame_post_draw
 	await _dump_cue_shot("crok_board_clear")
@@ -1020,7 +1080,7 @@ func _crokrules() -> void:
 	var target: Vector3 = plan["target"]
 	print("RULETEST ai_aim_x=%.3f ai_target_x=%.3f ai_power=%.2f toward_player=%s" % [aim.x, target.x, plan["power"], target.x > 0.2])
 	ui.slap("disc", 2.4)
-	ui.status_label.text = "HIT THEIR DISC  •  OR YOURS COMES OFF"
+	ui.status_label.text = "THEIR DISC IS ON  •  YOU MUST HIT IT"
 	await get_tree().process_frame
 	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
@@ -1053,10 +1113,10 @@ func _cuetest() -> void:
 	_snap_disc()
 	ui.status_label.text = ""
 	var steps := [
-		{"power": 0.18, "aim": Vector3(0.0, 0.0, -1.0), "file": "crok_blocks_light", "title": "CROKINOLE  •  LIGHT  •  STRAIGHT"},
-		{"power": 0.52, "aim": Vector3(0.12, 0.0, -1.0), "file": "crok_blocks_mid", "title": "CROKINOLE  •  MID  •  STRAIGHT"},
-		{"power": 0.94, "aim": Vector3(0.0, 0.0, -1.0), "file": "crok_blocks_ahead", "title": "CROKINOLE  •  FULL  •  STRAIGHT"},
-		{"power": 0.94, "aim": Vector3(-0.18, 0.0, -1.0), "file": "crok_blocks_left", "title": "CROKINOLE  •  FULL  •  AIM LEFT"},
+		{"power": 0.18, "aim": Vector3(0.0, 0.0, -1.0), "file": "crok_blocks_light", "title": "FLICKDISC  •  LIGHT  •  STRAIGHT"},
+		{"power": 0.52, "aim": Vector3(0.12, 0.0, -1.0), "file": "crok_blocks_mid", "title": "FLICKDISC  •  MID  •  STRAIGHT"},
+		{"power": 0.94, "aim": Vector3(0.0, 0.0, -1.0), "file": "crok_blocks_ahead", "title": "FLICKDISC  •  FULL  •  STRAIGHT"},
+		{"power": 0.94, "aim": Vector3(-0.18, 0.0, -1.0), "file": "crok_blocks_left", "title": "FLICKDISC  •  FULL  •  AIM LEFT"},
 	]
 	for step in steps:
 		var aim: Vector3 = step["aim"]

@@ -91,9 +91,8 @@ func _play(setup: Dictionary) -> void:
 	current = packed.instantiate()
 	current.goal = str(setup.get("goal", ""))
 	if rink_name == "crokinole":
-		current.match_target = int(setup.get("target", 100))
+		current.match_target = 4
 		current.start_level = int(setup.get("level", 0))
-		current.player_tint = profile.disc_color()
 		current.set_meta("flickdisc_kit", profile.kit())
 	else:
 		current.match_index = int(setup.get("match_index", 1))
