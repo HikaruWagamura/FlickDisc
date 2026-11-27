@@ -662,7 +662,7 @@ func _build_clubhouse() -> void:
 
 	var plaque := _lit(Color(0.10, 0.22, 0.38), 0.45, 0.1)
 	_box(club, Vector3(0.0, 3.15, front_z + 0.02), Vector3(4.4, 0.62, 0.08), plaque, Vector3.ZERO, false)
-	var sign := _label("FLICKDISC", 0.42)
+	var sign := _label("BOWL & ROLL", 0.34)
 	sign.position = Vector3(0.0, 3.15, front_z + 0.1)
 	club.add_child(sign)
 

@@ -35,7 +35,7 @@ var start_level := 0
 var goal := ""
 var goal_sent := false
 var match_reported := false
-var player_tint := Color("#ff3d9a")
+var player_tint := Color("#d4222a")
 var feel
 var _hit_wait := 0.0
 var gesture
@@ -911,7 +911,7 @@ func _present_end() -> void:
 	var has_next := end_number < Metrics.ROUNDS_PER_GAME
 	if feel != null:
 		feel.settled(0.4)
-	ui.show_end_overview(end_number, "FLICKDISC", you_items, them_items, award_you, award_them, match_you, match_them, Metrics.ROUNDS_PER_GAME, has_next)
+	ui.show_end_overview(end_number, "CROCK & HOLE", you_items, them_items, award_you, award_them, match_you, match_them, Metrics.ROUNDS_PER_GAME, has_next)
 	_show_board()
 	_check_shot_goal()
 	_check_match_winner()
@@ -1113,10 +1113,10 @@ func _cuetest() -> void:
 	_snap_disc()
 	ui.status_label.text = ""
 	var steps := [
-		{"power": 0.18, "aim": Vector3(0.0, 0.0, -1.0), "file": "crok_blocks_light", "title": "FLICKDISC  •  LIGHT  •  STRAIGHT"},
-		{"power": 0.52, "aim": Vector3(0.12, 0.0, -1.0), "file": "crok_blocks_mid", "title": "FLICKDISC  •  MID  •  STRAIGHT"},
-		{"power": 0.94, "aim": Vector3(0.0, 0.0, -1.0), "file": "crok_blocks_ahead", "title": "FLICKDISC  •  FULL  •  STRAIGHT"},
-		{"power": 0.94, "aim": Vector3(-0.18, 0.0, -1.0), "file": "crok_blocks_left", "title": "FLICKDISC  •  FULL  •  AIM LEFT"},
+		{"power": 0.18, "aim": Vector3(0.0, 0.0, -1.0), "file": "crok_blocks_light", "title": "CROCK & HOLE  •  LIGHT  •  STRAIGHT"},
+		{"power": 0.52, "aim": Vector3(0.12, 0.0, -1.0), "file": "crok_blocks_mid", "title": "CROCK & HOLE  •  MID  •  STRAIGHT"},
+		{"power": 0.94, "aim": Vector3(0.0, 0.0, -1.0), "file": "crok_blocks_ahead", "title": "CROCK & HOLE  •  FULL  •  STRAIGHT"},
+		{"power": 0.94, "aim": Vector3(-0.18, 0.0, -1.0), "file": "crok_blocks_left", "title": "CROCK & HOLE  •  FULL  •  AIM LEFT"},
 	]
 	for step in steps:
 		var aim: Vector3 = step["aim"]

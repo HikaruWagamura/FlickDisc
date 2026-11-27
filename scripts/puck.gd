@@ -18,11 +18,11 @@ var stop_timer := 0.0
 var played := false
 var start_flat := Vector2.ZERO
 
-var tint := Color("#ff3d9a")
+var tint := Color("#d4222a")
 var _kit_index := 0
 var _visual: Node3D
 
-func setup(player_disc: bool, disc_tint: Color = Color("#ff3d9a"), kit_index: int = 0) -> void:
+func setup(player_disc: bool, disc_tint: Color = Color("#d4222a"), kit_index: int = 0) -> void:
 	is_player = player_disc
 	tint = disc_tint
 	_kit_index = kit_index

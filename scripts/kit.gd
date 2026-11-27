@@ -19,7 +19,7 @@ const SLOT_COUNT := 4
 static var active_slot := 0
 
 const PALETTES := [
-	{"id": "pink", "name": "Club pink", "a": Color("#ff3d9a"), "b": Color("#fff6f0")},
+	{"id": "club", "name": "Club red", "a": Color("#e12a32"), "b": Color("#fff6f0")},
 	{"id": "red", "name": "Match red", "a": Color("#c41018"), "b": Color("#f4ece6")},
 	{"id": "crimson", "name": "Crimson", "a": Color("#7a1020"), "b": Color("#f0e4d8")},
 	{"id": "tangerine", "name": "Tangerine", "a": Color("#e85a12"), "b": Color("#fff3e6")},

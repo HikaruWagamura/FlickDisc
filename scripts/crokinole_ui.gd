@@ -47,8 +47,8 @@ func _ready() -> void:
 	_make_scrim(Rect2(0.0, 0.0, 540.0, 108.0), Color(0.03, 0.02, 0.04, 0.72))
 
 	var menu_button := _make_button("MENU", Vector2(16.0, 10.0), Vector2(104.0, 32.0))
-	menu_button.add_theme_stylebox_override("normal", _button_style(Color("#ff4d9a"), Color("#ffd0e8")))
-	menu_button.add_theme_color_override("font_color", Color("#1a0a12"))
+	menu_button.add_theme_stylebox_override("normal", _button_style(Color("#F5C84B"), Color("#FFE9A0")))
+	menu_button.add_theme_color_override("font_color", Color("#1A1208"))
 	menu_button.pressed.connect(_open_pause)
 	level_label = _make_label(Vector2(300.0, 10.0), Vector2(216.0, 22.0), 16, Color("#f7fbff"), "ROUND 01")
 	level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
@@ -67,9 +67,9 @@ func _ready() -> void:
 
 	stop_button = _make_button("STOP", Vector2(144.0, 852.0), Vector2(250.0, 40.0))
 	stop_button.add_theme_font_size_override("font_size", 20)
-	stop_button.add_theme_stylebox_override("normal", _button_style(Color("#ff2f86"), Color("#ffd0e8")))
-	stop_button.add_theme_stylebox_override("hover", _button_style(Color("#ff5aa3"), Color("#ffe4f2")))
-	stop_button.add_theme_stylebox_override("pressed", _button_style(Color("#c41068"), Color("#ffd0e8")))
+	stop_button.add_theme_stylebox_override("normal", _button_style(Color("#E12A32"), Color("#FF8A90")))
+	stop_button.add_theme_stylebox_override("hover", _button_style(Color("#F03A42"), Color("#FFB0B4")))
+	stop_button.add_theme_stylebox_override("pressed", _button_style(Color("#B41C24"), Color("#FF8A90")))
 	stop_button.add_theme_color_override("font_color", Color("#fff7fb"))
 	stop_button.add_theme_color_override("font_hover_color", Color("#fff7fb"))
 	stop_button.add_theme_color_override("font_pressed_color", Color("#fff7fb"))
@@ -119,7 +119,7 @@ func _show_stop(_rolling: bool) -> void:
 
 func show_ready(level_number: int, discs_left: int, difficulty: String = "", you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0) -> void:
 	hide_overview()
-	var layout := difficulty.to_upper() if difficulty != "" else "FLICKDISC"
+	var layout := difficulty.to_upper() if difficulty != "" else "CROCK & HOLE"
 	status_label.text = "ROUND %02d  •  %s  •  PULL YOUR DISC" % [level_number, layout]
 	show_match_status(level_number, discs_left, you_board, far_board, match_you, match_them)
 	reset_button.text = "RESET"
@@ -193,19 +193,19 @@ func show_power(ratio: float) -> void:
 func _paint_power_fill(amount: float) -> void:
 	var gradient := Gradient.new()
 	var ice := Color(0.75, 0.95, 1.0)
-	var lilac := Color(0.78, 0.55, 1.0)
-	var pink := Color(1.0, 0.24, 0.60)
+	var blue := Color(0.18, 0.42, 1.0)
+	var gold := Color(0.96, 0.78, 0.29)
 	var red := Color(0.85, 0.08, 0.18)
 	gradient.set_color(0, ice)
 	if amount < 0.5:
-		gradient.set_color(gradient.get_point_count() - 1, ice.lerp(lilac, clampf(amount / 0.5, 0.0, 1.0)))
+		gradient.set_color(gradient.get_point_count() - 1, ice.lerp(blue, clampf(amount / 0.5, 0.0, 1.0)))
 	elif amount < 0.82:
-		gradient.add_point(0.45, lilac)
-		gradient.set_color(gradient.get_point_count() - 1, lilac.lerp(pink, clampf((amount - 0.5) / 0.32, 0.0, 1.0)))
+		gradient.add_point(0.45, blue)
+		gradient.set_color(gradient.get_point_count() - 1, blue.lerp(gold, clampf((amount - 0.5) / 0.32, 0.0, 1.0)))
 	else:
-		gradient.add_point(0.42, lilac)
-		gradient.add_point(0.78, pink)
-		gradient.set_color(gradient.get_point_count() - 1, pink.lerp(red, clampf((amount - 0.82) / 0.18, 0.0, 1.0)))
+		gradient.add_point(0.42, blue)
+		gradient.add_point(0.78, gold)
+		gradient.set_color(gradient.get_point_count() - 1, gold.lerp(red, clampf((amount - 0.82) / 0.18, 0.0, 1.0)))
 	var texture := GradientTexture2D.new()
 	texture.gradient = gradient
 	texture.width = 24
@@ -349,7 +349,7 @@ func _build_overview() -> void:
 	var accent := ColorRect.new()
 	accent.position = Vector2(0.0, 0.0)
 	accent.size = Vector2(492.0, 4.0)
-	accent.color = Color("#ff2f9a")
+	accent.color = Color("#F5C84B")
 	accent.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overview.add_child(accent)
 
@@ -415,8 +415,8 @@ func _build_pause() -> void:
 	resume.position = Vector2(70.0, 380.0)
 	resume.size = Vector2(400.0, 64.0)
 	resume.add_theme_font_size_override("font_size", 20)
-	resume.add_theme_stylebox_override("normal", _button_style(Color("#ff4d9a"), Color("#ffd0e8")))
-	resume.add_theme_color_override("font_color", Color("#1a0a12"))
+	resume.add_theme_stylebox_override("normal", _button_style(Color("#F5C84B"), Color("#FFE9A0")))
+	resume.add_theme_color_override("font_color", Color("#1A1208"))
 	resume.pressed.connect(_resume_game)
 	pause_layer.add_child(resume)
 	var hub := Button.new()
@@ -496,7 +496,7 @@ func _build_rules() -> void:
 	card.add_theme_stylebox_override("panel", sheet)
 	rules_layer.add_child(card)
 	var title := Label.new()
-	title.text = "FLICKDISC"
+	title.text = "CROCK & HOLE"
 	title.position = Vector2(24.0, 18.0)
 	title.size = Vector2(448.0, 36.0)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -694,11 +694,11 @@ func _build_callout() -> void:
 	_callout_card.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_callout_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var card := StyleBoxFlat.new()
-	card.bg_color = Color(1.0, 0.96, 0.98, 0.96)
-	card.border_color = Color("#ff2e8a")
+	card.bg_color = Color(0.06, 0.12, 0.24, 0.96)
+	card.border_color = Color("#F5C84B")
 	card.set_border_width_all(5)
 	card.set_corner_radius_all(18)
-	card.shadow_color = Color(1.0, 0.2, 0.55, 0.35)
+	card.shadow_color = Color(0.95, 0.72, 0.18, 0.35)
 	card.shadow_size = 12
 	_callout_card.add_theme_stylebox_override("panel", card)
 	_callout_root.add_child(_callout_card)
@@ -708,7 +708,7 @@ func _build_callout() -> void:
 	_callout_word.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_callout_word.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_callout_word.add_theme_font_size_override("font_size", 42)
-	_callout_word.add_theme_color_override("font_color", Color("#ff2e8a"))
+	_callout_word.add_theme_color_override("font_color", Color("#F5C84B"))
 	_callout_word.add_theme_color_override("font_outline_color", Color("#1a0a12"))
 	_callout_word.add_theme_constant_override("outline_size", 8)
 	_callout_word.mouse_filter = Control.MOUSE_FILTER_IGNORE

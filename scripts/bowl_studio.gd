@@ -9,11 +9,11 @@ const FONT_ANTON := preload("res://assets/fonts/Anton-Regular.ttf")
 const FONT_INTER := preload("res://assets/fonts/Inter-Regular.ttf")
 const FONT_BOLD := preload("res://assets/fonts/Inter-Bold.ttf")
 
-const PINK := Color("#FF3D9A")
-const PINK_DEEP := Color("#FF2E8A")
-const PLUM := Color(0.24, 0.04, 0.12, 0.96)
-const MUTED := Color("#F7D4EA")
-const CREAM := Color("#FFF6FF")
+const GOLD := Color("#F5C84B")
+const BLUE_LIT := Color("#2A7BFF")
+const PLUM := Color(0.08, 0.16, 0.34, 0.96)
+const MUTED := Color("#A9C6EA")
+const CREAM := Color("#F4F7FF")
 const FACE := 256
 
 const INKS := [
@@ -568,31 +568,31 @@ func _paint() -> void:
 		caption.text = "SLOT %d  ·  %s  ·  %s  ·  this is your match bowl" % [slot_index + 1, face_name, tool.to_upper()]
 	for i in slot_buttons.size():
 		var on: bool = i == slot_index
-		_paint_button(slot_buttons[i], PINK if on else PLUM, Color("#ffe4f4") if on else Color(1, 1, 1, 0.18), CREAM, 12, 8, 2 if on else 1)
+		_paint_button(slot_buttons[i], GOLD if on else PLUM, Color("#FFE9A0") if on else Color(1, 1, 1, 0.18), CREAM, 12, 8, 2 if on else 1)
 		slot_buttons[i].text = "SLOT %d" % (i + 1)
 	for i in face_buttons.size():
 		var id := "a" if i == 0 else "b"
 		var on: bool = face == id
-		_paint_button(face_buttons[i], PINK if on else PLUM, Color("#ffe4f4") if on else Color(1, 1, 1, 0.18), CREAM, 11, 8, 2 if on else 1)
+		_paint_button(face_buttons[i], GOLD if on else PLUM, Color("#FFE9A0") if on else Color(1, 1, 1, 0.18), CREAM, 11, 8, 2 if on else 1)
 	for chip in place_buttons:
 		var id := str(chip.get_meta("place_id"))
 		var on: bool = place == id
-		_paint_button(chip, PINK if on else PLUM, Color("#ffe4f4") if on else Color(1, 1, 1, 0.18), CREAM if on else MUTED, 11, 8, 2 if on else 1)
+		_paint_button(chip, GOLD if on else PLUM, Color("#FFE9A0") if on else Color(1, 1, 1, 0.18), CREAM if on else MUTED, 11, 8, 2 if on else 1)
 	var tool_ids := ["draw", "erase", "fill", "clear"]
 	for i in tool_buttons.size():
 		var on: bool = tool == str(tool_ids[i])
-		_paint_button(tool_buttons[i], PINK if on else PLUM, Color("#ffe4f4") if on else Color(1, 1, 1, 0.18), CREAM, 12, 8, 2 if on else 1)
+		_paint_button(tool_buttons[i], GOLD if on else PLUM, Color("#FFE9A0") if on else Color(1, 1, 1, 0.18), CREAM, 12, 8, 2 if on else 1)
 	for i in size_buttons.size():
 		var on: bool = brush == int(BRUSHES[i])
-		_paint_button(size_buttons[i], PINK if on else PLUM, Color("#ffe4f4") if on else Color(1, 1, 1, 0.18), CREAM, 13, 8, 2 if on else 1)
+		_paint_button(size_buttons[i], GOLD if on else PLUM, Color("#FFE9A0") if on else Color(1, 1, 1, 0.18), CREAM, 13, 8, 2 if on else 1)
 	for i in ink_buttons.size():
 		var color: Color = INKS[i]
 		var on: bool = ink.is_equal_approx(color)
-		_paint_button(ink_buttons[i], color, Color("#ffe4f4") if on else Color(1, 1, 1, 0.22), CREAM, 20, 0, 3 if on else 1)
+		_paint_button(ink_buttons[i], color, Color("#FFE9A0") if on else Color(1, 1, 1, 0.22), CREAM, 20, 0, 3 if on else 1)
 	if upload_button != null:
-		_paint_button(upload_button, PINK_DEEP, Color("#ffe4f4"), CREAM, 12, 8, 2)
+		_paint_button(upload_button, BLUE_LIT, Color("#8EC4FF"), CREAM, 12, 8, 2)
 	if copy_button != null:
-		_paint_button(copy_button, PLUM, Color("#ffe4f4"), CREAM, 12, 8, 2)
+		_paint_button(copy_button, PLUM, Color("#FFE9A0"), CREAM, 12, 8, 2)
 	for chip in stamp_buttons:
 		_paint_button(chip, PLUM, Color(1, 1, 1, 0.18), CREAM, 11, 8, 1)
 
@@ -744,7 +744,7 @@ func _label(text: String, font_size: int, color: Color, font: Font) -> Label:
 func _paint_button(button: Button, fill: Color, border: Color, font_color: Color, radius: int, side: int, width: int = 1) -> void:
 	button.add_theme_stylebox_override("normal", _flat(fill, border, width, radius, side))
 	button.add_theme_stylebox_override("hover", _flat(fill.lightened(0.12), border, width, radius, side))
-	button.add_theme_stylebox_override("pressed", _flat(fill.darkened(0.08), PINK, width, radius, side))
+	button.add_theme_stylebox_override("pressed", _flat(fill.darkened(0.08), GOLD, width, radius, side))
 	button.add_theme_stylebox_override("disabled", _flat(fill, border, width, radius, side))
 	button.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	button.add_theme_color_override("font_color", font_color)

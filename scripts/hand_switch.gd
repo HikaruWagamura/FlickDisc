@@ -62,8 +62,8 @@ func _draw_plate() -> void:
 	plate.set_anchors_preset(Control.PRESET_FULL_RECT)
 	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var box := StyleBoxFlat.new()
-	box.bg_color = Color(0.10, 0.05, 0.18, 0.90)
-	box.border_color = Color("#ff2e8a")
+	box.bg_color = Color(0.06, 0.12, 0.24, 0.90)
+	box.border_color = Color("#F5C84B")
 	box.set_border_width_all(1)
 	box.set_corner_radius_all(12)
 	plate.add_theme_stylebox_override("panel", box)

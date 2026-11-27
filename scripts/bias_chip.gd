@@ -74,7 +74,7 @@ func _draw() -> void:
 
 func _draw_hook(origin: Vector2) -> void:
 	var bend: float = float(HOOK[index % HOOK.size()])
-	var color := Color("#FF2E8A") if selected else Color(0.75, 0.85, 1.0, 0.7)
+	var color := Color("#F5C84B") if selected else Color(0.75, 0.85, 1.0, 0.7)
 	var points := PackedVector2Array()
 	for i in 7:
 		var t := float(i) / 6.0

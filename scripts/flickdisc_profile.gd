@@ -1,18 +1,18 @@
 extends RefCounted
 
-## Local FlickDisc profile. Wins, challenges, and the disc colour stay on this device.
+## Local Bowl & Roll profile. Wins, challenges, and the disc colour stay on this device.
 
 const Kit := preload("res://scripts/kit.gd")
 
 const COLORS: Array[Color] = [
-	Color("#ff3d9a"),
+	Color("#e12a32"),
 	Color("#c41018"),
 	Color("#5ad4ea"),
 	Color("#d4a017"),
 	Color("#7a3dff"),
 	Color("#f4f4f6"),
 ]
-const COLOR_NAMES: PackedStringArray = ["Club pink", "Match red", "Ice", "Gold", "Violet", "Chalk"]
+const COLOR_NAMES: PackedStringArray = ["Club red", "Match red", "Ice", "Gold", "Violet", "Chalk"]
 const CHALLENGE_XP := {"hole": 25, "fifteen": 15, "draw": 20}
 
 var player_name := "Flicker"
@@ -20,7 +20,7 @@ var wins := 0
 var losses := 0
 var xp := 0
 var rounds := 0
-var disc_index := 0
+var disc_index := 1
 var bowl_color := 1
 var bowl_skin := "club"
 var disc_skin := "club"

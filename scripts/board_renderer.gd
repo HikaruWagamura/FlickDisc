@@ -544,7 +544,7 @@ func _build_rail() -> void:
 	inlay.outer_radius = Metrics.DITCH_OUTER + 0.065
 	inlay.rings = 72
 	inlay.ring_segments = 10
-	Metrics.add_mesh(self, inlay, Metrics.plastic(Color("#ff2f9a"), 0.18, 1.15), Vector3(0.0, 0.028, 0.0))
+	Metrics.add_mesh(self, inlay, Metrics.plastic(Color("#e8c56a"), 0.18, 1.15), Vector3(0.0, 0.028, 0.0))
 
 func _build_pegs() -> void:
 	for peg_position in Metrics.peg_positions():

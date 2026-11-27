@@ -817,11 +817,11 @@ func _make_button(button_text: String, button_position: Vector2, button_size: Ve
 
 
 func _paint_sync(button: Button, hot: bool) -> void:
-	var fill := Color("#FF2E8A") if hot else Color(0.30, 0.08, 0.48, 0.94)
-	var border := Color("#FFE4F6") if hot else Color("#5CFFF2")
+	var fill := Color("#2A7BFF") if hot else Color(0.08, 0.16, 0.34, 0.94)
+	var border := Color("#F5C84B") if hot else Color("#5CFFF2")
 	button.add_theme_stylebox_override("normal", _pill(fill, border))
 	button.add_theme_stylebox_override("hover", _pill(fill.lightened(0.12), border))
-	button.add_theme_stylebox_override("pressed", _pill(Color("#FF5CAA"), Color("#FFFFFF")))
+	button.add_theme_stylebox_override("pressed", _pill(Color("#E0A21A"), Color("#FFFFFF")))
 	button.add_theme_color_override("font_color", Color("#FFF6FF"))
 	button.add_theme_color_override("font_hover_color", Color("#FFF6FF"))
 	button.add_theme_color_override("font_pressed_color", Color("#1A0610"))
@@ -843,7 +843,7 @@ func _pill(fill: Color, border: Color) -> StyleBoxFlat:
 	var style := _button_style(fill, border)
 	style.set_border_width_all(2)
 	style.set_corner_radius_all(20)
-	style.shadow_color = Color(1.0, 0.15, 0.45, 0.28)
+	style.shadow_color = Color(0.95, 0.72, 0.18, 0.28)
 	style.shadow_size = 6
 	return style
 
