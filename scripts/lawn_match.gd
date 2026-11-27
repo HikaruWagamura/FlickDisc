@@ -956,21 +956,22 @@ func _play_computer(token: int) -> void:
 
 
 func _ai_ring() -> float:
-	# Painted head is 1.32 m. Sit in those rings, not on the jack.
+	# Painted head is 1.32 m. Hard sits in those rings. Normal and easy
+	# may rest well outside the white circle.
 	if difficulty == 0:
-		return 2.05
+		return 3.55
 	if difficulty >= 2:
 		return 0.98
-	return 1.28
+	return 2.85
 
 
 func _ai_want() -> float:
 	# Near the rings, not too close. Crashing the jack threw every end wide.
 	if difficulty == 0:
-		return 1.55
+		return 2.35
 	if difficulty >= 2:
 		return 0.68
-	return 0.95
+	return 1.75
 
 
 func _ai_nearest(side: int) -> float:
@@ -1087,7 +1088,37 @@ func _ai_pick() -> Dictionary:
 	if absf(live_rest.x) > lip or disc.will_ditch(from, try_aim, try_power, disc.bias_ratio):
 		try_aim = best_aim
 		try_power = best_power
-	return {"aim": try_aim, "power": try_power, "hand": best_hand, "bias": best_bias}
+	return _ai_scatter(from, jack_at, try_aim, try_power, disc.bias_ratio, best_hand, best_bias)
+
+
+func _ai_scatter(from: Vector3, jack_at: Vector3, aim: Vector3, power: float, bias: float, hand: float, bowl_i: int) -> Dictionary:
+	if difficulty >= 2:
+		return {"aim": aim, "power": power, "hand": hand, "bias": bowl_i}
+	var line_span := 1.05
+	var power_span := 0.07
+	if difficulty == 0:
+		line_span = 1.55
+		power_span = 0.11
+	var along := maxf(from.z - jack_at.z, 8.0)
+	var keep: float = float(rink.HALF_WIDTH) - 1.35
+	var chosen_aim := aim
+	var chosen_power := power
+	for _try in 10:
+		var line_off := randf_range(-line_span, line_span)
+		var try_power := clampf(power + randf_range(-power_span, power_span), 0.16, 0.94)
+		var try_aim := Vector3(aim.x + line_off / along, 0.0, aim.z)
+		if try_aim.length() < 0.01:
+			continue
+		try_aim = try_aim.normalized()
+		if disc.will_ditch(from, try_aim, try_power, bias):
+			continue
+		var rest: Vector3 = disc.predict_rest(from, try_aim, try_power, bias)
+		if absf(rest.x) > keep:
+			continue
+		chosen_aim = try_aim
+		chosen_power = try_power
+		break
+	return {"aim": chosen_aim, "power": chosen_power, "hand": hand, "bias": bowl_i}
 
 
 func _begin_drive() -> void:
@@ -1732,6 +1763,37 @@ func _endtest() -> void:
 	get_tree().quit(0)
 
 
+func _print_fire_take(from: Vector3) -> void:
+	disc.configure_bowl(3, -1.0)
+	var bias: float = disc.bias_ratio
+	var aim := Vector3(0.0, 0.0, -1.0)
+	for power in [0.55, 0.86, 0.95, 1.0]:
+		var pos := from
+		var vel: Vector3 = disc._delivery_velocity(aim, power)
+		var launch := Vector2(vel.x, vel.z).length()
+		var axis := Vector2(0.0, -1.0)
+		var marks := [0.90, 0.70, 0.50, 0.30, 0.12]
+		var seen := {}
+		for _i in 1100:
+			var speed := Vector2(vel.x, vel.z).length()
+			for mark in marks:
+				if seen.has(mark):
+					continue
+				if speed <= launch * float(mark):
+					seen[mark] = true
+					var along := from.z - pos.z
+					print("FIRETAKE power=%.2f launch=%.1f at=%.0f%% x=%.2f along=%.1f speed=%.1f" % [
+						power, launch, float(mark) * 100.0, pos.x, along, speed
+					])
+			if seen.size() >= marks.size() or speed < disc.STOP_SPEED:
+				break
+			var moved: Array = disc._move_planar(pos, vel, disc.radius, bias, true, 0.016, power, axis)
+			pos = moved[0]
+			vel = moved[1]
+		var rest: Vector3 = disc.predict_rest(from, aim, power, bias)
+		print("FIRETAKE power=%.2f rest_x=%.2f along=%.1f" % [power, rest.x, from.z - rest.z])
+
+
 func _drawtest() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -1766,6 +1828,7 @@ func _drawtest() -> void:
 		await _dump_compare_shot("draw_cue_%s" % _bowl_name(index).to_lower())
 	disc.configure_bowl(1, -1.0)
 	print("DRAWTEST reach cruise=%.1f fire=%.1f green=%.1f" % [disc.reach_for(0.86), disc.reach_for(1.0), -rink.FAR_Z + line_z])
+	_print_fire_take(from)
 	disc.configure_bowl(3, 1.0)
 	_compare_aim = Vector3(-0.18, 0.0, -1.0).normalized()
 	_compare_power = 0.82
@@ -2155,6 +2218,23 @@ func _aitest() -> void:
 	rink.place_head(Vector2(jack.global_position.x, jack.global_position.z))
 	disc.obstacles = _table()
 	throw_index = 1
+	for skill in [0, 1, 2]:
+		difficulty = skill
+		var inside := 0
+		var painted := 0
+		for n in 8:
+			var probe: Dictionary = _ai_pick()
+			disc.configure_bowl(int(probe["bias"]), float(probe["hand"]))
+			var from_p := Vector3(0.0, 0.0, line_z)
+			var rest_p: Vector3 = disc.predict_rest(from_p, probe["aim"], float(probe["power"]), disc.bias_ratio)
+			var dist_p := Vector2(rest_p.x, rest_p.z).distance_to(Vector2(jack.global_position.x, jack.global_position.z))
+			if dist_p <= _ai_ring():
+				inside += 1
+			if dist_p <= 1.32:
+				painted += 1
+			print("AITEST skill=%d n=%d dist=%.2f ring=%.2f painted=%s" % [skill, n, dist_p, _ai_ring(), str(dist_p <= 1.32)])
+		print("AITEST skill=%d in_zone=%d/8 in_rings=%d/8" % [skill, inside, painted])
+	difficulty = 1
 	for n in 3:
 		var pick: Dictionary = _ai_pick()
 		disc.configure_bowl(int(pick["bias"]), float(pick["hand"]))

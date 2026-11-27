@@ -16,7 +16,7 @@ const MAX_DRAG_PIXELS := 210.0
 ## a full pull must clear the far ditch and still have drive left.
 const MIN_SPEED := 8.2
 const CRUISE_SPEED := 16.0
-const FIRE_SPEED := 19.6
+const FIRE_SPEED := 23.52
 const MAX_SPEED := FIRE_SPEED
 const AIM_RESPONSE := 10.5
 ## Face the actual send. The pull is already dead opposite, so do not
@@ -32,9 +32,11 @@ const STOP_SPEED := 0.15
 const STOP_GRACE_SECONDS := 0.15
 const BANK_KEEP := 0.40
 ## Radians of turn per metre at bias 1. Even a Lazer has to arc.
-## Wider bowls keep curling harder for the whole run; finish is extra.
+## One law for every speed: faster stays a bit straighter, then the same
+## take as it dies. Not a special fire mode, and not zero at the top.
 const CURL_PER_METRE := 0.0048
 const CURL_DRAW := 1.48
+const CURL_HOT := 0.32
 const TAIL_FROM := 0.85
 const TAIL_SPEED := 7.2
 const TAIL_TURN := 5.8
@@ -687,8 +689,9 @@ func _damp(vel: Vector3, bias: float, delta: float, axis: Vector2 = Vector2.ZERO
 		axis = axis.normalized()
 	if absf(bias) > 0.001:
 		var top := MAX_SPEED * pace_scale * maxf(bowl_pace, 0.4)
-		var slow := clampf(1.0 - speed / top, 0.0, 1.0)
-		var curve := CURL_PER_METRE * (1.0 + CURL_DRAW * slow * slow)
+		var take := clampf(1.0 - speed / maxf(top, 0.01), 0.0, 1.0)
+		take *= take
+		var curve := CURL_PER_METRE * (CURL_HOT + (1.0 - CURL_HOT + CURL_DRAW) * take)
 		# Turn with the distance run. Negative bias is the forehand
 		# and bends to the player's left. The same bowl takes the same
 		# hand from a centre line or a wide one.

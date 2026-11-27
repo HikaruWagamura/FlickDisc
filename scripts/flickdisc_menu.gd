@@ -1086,7 +1086,7 @@ func _paint_choice_card(card: Button, tag: Label, selected: bool) -> void:
 
 func _difficulty_options() -> PackedStringArray:
 	if rink == "lawn":
-		return PackedStringArray(["Easy — a gentle draw", "Medium — takes the obvious shot", "Hard — ditch is open"])
+		return PackedStringArray(["Easy — can sit wide of the head", "Medium — around the head", "Hard — in the rings"])
 	return PackedStringArray(["Easy — leaves a gap", "Medium — takes the obvious shot", "Hard — guards the hole"])
 
 
