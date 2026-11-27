@@ -157,7 +157,7 @@ static func _paint_mesh(mi: MeshInstance3D, kit: Dictionary, for_disc: bool) -> 
 	mat.set_shader_parameter("color_a", pal["a"])
 	mat.set_shader_parameter("color_b", pal["b"])
 	mat.set_shader_parameter("look", int(look_info["look"]))
-	mat.set_shader_parameter("seam", 0.08)
+	mat.set_shader_parameter("seam", 0.02)
 	var skin_id := str(look_info["id"])
 	var graphic := graphic_texture(skin_id, pal["a"], pal["b"])
 	mat.set_shader_parameter("graphic_tex", graphic)

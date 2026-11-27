@@ -605,7 +605,7 @@ static func _club_finish_mat(index: int, mi: MeshInstance3D = null) -> ShaderMat
 	mat.set_shader_parameter("color_a", team_color(index))
 	mat.set_shader_parameter("color_b", cream)
 	mat.set_shader_parameter("look", 0)
-	mat.set_shader_parameter("seam", 0.06)
+	mat.set_shader_parameter("seam", 0.02)
 	_apply_pole_params(mat, mi)
 	var maps := _club_maps()
 	var tex: Texture2D = maps["red"] if index % 2 == 0 else maps["blue"]
@@ -613,7 +613,7 @@ static func _club_finish_mat(index: int, mi: MeshInstance3D = null) -> ShaderMat
 		tex = maps["albedo"]
 	mat.set_shader_parameter("graphic_tex", tex)
 	mat.set_shader_parameter("graphic_mix", 1.0 if tex != null else 0.0)
-	mat.set_shader_parameter("graphic_scale", 2.4)
+	mat.set_shader_parameter("graphic_scale", 1.0)
 	mat.set_shader_parameter("roughness_val", 0.34)
 	mat.set_shader_parameter("metallic_val", 0.05)
 	return mat
