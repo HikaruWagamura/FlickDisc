@@ -317,6 +317,8 @@ func _layout_shell() -> void:
 	if toast != null:
 		toast.position = Vector2(40.0, maxf(80.0, nav.position.y - 56.0))
 		toast.size = Vector2(wide - 80.0, 48.0)
+	if backdrop != null:
+		backdrop.queue_redraw()
 	var top_m := int(round(pad.x + 6.0))
 	var bot_m := 120
 	if nav != null:
@@ -344,22 +346,27 @@ func _layout_home(view: Vector2, pad: Vector2) -> void:
 	var floor := view.y - pad.y - 12.0
 	if nav != null:
 		floor = nav.position.y - 12.0
-	var play_h := 64.0
+	var extra := maxf(0.0, view.y - 960.0)
+	var play_h := clampf(64.0 + extra * 0.04, 64.0, 72.0)
 	var rec_h := 48.0
 	var gap := 10.0
+	var logo_h := clampf(220.0 + extra * 0.22, 208.0, 272.0)
+	var card_h := clampf(128.0 + extra * 0.30, 128.0, 188.0)
 	var inner := floor - y - play_h - rec_h - 8.0 - gap * 3.0
-	var logo_h := clampf(inner * 0.40, 176.0, 380.0)
-	var card_h := clampf((inner - logo_h) * 0.5, 112.0, 210.0)
-	if logo_h + card_h * 2.0 > inner:
-		logo_h = clampf(inner - card_h * 2.0, 160.0, logo_h)
-	if logo_h + card_h * 2.0 > inner:
-		card_h = maxf(108.0, (inner - logo_h) * 0.5)
-	var after_cards := gap + maxf(0.0, inner - logo_h - card_h * 2.0)
+	var slack := inner - logo_h - card_h * 2.0 - gap
+	if extra > 0.0 and slack > 20.0:
+		var bump := minf(slack * 0.50, 36.0)
+		card_h += bump
+		slack -= bump
+	if logo_h + card_h * 2.0 + gap > inner:
+		logo_h = clampf(inner - card_h * 2.0 - gap, 168.0, logo_h)
+	var after_cards := gap
 	home_mark.position = Vector2(40.0, y)
 	home_mark.size = Vector2(wide - 80.0, logo_h)
 	y += logo_h + 8.0
 	home_play.position = Vector2(28.0, y)
 	home_play.size = Vector2(wide - 56.0, play_h)
+	home_play.add_theme_font_size_override("font_size", int(round(clampf(22.0 + extra * 0.02, 22.0, 26.0))))
 	y += play_h + gap
 	var card_w := (wide - 28.0 - 16.0 - 12.0) * 0.5
 	if home_cards.size() >= 4:
@@ -380,6 +387,43 @@ func _place_home_card(card: Button, pos: Vector2, box: Vector2) -> void:
 	card.position = pos
 	card.size = box
 	card.custom_minimum_size = box
+	var s := clampf(box.y / 124.0, 1.0, 1.55)
+	var inset := 14.0
+	var stacked := box.y >= 150.0
+	var title_h := clampf(26.0 * s, 26.0, 36.0)
+	var stamp := clampf(64.0 * s, 64.0, 76.0)
+	if stacked:
+		stamp = clampf(box.y - title_h - 62.0, 78.0, 108.0)
+	var heading := card.get_node_or_null("Heading") as Label
+	if heading != null:
+		heading.position = Vector2(inset, 10.0)
+		heading.size = Vector2(box.x - inset * 2.0, title_h)
+		heading.add_theme_font_size_override("font_size", int(round(clampf(24.0 * s, 24.0, 30.0))))
+		heading.autowrap_mode = TextServer.AUTOWRAP_OFF
+		heading.clip_text = true
+		heading.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var detail := card.get_node_or_null("Detail") as Label
+	if detail != null:
+		detail.position = Vector2(inset, 8.0 + title_h)
+		if stacked:
+			detail.size = Vector2(box.x - inset * 2.0, 36.0)
+		else:
+			detail.size = Vector2(box.x - inset * 2.0 - stamp - 8.0, maxf(36.0, box.y - title_h - 20.0))
+		detail.add_theme_font_size_override("font_size", int(round(clampf(15.0 * s, 15.0, 18.0))))
+		detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	var art_x := box.x - inset - stamp
+	var art_y := 8.0 + title_h + maxf(0.0, (box.y - title_h - 18.0 - stamp) * 0.5)
+	if stacked:
+		art_x = (box.x - stamp) * 0.5
+		art_y = box.y - inset - stamp
+	var art := card.get_node_or_null("Art") as Control
+	if art != null:
+		art.position = Vector2(art_x, art_y)
+		art.size = Vector2(stamp, stamp)
+		art.queue_redraw()
+	var badge := card.get_node_or_null("Badge") as Label
+	if badge != null:
+		badge.visible = false
 
 
 func _process(_delta: float) -> void:
@@ -499,10 +543,10 @@ func _build_home() -> void:
 	)
 
 	home_cards = [
-		_home_card(page, Rect2(28, 444, 236, 124), "CRAZY BOWLS", "Eighteen holes. Bowl to the cup.", "crazy", "⛳", "crazy"),
-		_home_card(page, Rect2(276, 444, 236, 124), "SOLO ENDS", "One bowl. The jack.", "solo", "🎯", "solo"),
-		_home_card(page, Rect2(28, 584, 236, 124), "PRACTICE", "You and the jack.", "practice", "🔥", "practice"),
-		_home_card(page, Rect2(276, 584, 236, 124), "THE BOARD", "Wins. Ends. Runs.", "board", "🏆", "rankings"),
+		_home_card(page, Rect2(28, 444, 236, 124), "CRAZY BOWLS", "18 holes · par 70", "crazy", "⛳", "crazy"),
+		_home_card(page, Rect2(276, 444, 236, 124), "SOLO ENDS", "One bowl · the jack", "solo", "🎯", "solo"),
+		_home_card(page, Rect2(28, 584, 236, 124), "PRACTICE", "You and the jack", "practice", "🔥", "practice"),
+		_home_card(page, Rect2(276, 584, 236, 124), "THE BOARD", "Wins · ends · runs", "board", "🏆", "rankings"),
 	]
 
 	home_record = _label("0W  ·  0L", 18, CREAM, bold_font)
@@ -520,17 +564,20 @@ func _home_card(page: Control, rect: Rect2, title: String, body: String, stamp_k
 	_place(page, button, rect.position, rect.size)
 	_paint_button(button, PLUM, Color("#3A78E8"), CREAM, 20, 14, 2)
 	var heading := _label(title, 20, CREAM, title_font)
+	heading.name = "Heading"
 	heading.position = Vector2(14, 18)
 	heading.size = Vector2(rect.size.x - 96, 32)
 	heading.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	button.add_child(heading)
 	var detail := _label(body, 13, MUTED, body_font)
+	detail.name = "Detail"
 	detail.position = Vector2(14, 54)
 	detail.size = Vector2(rect.size.x - 96, 56)
 	detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	detail.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	button.add_child(detail)
 	var art := Stamp.new()
+	art.name = "Art"
 	art.kind = stamp_kind
 	art.lit = true
 	art.position = Vector2(rect.size.x - 90, 26)
@@ -538,6 +585,7 @@ func _home_card(page: Control, rect: Rect2, title: String, body: String, stamp_k
 	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	button.add_child(art)
 	var badge := _glyph(glyph, 32)
+	badge.name = "Badge"
 	badge.position = Vector2(rect.size.x - 84, 38)
 	badge.size = Vector2(60, 48)
 	badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -2262,8 +2310,10 @@ class Stamp extends Control:
 		var navy := Color("#163A88")
 		draw_circle(mid, r, Color(navy.r, navy.g, navy.b, 0.95 if lit else 0.55))
 		draw_circle(mid, r * 0.86, Color(0.04, 0.10, 0.22, 0.92 if lit else 0.72))
+		draw_circle(mid + Vector2(-r * 0.22, -r * 0.28), r * 0.38, Color(1, 1, 1, 0.08))
 		if lit:
-			draw_arc(mid, r - 1.2, 0.0, TAU, 40, gold, 2.2, true)
+			var ring := clampf(r * 0.07, 2.2, 3.4)
+			draw_arc(mid, r - ring * 0.45, 0.0, TAU, 64, gold, ring, true)
 		match kind:
 			"home":
 				_house(mid, r * 0.62, cream)
