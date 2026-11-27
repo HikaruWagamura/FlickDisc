@@ -1765,11 +1765,17 @@ func _layout_chips(chips: Array, captions: PackedStringArray, pos: Vector2) -> v
 		if i < count:
 			chip.visible = true
 			chip.text = captions[i]
-			chip.position = Vector2(pos.x + float(i) * (wide + gap), pos.y)
-			chip.size = Vector2(wide, 48)
+			chip.clip_text = true
+			chip.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+			# Min size first: a leftover 500px min from "4 ROUNDS" would
+			# clamp size and stack 1 END under 4 ENDS.
 			chip.custom_minimum_size = Vector2(wide, 48)
+			chip.size = Vector2(wide, 48)
+			chip.position = Vector2(pos.x + float(i) * (wide + gap), pos.y)
 		else:
 			chip.visible = false
+			chip.custom_minimum_size = Vector2(0, 48)
+			chip.size = Vector2(0, 48)
 
 
 func _wrapped(text: String) -> Label:
