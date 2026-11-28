@@ -8,11 +8,11 @@ extends Node
 const CommentaryScript := preload("res://scripts/commentary.gd")
 const CrowdScript := preload("res://scripts/crowd.gd")
 const PRAISE_POOL := {
-	0: ["okay", "not_bad"],
-	1: ["great", "great_shot"],
-	2: ["great", "fantastic"],
-	3: ["amazing", "wow"],
-	4: ["outstanding", "perfect", "my_god"],
+	0: ["not_bad", "good", "okay"],
+	1: ["good", "great", "nice"],
+	2: ["great", "good", "fantastic"],
+	3: ["amazing", "wow", "excellent"],
+	4: ["outstanding", "perfect", "my_god", "incredible"],
 }
 
 var roll_amount := 0.0
@@ -129,6 +129,11 @@ func contact(speed: float, hit_jack: bool, hit_bank: bool) -> void:
 	else:
 		_play("hit", lerpf(1.35, 0.78, amount), -9.0)
 		_vibrate(int(round(lerpf(14.0, 34.0, amount))))
+		if crowd != null:
+			if speed > 3.6:
+				crowd.play("clap")
+			elif speed > 1.4:
+				crowd.play("polite")
 
 
 func toucher() -> String:
@@ -143,9 +148,12 @@ func toucher() -> String:
 	return ""
 
 
-func praise(level: int) -> String:
+func praise(level: int, skippable: bool = false) -> String:
 	unlock()
 	crowd_for(level)
+	# Quiet bowls still get a crowd, but not a line every time.
+	if skippable and level <= 1 and randf() < 0.38:
+		return ""
 	var said := _say_from(_pool_for(level))
 	if said != "":
 		if level >= 3:

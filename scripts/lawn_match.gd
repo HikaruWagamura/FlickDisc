@@ -785,30 +785,30 @@ func _cheer_rest(distance: float, ditched: bool, yours: bool, rest_pos: Vector3 
 	if delivering_jack or ditched or _shout_toucher:
 		return _shout_toucher
 	var level := _praise_level(distance)
+	var through := _went_through_jack(rest_pos)
+	if yours and _just_stole_shot(distance):
+		level = maxi(level, 1)
+	if through and level < 2:
+		level = -1
 	if level < 0:
-		if yours and distance < 3.6 and feel != null:
+		if yours and distance < 7.0 and feel != null:
 			feel.crowd_for(-1)
-			var through := _went_through_jack(rest_pos)
+			if randf() < 0.42:
+				return true
 			var key := "that_was_close" if through else "okay"
-			if feel.line(key) or feel.line("that_was_close") or feel.line("okay"):
+			if feel.line(key) or feel.line("that_was_close") or feel.line("okay") or feel.line("not_bad"):
 				_shout_from_key(feel.voice.last_said() if feel.voice != null else key, "%.2f m" % distance)
 				return true
+			return true
 		return false
 	# Opponent bowls only get the big lines so it does not talk all match.
 	if not yours and level < 3:
 		return false
 	var played := ""
 	if feel != null:
-		played = feel.praise(level)
+		played = feel.praise(level, level <= 1)
 	if played == "":
-		if level >= 4:
-			played = "outstanding"
-		elif level >= 3:
-			played = "amazing"
-		elif level >= 1:
-			played = "great"
-		else:
-			played = "okay"
+		return true
 	_shout_from_key(played, "%.2f m" % distance)
 	return true
 
@@ -828,9 +828,12 @@ func _shout_from_key(key: String, detail: String) -> void:
 		"my_god":
 			title = "MY GOD!"
 			tint = Color(1.0, 0.96, 0.55)
-		"great", "great_shot", "fantastic", "nice", "good", "well_done":
+		"great", "great_shot", "fantastic", "nice", "well_done":
 			title = "GREAT!"
 			tint = Color(1.0, 0.86, 0.32)
+		"good":
+			title = "GOOD!"
+			tint = Color(1.0, 0.88, 0.42)
 		"okay":
 			title = "OKAY!"
 			tint = Color(1.0, 0.9, 0.55)
@@ -980,16 +983,16 @@ func _score_voice_key(_shots: int, _holder: int) -> String:
 
 func _praise_level(distance: float) -> int:
 	# Painted head: gold 0.34, pink 0.70, blue 1.02, white 1.32.
-	# Voice ladder: outstanding/perfect, amazing, great, not bad, okay.
+	# On a 68 m green a 5 m draw is still a result, so Not bad sits further out.
 	if distance < 0.34:
 		return 4
 	if distance < 0.70:
 		return 3
-	if distance < 1.02:
-		return 2
 	if distance < 1.32:
+		return 2
+	if distance < 3.20:
 		return 1
-	if distance < 2.20:
+	if distance < 6.00:
 		return 0
 	return -1
 
@@ -999,6 +1002,24 @@ func _went_through_jack(rest_pos: Vector3) -> bool:
 		return false
 	# Delivery runs toward -z. Past the jack is further down the green.
 	return rest_pos.z < jack.global_position.z - 0.12
+
+
+func _just_stole_shot(our_d: float) -> bool:
+	if jack == null or not jack.visible or settled.size() < 2:
+		return false
+	var jack_pos: Vector3 = jack.global_position
+	var others := 9999.0
+	var theirs := false
+	var mine := _you_side()
+	for i in range(settled.size() - 1):
+		var body = settled[i]
+		if body == null or not is_instance_valid(body) or not _bowl_is_live(body):
+			continue
+		var dist := _distance(body.global_position, jack_pos)
+		if dist < others:
+			others = dist
+			theirs = int(body.side) != mine
+	return theirs and our_d + 0.04 < others
 
 
 func _open_end_reveal() -> void:
@@ -1283,6 +1304,8 @@ func _finish_jack(rest_pos: Vector3) -> void:
 	ui.show_hand(hand_sign < 0.0, _bowl_name(bias_index))
 	_place_rack()
 	ui.show_jack_set(jack_length, _bowl_name(bias_index), _side_name(0), note)
+	if note == "" and feel != null:
+		feel.crowd_for(0)
 	_begin_ready()
 
 
@@ -3167,8 +3190,9 @@ func _callouttest() -> void:
 		["perfect", "0.22 m", Vector3(0.12, 0.0, 0.18)],
 		["amazing", "0.52 m", Vector3(0.28, 0.0, 0.48)],
 		["great", "0.92 m", Vector3(0.35, 0.0, 0.88)],
-		["not_bad", "1.86 m", Vector3(0.55, 0.0, 1.55)],
-		["okay", "2.05 m", Vector3(0.60, 0.0, 1.90)],
+		["good", "2.40 m", Vector3(0.70, 0.0, 2.20)],
+		["not_bad", "4.20 m", Vector3(0.85, 0.0, 4.00)],
+		["okay", "6.40 m", Vector3(0.90, 0.0, 6.20)],
 		["that_was_close", "Past the jack", Vector3(0.22, 0.0, -1.40)],
 		["showtime", "", Vector3(0.22, 0.0, 0.28)],
 		["winner", "", Vector3(0.22, 0.0, 0.28)],
@@ -3185,8 +3209,10 @@ func _callouttest() -> void:
 					feel.crowd_for(-1)
 				"not_bad":
 					feel.crowd_for(0)
-				"great":
+				"good":
 					feel.crowd_for(1)
+				"great":
+					feel.crowd_for(2)
 				"amazing", "wow":
 					feel.crowd_for(3)
 				"outstanding", "perfect", "my_god":

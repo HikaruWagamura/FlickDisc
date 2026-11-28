@@ -27,7 +27,7 @@ const FALLBACK := {
 	"perfect": ["my_god", "incredible", "wow"],
 	"okay": ["not_bad"],
 	"nice": ["great"],
-	"good": ["great", "nice"],
+	"good": ["great", "not_bad", "nice"],
 	"unlucky": ["that_was_close"],
 	"so_close": ["that_was_close"],
 	"excellent": ["wow", "brilliant", "great"],

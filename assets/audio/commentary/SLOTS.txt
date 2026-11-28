@@ -1,15 +1,19 @@
-Name the file the exact words said. Extra takes: Great 2.wav or great_2.wav.
-Drop WAV / OGG / MP3 in this folder, or attach the zip in the Cursor chat.
+Name the file the exact words said. Extra takes: Great 2.wav.
+Crowd beds play under the line. Voice does not fire on every bowl.
 
 Distance from the jack
-  outstanding / perfect     gold ring, under 0.34 m
-  amazing                   pink ring, under 0.70 m
-  great                     white or blue ring
-  not bad / okay            just outside the head, under 2.20 m
-  okay / that was close     near miss, or it ran past the jack, under 3.6 m
-  toucher / wow / my god    on the jack
+  outstanding / perfect     gold, under 0.34 m
+  amazing                   pink, under 0.70 m
+  great / good              in the rings, under 1.32 m
+  good / great              a real draw, under 3.20 m
+  not bad / good            further out, still a result, under 6 m
+  okay / that was close     ran past the jack, or 6–7 m
+  toucher / wow             on the jack
 
-Match lines
-  showtime                  first bowl, last end, match point
-  winner                    you take the end
-  you win                   you win the match
+Other moments
+  took the shot             good / great, even if you are a few metres out
+  bowl into bowl            crowd clap, no line
+  jack a fair length        polite crowd
+  first bowl / last end     showtime
+  you take the end          winner
+  you win the match         you win
