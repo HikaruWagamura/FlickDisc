@@ -3,6 +3,10 @@ Showtime, Winner, You win)
   John Carroll — Announcer Voice Pack
   https://johncarroll.itch.io/
 
+Crowd reaction beds (polite / clap / cheer / roar / gasp / ooh)
+  Synthesized for Bowl & Roll. Drop real WAVs in assets/audio/crowd
+  to replace them.
+
 FlickDisc wrap textures
 
 woodland.png, desert.png, urban.png

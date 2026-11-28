@@ -786,9 +786,11 @@ func _cheer_rest(distance: float, ditched: bool, yours: bool) -> bool:
 		return _shout_toucher
 	var level := _praise_level(distance)
 	if level < 0:
-		if yours and distance < 3.6 and feel != null and feel.line("that_was_close"):
-			_shout_from_key("that_was_close", "%.2f m" % distance)
-			return true
+		if yours and distance < 3.6 and feel != null:
+			feel.crowd_for(-1)
+			if feel.line("that_was_close"):
+				_shout_from_key("that_was_close", "%.2f m" % distance)
+				return true
 		return false
 	# Opponent bowls only get the big lines so it does not talk all match.
 	if not yours and level < 3:
@@ -822,20 +824,23 @@ func _shout_from_key(key: String, detail: String) -> void:
 		"my_god":
 			title = "MY GOD!"
 			tint = Color(1.0, 0.96, 0.55)
-		"great", "great_shot", "fantastic":
+		"great", "great_shot", "fantastic", "nice", "good", "well_done":
 			title = "GREAT!"
 			tint = Color(1.0, 0.86, 0.32)
-		"not_bad", "amazing":
+		"not_bad", "amazing", "okay":
 			title = "NOT BAD!"
 			tint = Color(1.0, 0.9, 0.55)
-		"that_was_close":
+		"that_was_close", "unlucky", "so_close":
 			title = "THAT WAS CLOSE!"
 			tint = Color(0.95, 0.98, 0.7)
-		"magnificent":
-			title = "WOW!"
+		"magnificent", "brilliant", "excellent":
+			title = "BRILLIANT!"
 			tint = Color(1.0, 0.9, 0.42)
-		"incredible":
-			title = "MY GOD!"
+		"incredible", "superb":
+			title = "INCREDIBLE!"
+			tint = Color(1.0, 0.96, 0.55)
+		"perfect":
+			title = "PERFECT!"
 			tint = Color(1.0, 0.96, 0.55)
 		"showtime":
 			title = "SHOWTIME!"
@@ -853,6 +858,7 @@ func _call_score_voice(shots: int, holder: int) -> void:
 	if feel == null:
 		return
 	var key := _score_voice_key(shots, holder)
+	feel.crowd_score(key)
 	if feel.line(key, true):
 		_last_score_announced = key
 
@@ -911,17 +917,21 @@ func _maybe_tension_voice() -> void:
 	if _bowls_you_sent() > 0:
 		return
 	if end_number == 1 and throw_index == 0:
-		if feel != null and feel.line("showtime"):
-			_tension_said = true
-			_shout_from_key("showtime", "")
-			return
+		if feel != null:
+			feel.crowd_score("showtime")
+			if feel.line("showtime"):
+				_tension_said = true
+				_shout_from_key("showtime", "")
+				return
 	var key := _tension_key()
 	if key == "" or key == _last_score_announced:
 		return
-	if feel != null and feel.line(key):
-		_tension_said = true
-		_last_score_announced = key
-		_shout_from_key(key if key != "last_end" and key != "match_point" else "showtime", "")
+	if feel != null:
+		feel.crowd_score(key)
+		if feel.line(key):
+			_tension_said = true
+			_last_score_announced = key
+			_shout_from_key(key if key != "last_end" and key != "match_point" else "showtime", "")
 
 
 func _you_side() -> int:
@@ -3126,6 +3136,10 @@ func _callouttest() -> void:
 			if feel.voice.has_line(key):
 				loaded.append(key)
 	print("VOICE loaded=%s" % ",".join(loaded))
+	if feel != null and feel.crowd != null:
+		print("CROWD loaded=%s" % ",".join(feel.crowd.loaded_kinds()))
+		for level in [-1, 0, 1, 2, 3, 4]:
+			print("CROWD level=%d kind=%s" % [level, feel.crowd_for(level)])
 	var shouts: Array = [
 		["toucher", "On the jack", Vector3(0.22, 0.0, 0.28)],
 		["great", "0.92 m", Vector3(0.35, 0.0, 0.88)],
@@ -3141,6 +3155,23 @@ func _callouttest() -> void:
 		var key := str(row[0])
 		bowl.rest_at(jack_at + row[2])
 		if feel != null:
+			match key:
+				"toucher":
+					feel.crowd_toucher()
+				"that_was_close":
+					feel.crowd_for(-1)
+				"not_bad":
+					feel.crowd_for(0)
+				"great":
+					feel.crowd_for(1)
+				"wow":
+					feel.crowd_for(3)
+				"my_god":
+					feel.crowd_for(4)
+				"showtime":
+					feel.crowd_score("showtime")
+				"winner", "you_win":
+					feel.crowd_score(key)
 			feel.line(key, true)
 		_shout_from_key(key, str(row[1]))
 		await get_tree().create_timer(0.42).timeout

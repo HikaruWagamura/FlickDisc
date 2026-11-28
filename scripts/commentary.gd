@@ -9,17 +9,29 @@ const FOLDER := "res://assets/audio/commentary"
 const KEYS := [
 	"toucher", "amazing", "great", "great_shot", "fantastic", "magnificent", "incredible",
 	"wow", "my_god", "not_bad", "that_was_close", "showtime", "winner", "you_win",
+	"brilliant", "perfect", "okay", "nice", "good", "unlucky", "excellent", "superb",
+	"well_done", "so_close",
 	"down_1", "down_2", "down_3", "up_1", "up_2", "up_3",
 	"tied_end", "you_win_end", "they_win_end", "you_win_match", "they_win_match",
 	"last_end", "match_point",
 ]
 const FALLBACK := {
 	"toucher": ["wow"],
-	"amazing": ["not_bad"],
-	"great_shot": ["great"],
-	"fantastic": ["great"],
-	"magnificent": ["wow"],
-	"incredible": ["my_god", "wow"],
+	"amazing": ["not_bad", "okay"],
+	"great_shot": ["great", "nice"],
+	"fantastic": ["great", "brilliant"],
+	"magnificent": ["wow", "brilliant"],
+	"incredible": ["my_god", "perfect", "wow"],
+	"brilliant": ["wow", "great"],
+	"perfect": ["my_god", "incredible", "wow"],
+	"okay": ["not_bad"],
+	"nice": ["great"],
+	"good": ["great", "nice"],
+	"unlucky": ["that_was_close"],
+	"so_close": ["that_was_close"],
+	"excellent": ["wow", "brilliant", "great"],
+	"superb": ["wow", "incredible"],
+	"well_done": ["great", "nice"],
 	"you_win_match": ["you_win", "winner"],
 	"you_win_end": ["winner"],
 	"last_end": ["showtime"],
@@ -37,6 +49,19 @@ const ALIASES := {
 	"oh my god": "my_god",
 	"not bad": "not_bad",
 	"that was close": "that_was_close",
+	"so close": "so_close",
+	"brilliant": "brilliant",
+	"perfect": "perfect",
+	"okay": "okay",
+	"ok": "okay",
+	"nice": "nice",
+	"nice shot": "nice",
+	"good": "good",
+	"good shot": "good",
+	"unlucky": "unlucky",
+	"excellent": "excellent",
+	"superb": "superb",
+	"well done": "well_done",
 	"showtime": "showtime",
 	"show time": "showtime",
 	"winner": "winner",
@@ -96,6 +121,16 @@ func _ready() -> void:
 
 func has_line(key: String) -> bool:
 	return _clips.has(key) and not _clips[key].is_empty()
+
+
+func can_say(key: String) -> bool:
+	if has_line(key):
+		return true
+	if FALLBACK.has(key):
+		for alt in FALLBACK[key]:
+			if has_line(str(alt)):
+				return true
+	return false
 
 
 func is_talking() -> bool:

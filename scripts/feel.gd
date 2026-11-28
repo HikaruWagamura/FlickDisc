@@ -6,6 +6,14 @@ extends Node
 ## Haptics use the device vibrator and, on the web, navigator.vibrate.
 
 const CommentaryScript := preload("res://scripts/commentary.gd")
+const CrowdScript := preload("res://scripts/crowd.gd")
+const PRAISE_POOL := {
+	0: ["okay", "not_bad", "amazing"],
+	1: ["great", "great_shot", "nice", "good"],
+	2: ["great", "fantastic", "brilliant"],
+	3: ["wow", "brilliant", "magnificent", "excellent"],
+	4: ["incredible", "perfect", "my_god", "superb"],
+}
 
 var roll_amount := 0.0
 var _unlocked := false
@@ -18,6 +26,7 @@ var _roll_phase := 0.0
 var _streams := {}
 var _last_aim_bucket := -1
 var voice
+var crowd
 
 
 func _ready() -> void:
@@ -46,6 +55,9 @@ func _ready() -> void:
 	voice = CommentaryScript.new()
 	voice.name = "Commentary"
 	add_child(voice)
+	crowd = CrowdScript.new()
+	crowd.name = "Crowd"
+	add_child(crowd)
 
 
 func _process(_delta: float) -> void:
@@ -121,6 +133,7 @@ func contact(speed: float, hit_jack: bool, hit_bank: bool) -> void:
 
 func toucher() -> String:
 	unlock()
+	crowd_toucher()
 	if line("toucher", true):
 		_vibrate_pattern(16, 36, 22)
 		return _last_line()
@@ -132,14 +145,14 @@ func toucher() -> String:
 
 func praise(level: int) -> String:
 	unlock()
-	var keys: PackedStringArray = ["amazing", "great_shot", "fantastic", "magnificent", "incredible"]
-	var key: String = keys[clampi(level, 0, keys.size() - 1)]
-	if line(key):
+	crowd_for(level)
+	var said := _say_from(_pool_for(level))
+	if said != "":
 		if level >= 3:
 			_vibrate_pattern(18, 48, 26)
 		else:
 			_vibrate(18)
-		return _last_line()
+		return said
 	if level >= 3:
 		_play("cheer", 1.0, -8.0)
 		_play("sparkle", 1.12, -12.0)
@@ -150,6 +163,77 @@ func praise(level: int) -> String:
 	else:
 		_play("sparkle", 1.0, -11.0)
 		_vibrate(12)
+	return ""
+
+
+func crowd_for(level: int) -> String:
+	if not _allows_sound() or crowd == null:
+		return ""
+	unlock()
+	var kind := "clap"
+	match clampi(level, -1, 4):
+		-1:
+			kind = "ooh"
+		0:
+			kind = "polite"
+		1:
+			kind = "clap" if randf() > 0.28 else "polite"
+		2:
+			kind = "cheer" if randf() > 0.32 else "clap"
+		3:
+			kind = "roar" if randf() > 0.42 else "cheer"
+		4:
+			kind = "roar"
+	if crowd.play(kind, true):
+		return kind
+	return ""
+
+
+func crowd_toucher() -> String:
+	if not _allows_sound() or crowd == null:
+		return ""
+	unlock()
+	crowd.play("gasp", true)
+	crowd.play("cheer", true)
+	return "gasp"
+
+
+func crowd_score(key: String) -> String:
+	if not _allows_sound() or crowd == null:
+		return ""
+	unlock()
+	var kind := "polite"
+	match key:
+		"you_win_match", "you_win", "you_win_end", "winner":
+			kind = "roar"
+		"they_win_match", "they_win_end", "tied_end":
+			kind = "ooh"
+		"showtime", "last_end", "match_point":
+			kind = "cheer"
+	if crowd.play(kind, true):
+		return kind
+	return ""
+
+
+func _pool_for(level: int) -> Array:
+	var clamped := clampi(level, 0, 4)
+	if PRAISE_POOL.has(clamped):
+		return PRAISE_POOL[clamped]
+	return ["great"]
+
+
+func _say_from(keys: Array) -> String:
+	if keys.is_empty():
+		return ""
+	var order: Array = keys.duplicate()
+	for i in range(order.size() - 1, 0, -1):
+		var j := randi() % (i + 1)
+		var tmp: String = str(order[i])
+		order[i] = order[j]
+		order[j] = tmp
+	for key in order:
+		if line(key):
+			return _last_line()
 	return ""
 
 

@@ -1,4 +1,5 @@
 Name the file the exact words said. Extra takes: Great 2.wav or great_2.wav.
+A zip of more lines can drop straight in here.
 
 In the game now
   great.wav / great_2.wav   white or blue ring
@@ -10,5 +11,12 @@ In the game now
   winner.wav                you take the end
   you_win.wav               you win the match
 
-Still waiting on files
-  Toucher / Down by one / Down by two / Up by one / They win
+Drop these next and they wire themselves by distance
+  Okay / Not bad            just outside the head
+  Nice / Good / Great       white ring
+  Brilliant / Fantastic     blue ring
+  Wow / Excellent           pink ring
+  Incredible / Perfect      gold ring
+  Unlucky / So close        near miss
+  Toucher                   on the jack
+  Down by one / Up by one / They win
