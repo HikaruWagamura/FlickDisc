@@ -367,27 +367,37 @@ func _layout_shell() -> void:
 		toast.position = Vector2(40.0, maxf(80.0, nav.position.y - 56.0))
 		toast.size = Vector2(wide - 80.0, 48.0)
 	if backdrop != null:
+		backdrop.set_anchors_preset(Control.PRESET_FULL_RECT)
+		backdrop.offset_left = 0.0
+		backdrop.offset_top = 0.0
+		backdrop.offset_right = 0.0
+		backdrop.offset_bottom = 0.0
+		backdrop.size = view
 		backdrop.queue_redraw()
 	var top_m := int(round(pad.x + 6.0))
+	var tab_clear := 16
+	if nav != null:
+		tab_clear = int(round(tall - nav.position.y + 24.0))
 	for margin in hub_page_margins:
 		if margin is MarginContainer:
 			(margin as MarginContainer).add_theme_constant_override("margin_top", top_m)
-			(margin as MarginContainer).add_theme_constant_override("margin_bottom", 16)
+			(margin as MarginContainer).add_theme_constant_override("margin_bottom", tab_clear)
 	var scroll_h := tall
 	if nav != null:
 		scroll_h = nav.position.y
 	for item in hub_scrolls:
 		if item is ScrollContainer:
 			var scroller := item as ScrollContainer
-			scroller.set_anchors_preset(Control.PRESET_TOP_WIDE)
+			scroller.set_anchors_preset(Control.PRESET_FULL_RECT)
 			scroller.anchor_right = 1.0
+			scroller.anchor_bottom = 1.0
 			scroller.offset_left = 0.0
 			scroller.offset_right = 0.0
 			scroller.offset_top = 0.0
-			scroller.offset_bottom = scroll_h
+			scroller.offset_bottom = 0.0
 	for item in hub_scroll_inners:
 		if item is Control:
-			(item as Control).custom_minimum_size = Vector2(wide, scroll_h)
+			(item as Control).custom_minimum_size = Vector2(wide, tall)
 	_layout_home(view, pad)
 
 
@@ -623,7 +633,7 @@ func _build_home() -> void:
 	)
 
 	home_cards = [
-		_home_card(page, Rect2(28, 444, 236, 136), "LIVE GAME", "First to 11 · 30s shots", _home_art.get("crazy") as Texture2D, "live", true),
+		_home_card(page, Rect2(28, 444, 236, 136), "LIVE GAME", "First to 7 · 30s shots", _home_art.get("crazy") as Texture2D, "live", true),
 		_home_card(page, Rect2(276, 444, 236, 136), "SOLO ENDS", "One bowl · the jack", _home_art.get("solo") as Texture2D, "solo", false),
 		_home_card(page, Rect2(28, 584, 236, 136), "PRACTICE", "You and the jack", _home_art.get("practice") as Texture2D, "practice", false),
 		_home_card(page, Rect2(276, 584, 236, 136), "THE BOARD", "Wins · ends · runs", _home_art.get("board") as Texture2D, "rankings", true),
@@ -857,10 +867,10 @@ func _build_practice() -> void:
 	root.add_child(page)
 	_back_on(page, "home")
 	box.add_child(_title("PRACTICE"))
-	box.add_child(_wrapped("Nothing is on the line except the shot. Solo ends keep a tally. Live Game is first to 11."))
+	box.add_child(_wrapped("Nothing is on the line except the shot. Solo ends keep a tally. Live Game is first to 7."))
 	box.add_child(_wide_card("SOLO ENDS", "Three bowls are already down. One bowl to be the shot.", "PLAY"))
 	box.get_child(box.get_child_count() - 1).pressed.connect(_launch_solo)
-	box.add_child(_wide_card("LIVE GAME", "First to 11. Thirty seconds a shot. Ranked head to head.", "PLAY"))
+	box.add_child(_wide_card("LIVE GAME", "First to 7. Thirty seconds a shot. Ranked head to head.", "PLAY"))
 	box.get_child(box.get_child_count() - 1).pressed.connect(_launch_live)
 	box.add_child(_wide_card("OPEN BOARD", "Crokinmode with a clear road to the hole.", "PLAY"))
 	box.get_child(box.get_child_count() - 1).pressed.connect(_practice.bind("open"))
@@ -926,7 +936,7 @@ func _build_rankings() -> void:
 	board_solo = solo_row.get_node("Trail") as Label
 	solo_row.disabled = true
 	box.add_child(solo_row)
-	var drive_row := _wide_card("LIVE GAME", "Ranked first to 11", "UNRANKED")
+	var drive_row := _wide_card("LIVE GAME", "Ranked first to 7", "UNRANKED")
 	board_drive = drive_row.get_node("Trail") as Label
 	drive_row.disabled = true
 	box.add_child(drive_row)
@@ -1091,7 +1101,7 @@ func _build_customise() -> void:
 	for i in Kit.PALETTES.size():
 		var swatch := Button.new()
 		swatch.text = ""
-		swatch.custom_minimum_size = Vector2(44, 44)
+		swatch.custom_minimum_size = Vector2(34, 34)
 		swatch.pressed.connect(_pick_swatch.bind(i))
 		swatch_buttons.append(swatch)
 		grid.add_child(swatch)
@@ -1172,7 +1182,7 @@ func _build_settings() -> void:
 	var how_col := VBoxContainer.new()
 	how_col.add_theme_constant_override("separation", 8)
 	how_col.add_child(_kicker("HOW A ROUND WORKS"))
-	how_col.add_child(_wrapped("Drag the bowl back. The cream line is your finger. The blocks are where it will run. Let go — it leaves your hand and takes its bias as it slows.\n\nA match is four bowls each. Solo ends put three bowls around the jack. You have one bowl, and as many tries as you want, to finish closer than all of them.\n\nLive Game is first to 11, head to head, thirty seconds a shot. Search looks for another phone on this Wi-Fi, then a Club AI if nobody is on. Wins land in Records. Change your picture on your profile.\n\nThis device stores matches won, live wins, ends cleared, and your nearest mark."))
+	how_col.add_child(_wrapped("Drag the bowl back. The cream line is your finger. The blocks are where it will run. Let go — it leaves your hand and takes its bias as it slows.\n\nA match is four bowls each. Solo ends put three bowls around the jack. You have one bowl, and as many tries as you want, to finish closer than all of them.\n\nLive Game is first to 7, head to head, thirty seconds a shot. Search looks for another phone on this Wi-Fi, then a Club AI if nobody is on. Wins land in Records. Change your picture on your profile.\n\nThis device stores matches won, live wins, ends cleared, and your nearest mark."))
 	how.add_child(how_col)
 	box.add_child(how)
 
@@ -1321,7 +1331,7 @@ func _build_live_layer() -> void:
 	live_title.position = Vector2(16, 16)
 	live_title.size = Vector2(472, 42)
 	panel.add_child(live_title)
-	live_body = _label("Searching for a live player.\nFirst to 11  ·  30s a shot.", 15, CREAM, body_font)
+	live_body = _label("Searching for a live player.\nFirst to 7  ·  30s a shot.", 15, CREAM, body_font)
 	live_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	live_body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	live_body.position = Vector2(24, 62)
@@ -1593,7 +1603,7 @@ func _launch_live() -> void:
 	if live_title != null:
 		live_title.text = "LIVE GAME"
 	if live_body != null:
-		live_body.text = "Searching for a live player.\nFirst to 11  ·  30s a shot."
+		live_body.text = "Searching for a live player.\nFirst to 7  ·  30s a shot."
 	if live_rival_name != null:
 		live_rival_name.text = "SEARCHING"
 		live_rival_name.modulate.a = 1.0
@@ -1622,7 +1632,7 @@ func _wait_for_live(token: int) -> void:
 func _on_live_pulse(_code: String) -> void:
 	if not live_searching or live_body == null or live_layer == null or not live_layer.visible:
 		return
-	live_body.text = "Searching for a live player on this Wi-Fi.\nFirst to 11  ·  30s a shot."
+	live_body.text = "Searching for a live player on this Wi-Fi.\nFirst to 7  ·  30s a shot."
 
 
 func _on_live_found(hosting: bool, peer_name: String) -> void:
@@ -1661,7 +1671,7 @@ func _lock_live_rival(is_live: bool, rival_name: String, rival: Dictionary, star
 		if live_rival_tag != null:
 			live_rival_tag.text = "LIVE PLAYER"
 		if live_body != null:
-			live_body.text = "Matched with %s.\nFirst to 11. Thirty seconds a shot." % rival_name
+			live_body.text = "Matched with %s.\nFirst to 7. Thirty seconds a shot." % rival_name
 	_show_locked_face(fill, mark)
 	if not start_match:
 		return
@@ -2368,7 +2378,7 @@ func _column_page(top: float, bottom: float, hub: bool = false) -> Dictionary:
 		hub_page_margins.append(margin)
 		hub_scrolls.append(scroll)
 		hub_scroll_inners.append(inner)
-		scroll.offset_bottom = -118.0
+		scroll.offset_bottom = 0.0
 	return {"page": page, "box": box}
 
 
@@ -2522,7 +2532,7 @@ func _shop_row(title: String, trailing: String, owned: bool, pal_index: int = 1)
 func _theme_orb(skin_id: String, caption: String) -> Button:
 	var button := Button.new()
 	button.text = ""
-	button.custom_minimum_size = Vector2(0, 92)
+	button.custom_minimum_size = Vector2(0, 78)
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	button.focus_mode = Control.FOCUS_NONE
 	button.action_mode = BaseButton.ACTION_MODE_BUTTON_PRESS
@@ -2539,7 +2549,7 @@ func _theme_orb(skin_id: String, caption: String) -> Button:
 	col.offset_bottom = -6
 	var orb := TextureRect.new()
 	orb.name = "Orb"
-	orb.custom_minimum_size = Vector2(56, 56)
+	orb.custom_minimum_size = Vector2(46, 46)
 	orb.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	orb.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	orb.mouse_filter = Control.MOUSE_FILTER_IGNORE

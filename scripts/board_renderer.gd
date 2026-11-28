@@ -6,8 +6,8 @@ extends Node3D
 const Metrics = preload("res://scripts/table_metrics.gd")
 const CLUB_BOARD := preload("res://assets/board/crokinole.fbx")
 
-const LOGO_PATH := "res://assets/flick_disc_logo.png"
-const MARK_PATH := "res://assets/flickdisc_mark.png"
+const LOGO_PATH := "res://assets/bowl_and_roll_logo.png"
+const MARK_PATH := "res://assets/bowl_and_roll_logo.png"
 const COURSE_PATH := "res://assets/course_background.png"
 
 func _ready() -> void:
@@ -115,7 +115,7 @@ func _pbr(albedo_path: String, normal_path: String, rough_path: String, metal_pa
 func _apply_mats(node: Node, playfield: StandardMaterial3D, figures: StandardMaterial3D) -> void:
 	if node is MeshInstance3D:
 		var n := str(node.name).to_lower()
-		var mat := figures if ("pin" in n or "disc" in n) else playfield
+		var mat := figures if ("pin" in n or "disc" in n or "figure" in n) else playfield
 		(node as MeshInstance3D).material_override = mat
 	for child in node.get_children():
 		_apply_mats(child, playfield, figures)
@@ -394,63 +394,74 @@ func _place_board_logos() -> void:
 	var tex := _logo_decal()
 	if tex == null:
 		return
-	# Same 10-ring seats as before, left and right, plus the shooting
-	# sides. Yaw 0 so every mark reads from the player's seat.
+	# Bowl & Roll mark in the 10-ring, readable from the shooting seat.
 	var radius := (Metrics.RING_15 + Metrics.RING_10) * 0.5
-	_logo_plate(Vector3(-radius, 0.0028, 0.0), 0.0, tex)
-	_logo_plate(Vector3(radius, 0.0028, 0.0), 0.0, tex)
-	_logo_plate(Vector3(0.0, 0.0028, radius), 0.0, tex)
-	_logo_plate(Vector3(0.0, 0.0028, -radius), 0.0, tex)
+	_logo_plate(Vector3(-radius, 0.0028, 0.0), 180.0, tex)
+	_logo_plate(Vector3(radius, 0.0028, 0.0), 180.0, tex)
+	_logo_plate(Vector3(0.0, 0.0028, radius), 180.0, tex)
+	_logo_plate(Vector3(0.0, 0.0028, -radius), 180.0, tex)
 
 
 func _logo_plate(at: Vector3, yaw: float, tex: Texture2D) -> void:
 	var quad := QuadMesh.new()
-	quad.size = Vector2(0.30, 0.30)
+	quad.size = Vector2(0.28, 0.16)
 	var mi := MeshInstance3D.new()
 	mi.mesh = quad
 	mi.position = at
 	mi.rotation_degrees = Vector3(-90.0, yaw, 0.0)
 	var mat := StandardMaterial3D.new()
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+	mat.alpha_scissor_threshold = 0.35
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.albedo_texture = tex
-	mat.albedo_color = Color(1, 1, 1, 0.94)
+	mat.albedo_color = Color(1, 1, 1, 1)
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 	mi.material_override = mat
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mi)
 
 
+func _png_pixels(path: String) -> Image:
+	var file := FileAccess.open(path, FileAccess.READ)
+	if file != null:
+		var image := Image.new()
+		if image.load_png_from_buffer(file.get_buffer(file.get_length())) == OK:
+			if image.is_compressed():
+				image.decompress()
+			return image
+	return _res_image(path)
+
+
 func _logo_decal() -> Texture2D:
-	var image: Image = _res_image(MARK_PATH)
+	var image: Image = _png_pixels(LOGO_PATH)
 	if image == null or image.is_empty():
-		image = _res_image(LOGO_PATH)
+		image = _png_pixels(MARK_PATH)
 	if image == null or image.is_empty():
 		return null
 	if image.is_compressed():
 		image.decompress()
-	if image.get_width() > 512 or image.get_height() > 512:
-		image.resize(512, 512, Image.INTERPOLATE_LANCZOS)
 	image.convert(Image.FORMAT_RGBA8)
+	# Downsample so the 10-ring plates stay a mark, not sparkle.
+	var target_w := 384
+	if image.get_width() > target_w:
+		var ratio := float(target_w) / float(image.get_width())
+		image.resize(target_w, maxi(int(image.get_height() * ratio), 8), Image.INTERPOLATE_LANCZOS)
 	var width := image.get_width()
 	var height := image.get_height()
-	var cx := float(width) * 0.5
-	var cy := float(height) * 0.5
-	var radius := minf(cx, cy) * 0.98
 	for y in height:
 		for x in width:
 			var pixel: Color = image.get_pixel(x, y)
-			var dx := (float(x) + 0.5 - cx) / radius
-			var dy := (float(y) + 0.5 - cy) / radius
-			var radial := sqrt(dx * dx + dy * dy)
 			var luma := pixel.r * 0.3 + pixel.g * 0.59 + pixel.b * 0.11
 			var chroma := maxf(pixel.r, maxf(pixel.g, pixel.b)) - minf(pixel.r, minf(pixel.g, pixel.b))
-			if radial > 1.0 or (luma < 0.08 and chroma < 0.07):
+			if luma < 0.07 and chroma < 0.10:
+				pixel.a = 0.0
+			elif pixel.a < 0.04:
 				pixel.a = 0.0
 			else:
-				pixel.a = 1.0 if radial < 0.92 else clampf((1.0 - radial) / 0.08, 0.0, 1.0)
+				pixel.a = 1.0
 			image.set_pixel(x, y, pixel)
+	image.generate_mipmaps()
 	return ImageTexture.create_from_image(image)
 
 func _build_body() -> void:
@@ -721,7 +732,7 @@ func _build_club_rink() -> void:
 	var backdrop_material := StandardMaterial3D.new()
 	backdrop_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	backdrop_material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	var course := Image.load_from_file(COURSE_PATH)
+	var course: Image = _res_image(COURSE_PATH)
 	if course != null and not course.is_empty():
 		var crop_y := int(course.get_height() * 0.30)
 		var crop_h := int(course.get_height() * 0.16)

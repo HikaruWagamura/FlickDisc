@@ -373,7 +373,9 @@ func _wire_shot() -> void:
 	cue.set_heads(5)
 	cue.set_style(0)
 	cue.set_path_start(0.06)
-	cue.set_size_scale(0.98)
+	# Five chevrons, table-sized. Lawn bars are metres; the round board
+	# is not, so keep the same 5-bar design at a locked board scale.
+	cue.set_size_scale(0.26)
 	add_child(cue)
 
 

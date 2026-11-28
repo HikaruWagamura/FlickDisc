@@ -256,7 +256,7 @@ func _build() -> void:
 	for item in [{"id": "whole", "name": "WHOLE BOWL"}, {"id": "half", "name": "HALF AND HALF"}]:
 		var chip := _button(str(item["name"]), 14)
 		chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		chip.custom_minimum_size = Vector2(0, 52)
+		chip.custom_minimum_size = Vector2(0, 42)
 		chip.set_meta("cover_id", str(item["id"]))
 		chip.pressed.connect(func() -> void: set_coverage(str(item["id"])))
 		cover.add_child(chip)
@@ -265,7 +265,7 @@ func _build() -> void:
 	hero_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	hero_row.add_theme_constant_override("separation", 18)
 	add_child(hero_row)
-	preview_bowl = _bowl_view(220)
+	preview_bowl = _bowl_view(112)
 	hero_row.add_child(preview_bowl)
 	preview_bowl_b = _bowl_view(168)
 	preview_bowl_b.visible = false
@@ -753,9 +753,9 @@ func _sync_coverage_layout() -> void:
 	if face_row != null:
 		face_row.visible = half
 	if preview_bowl != null:
-		preview_bowl.custom_minimum_size = Vector2(168, 168) if half else Vector2(220, 220)
+		preview_bowl.custom_minimum_size = Vector2(104, 104) if half else Vector2(112, 112)
 	if preview_bowl_b != null:
-		preview_bowl_b.custom_minimum_size = Vector2(168, 168)
+		preview_bowl_b.custom_minimum_size = Vector2(104, 104)
 	if face_view != null:
 		face_view.custom_minimum_size = Vector2(156, 156)
 	if face_view_b != null:

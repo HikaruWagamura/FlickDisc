@@ -196,11 +196,11 @@ func show_match(match_label: String) -> void:
 
 
 func show_live_ai(rival: String, score_line: String) -> void:
-	level_label.text = "TO 11"
+	level_label.text = "TO 7"
 	throws_label.text = "CLUB AI"
 	throws_label.add_theme_color_override("font_color", Color("#F5C84B"))
 	status_label.text = "%s  •  CLUB AI TO BOWL" % rival.to_upper()
-	score_label.text = "FIRST TO 11  •  %s" % score_line
+	score_label.text = "FIRST TO 7  •  %s" % score_line
 	reset_button.visible = true
 	next_button.visible = false
 	show_bowl_controls(false)
@@ -208,7 +208,7 @@ func show_live_ai(rival: String, score_line: String) -> void:
 
 func show_live_clock(seconds: float, side_name: String, score_line: String, jack: bool) -> void:
 	var secs := int(ceil(seconds))
-	level_label.text = "TO 11"
+	level_label.text = "TO 7"
 	throws_label.text = "%ds" % secs
 	var heat := Color(0.96, 0.99, 0.97)
 	if secs <= 8:
@@ -218,7 +218,7 @@ func show_live_clock(seconds: float, side_name: String, score_line: String, jack
 		status_label.text = "JACK  •  %ds  •  TAKE YOUR SHOT" % secs
 	else:
 		status_label.text = "%s TO BOWL  •  %ds" % [side_name, secs]
-	score_label.text = "FIRST TO 11  •  %s" % score_line
+	score_label.text = "FIRST TO 7  •  %s" % score_line
 	reset_button.visible = true
 	next_button.visible = false
 

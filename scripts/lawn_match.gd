@@ -52,7 +52,7 @@ var live_rival := ""
 var shot_clock := 30.0
 var clock_live := false
 const LIVE_CLOCK := 30.0
-const LIVE_POINTS := 11
+const LIVE_POINTS := 7
 var difficulty := 1
 var fast_play := false
 var _ai_token := 0
@@ -572,7 +572,7 @@ func _place_rack() -> void:
 
 func _match_label() -> String:
 	if live_play:
-		return "TO 11"
+		return "TO 7"
 	return str(MATCHES[match_index]["label"])
 
 

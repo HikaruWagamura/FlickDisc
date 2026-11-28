@@ -55,14 +55,15 @@ func guide_points() -> PackedVector3Array:
 	return _guide_world
 
 
-func cue_points(power: float) -> PackedVector3Array:
-	# Crokinole is a straight flick. Five heads on one line; length is weight.
+func cue_points(_power: float) -> PackedVector3Array:
+	# Crokinole is a straight flick. Five heads on one line. Pull only
+	# changes colour; the bars stay the same size.
 	var dir := Vector3(aim_direction.x, 0.0, aim_direction.z)
 	if dir.length() < 0.001:
 		dir = Vector3(0.0, 0.0, -1.0)
 	dir = dir.normalized()
 	var start := Vector3(global_position.x, 0.0, global_position.z)
-	var length := lerpf(0.28, 0.86, clampf(power, 0.0, 1.0))
+	var length := 0.52
 	var out := PackedVector3Array()
 	for step in 16:
 		var t := float(step) / 15.0

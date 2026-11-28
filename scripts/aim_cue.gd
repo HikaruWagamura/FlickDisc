@@ -109,7 +109,7 @@ func set_style(which: int) -> void:
 
 
 func set_size_scale(value: float) -> void:
-	size_scale = clampf(value, 0.15, 2.5)
+	size_scale = clampf(value, 0.08, 2.5)
 	if _showing:
 		_place()
 
@@ -328,7 +328,7 @@ func _place_blocks() -> void:
 	# 5+3 taper stays. Pull never adds, hides, or resizes bars — only colour.
 	var scale_l := SCALE_L * size_scale
 	var scale_w := SCALE_W * size_scale
-	var scale_h := SCALE_H
+	var scale_h := SCALE_H * size_scale
 	if style == STYLE_BOTH:
 		scale_l *= 0.90
 		scale_w *= 0.90
@@ -336,7 +336,7 @@ func _place_blocks() -> void:
 	if amount >= SHAKE_FROM:
 		var shake := clampf((amount - SHAKE_FROM) / (1.0 - SHAKE_FROM), 0.0, 1.0)
 		var wave := 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.052)
-		hop = wave * (0.012 * shake)
+		hop = wave * (0.012 * shake * size_scale)
 	for i in MAX_ARROWS:
 		var mi := _nodes[i]
 		if i >= total:
@@ -359,7 +359,7 @@ func _place_blocks() -> void:
 		var sw := scale_w * taper
 		# Keep height up so the small tip still sits on the grass, not in it.
 		var sh := scale_h * lerpf(1.0, taper, 0.12)
-		var lift := SEAT_BLOCK - _mesh_min_y * sh
+		var lift := SEAT_BLOCK * size_scale - _mesh_min_y * sh
 		var origin := Vector3(centre.x, lift + hop, centre.z)
 		var xf := Transform3D()
 		xf.origin = origin
