@@ -1,24 +1,14 @@
-Name the file the exact words you said. WAV or OGG. Extra takes: "Incredible 2.ogg".
+Name the file the exact words said. Extra takes: Great 2.wav or great_2.wav.
 
-Shot praise
-  Toucher.ogg          jack kiss
-  Amazing.ogg          close, just outside the head
-  Great shot.ogg       in the white ring
-  Fantastic.ogg        in the blue ring
-  Magnificent.ogg      in the pink ring
-  Incredible.ogg       in the gold / on the jack
+In the game now
+  great.wav / great_2.wav   white or blue ring
+  wow.wav                   pink ring, or a toucher
+  my_god.wav                gold ring / on the jack
+  not_bad.wav               close, just outside the head
+  that_was_close.wav        near miss, under about 3.6 m
+  showtime.wav              first bowl of the match, last end, match point
+  winner.wav                you take the end
+  you_win.wav               you win the match
 
-Score
-  Down by one.ogg      you trail by 1
-  Down by two.ogg      you trail by 2
-  Down by three.ogg    you trail by 3 or more
-  Up by one.ogg        you lead by 1
-  Up by two.ogg        you lead by 2
-  Up by three.ogg      you lead by 3 or more
-  Tied end.ogg         the end is a tie
-  You win the end.ogg  you take the end, scores level
-  They win the end.ogg they take the end, scores level
-  You win.ogg          match over, you win
-  They win.ogg         match over, they win
-  Last end.ogg         this is the last end
-  Match point.ogg      someone needs one more point
+Still waiting on files
+  Toucher / Down by one / Down by two / Up by one / They win

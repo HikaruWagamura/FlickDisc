@@ -786,23 +786,67 @@ func _cheer_rest(distance: float, ditched: bool, yours: bool) -> bool:
 		return _shout_toucher
 	var level := _praise_level(distance)
 	if level < 0:
+		if yours and distance < 3.6 and feel != null and feel.line("that_was_close"):
+			_shout_from_key("that_was_close", "%.2f m" % distance)
+			return true
 		return false
 	# Opponent bowls only get the big lines so it does not talk all match.
-	if not yours and level < 2:
+	if not yours and level < 3:
 		return false
-	var lines := [
-		["AMAZING!", Color(1.0, 0.92, 0.58)],
-		["GREAT SHOT!", Color(1.0, 0.86, 0.32)],
-		["FANTASTIC!", Color(1.0, 0.84, 0.28)],
-		["MAGNIFICENT!", Color(1.0, 0.9, 0.42)],
-		["INCREDIBLE!", Color(1.0, 0.96, 0.55)],
-	]
-	var pick: Array = lines[clampi(level, 0, lines.size() - 1)]
+	var played := ""
 	if feel != null:
-		feel.praise(level)
-	if ui != null:
-		ui.show_shout(str(pick[0]), "%.2f m" % distance, pick[1])
+		played = feel.praise(level)
+	if played == "":
+		if level >= 3:
+			played = "wow"
+		elif level >= 1:
+			played = "great"
+		else:
+			played = "not_bad"
+	_shout_from_key(played, "%.2f m" % distance)
 	return true
+
+
+func _shout_from_key(key: String, detail: String) -> void:
+	if ui == null:
+		return
+	var title := "GREAT!"
+	var tint := Color(1.0, 0.86, 0.32)
+	match key:
+		"toucher":
+			title = "TOUCHER!"
+			tint = Color(1.0, 0.9, 0.38)
+		"wow":
+			title = "WOW!"
+			tint = Color(1.0, 0.92, 0.42)
+		"my_god":
+			title = "MY GOD!"
+			tint = Color(1.0, 0.96, 0.55)
+		"great", "great_shot", "fantastic":
+			title = "GREAT!"
+			tint = Color(1.0, 0.86, 0.32)
+		"not_bad", "amazing":
+			title = "NOT BAD!"
+			tint = Color(1.0, 0.9, 0.55)
+		"that_was_close":
+			title = "THAT WAS CLOSE!"
+			tint = Color(0.95, 0.98, 0.7)
+		"magnificent":
+			title = "WOW!"
+			tint = Color(1.0, 0.9, 0.42)
+		"incredible":
+			title = "MY GOD!"
+			tint = Color(1.0, 0.96, 0.55)
+		"showtime":
+			title = "SHOWTIME!"
+			tint = Color(1.0, 0.84, 0.28)
+		"winner":
+			title = "WINNER!"
+			tint = Color(1.0, 0.9, 0.38)
+		"you_win", "you_win_match":
+			title = "YOU WIN!"
+			tint = Color(1.0, 0.92, 0.4)
+	ui.show_shout(title, detail, tint)
 
 
 func _call_score_voice(shots: int, holder: int) -> void:
@@ -866,12 +910,18 @@ func _maybe_tension_voice() -> void:
 		return
 	if _bowls_you_sent() > 0:
 		return
+	if end_number == 1 and throw_index == 0:
+		if feel != null and feel.line("showtime"):
+			_tension_said = true
+			_shout_from_key("showtime", "")
+			return
 	var key := _tension_key()
 	if key == "" or key == _last_score_announced:
 		return
 	if feel != null and feel.line(key):
 		_tension_said = true
 		_last_score_announced = key
+		_shout_from_key(key if key != "last_end" and key != "match_point" else "showtime", "")
 
 
 func _you_side() -> int:
@@ -900,34 +950,6 @@ func _score_voice_key(_shots: int, _holder: int) -> String:
 		return "you_win_match" if _live_you_won() else "they_win_match"
 	if _shots <= 0:
 		return "tied_end"
-	var gap := _your_points() - _their_points()
-	if gap <= -3:
-		return "down_3"
-	if gap == -2:
-		return "down_2"
-	if gap == -1:
-		return "down_1"
-	if gap >= 3:
-		return "up_3"
-	if gap == 2:
-		return "up_2"
-	if gap == 1:
-		return "up_1"
-	var target := _points_needed()
-	if target > 0:
-		var your_need := target - _your_points()
-		var their_need := target - _their_points()
-		if your_need == 1 or their_need == 1:
-			return "match_point"
-	var ends_left := 0
-	if live_play and live_ends > 0:
-		ends_left = live_ends - end_number
-	else:
-		var ends_target := int(MATCHES[match_index].get("ends", 0))
-		if ends_target > 0:
-			ends_left = ends_target - end_number
-	if ends_left == 1:
-		return "last_end"
 	if _holder == _you_side():
 		return "you_win_end"
 	return "they_win_end"
@@ -1069,7 +1091,15 @@ func _on_disc_impacted(speed: float, hit_jack: bool, hit_bank: bool) -> void:
 	feel.contact(speed, hit_jack, hit_bank)
 	if hit_jack and not delivering_jack:
 		_shout_toucher = true
-		ui.show_shout("TOUCHER!", "On the jack", Color(1.0, 0.9, 0.38))
+		var said := ""
+		if feel != null and feel.voice != null:
+			said = str(feel.voice.last_said())
+		if said == "":
+			said = "toucher"
+		# Keep the Toucher banner even when Wow is the clip we have.
+		if said == "wow" or said == "my_god":
+			said = "toucher"
+		_shout_from_key(said, "On the jack")
 	elif not hit_bank:
 		ui.show_contact(hit_jack)
 
@@ -3067,6 +3097,7 @@ func _callouttest() -> void:
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	DisplayServer.window_set_size(Vector2i(540, 960))
 	Engine.max_fps = 30
+	get_tree().root.set_meta("flickdisc_sound", true)
 	await get_tree().process_frame
 	await get_tree().process_frame
 	if gesture != null:
@@ -3089,17 +3120,31 @@ func _callouttest() -> void:
 	rink.enter_reveal(jack_at, 7.2, 6.4)
 	for _i in 28:
 		await get_tree().process_frame
-	ui.show_shout("TOUCHER!", "On the jack", Color(1.0, 0.9, 0.38))
-	await get_tree().create_timer(0.38).timeout
-	await _dump_compare_shot("shout_toucher")
-	bowl.rest_at(jack_at + Vector3(0.35, 0.0, 0.88))
-	ui.show_shout("GREAT SHOT!", "0.92 m", Color(1.0, 0.86, 0.32))
-	await get_tree().create_timer(0.38).timeout
-	await _dump_compare_shot("shout_great")
-	bowl.rest_at(jack_at + Vector3(0.12, 0.0, 0.18))
-	ui.show_shout("INCREDIBLE!", "0.18 m", Color(1.0, 0.96, 0.55))
-	await get_tree().create_timer(0.38).timeout
-	await _dump_compare_shot("shout_incredible")
+	var loaded: PackedStringArray = PackedStringArray()
+	if feel != null and feel.voice != null:
+		for key in ["great", "wow", "my_god", "not_bad", "that_was_close", "showtime", "winner", "you_win"]:
+			if feel.voice.has_line(key):
+				loaded.append(key)
+	print("VOICE loaded=%s" % ",".join(loaded))
+	var shouts: Array = [
+		["toucher", "On the jack", Vector3(0.22, 0.0, 0.28)],
+		["great", "0.92 m", Vector3(0.35, 0.0, 0.88)],
+		["wow", "0.62 m", Vector3(0.28, 0.0, 0.52)],
+		["my_god", "0.18 m", Vector3(0.12, 0.0, 0.18)],
+		["not_bad", "1.86 m", Vector3(0.55, 0.0, 1.55)],
+		["that_was_close", "3.10 m", Vector3(0.80, 0.0, 2.90)],
+		["showtime", "", Vector3(0.22, 0.0, 0.28)],
+		["winner", "", Vector3(0.22, 0.0, 0.28)],
+		["you_win", "", Vector3(0.22, 0.0, 0.28)],
+	]
+	for row in shouts:
+		var key := str(row[0])
+		bowl.rest_at(jack_at + row[2])
+		if feel != null:
+			feel.line(key, true)
+		_shout_from_key(key, str(row[1]))
+		await get_tree().create_timer(0.42).timeout
+		await _dump_compare_shot("shout_%s" % key)
 	print("CALLOUTTEST done")
 	get_tree().quit(0)
 

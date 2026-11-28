@@ -119,17 +119,18 @@ func contact(speed: float, hit_jack: bool, hit_bank: bool) -> void:
 		_vibrate(int(round(lerpf(14.0, 34.0, amount))))
 
 
-func toucher() -> void:
+func toucher() -> String:
 	unlock()
 	if line("toucher", true):
 		_vibrate_pattern(16, 36, 22)
-		return
+		return _last_line()
 	_play("clap", 1.0, -11.0)
 	_play("sparkle", 1.08, -10.0)
 	_vibrate_pattern(16, 36, 22)
+	return ""
 
 
-func praise(level: int) -> void:
+func praise(level: int) -> String:
 	unlock()
 	var keys: PackedStringArray = ["amazing", "great_shot", "fantastic", "magnificent", "incredible"]
 	var key: String = keys[clampi(level, 0, keys.size() - 1)]
@@ -138,7 +139,7 @@ func praise(level: int) -> void:
 			_vibrate_pattern(18, 48, 26)
 		else:
 			_vibrate(18)
-		return
+		return _last_line()
 	if level >= 3:
 		_play("cheer", 1.0, -8.0)
 		_play("sparkle", 1.12, -12.0)
@@ -149,6 +150,13 @@ func praise(level: int) -> void:
 	else:
 		_play("sparkle", 1.0, -11.0)
 		_vibrate(12)
+	return ""
+
+
+func _last_line() -> String:
+	if voice != null:
+		return voice.last_said()
+	return ""
 
 
 func line(key: String, force: bool = false) -> bool:

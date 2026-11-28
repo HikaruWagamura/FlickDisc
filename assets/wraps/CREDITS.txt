@@ -1,3 +1,8 @@
+Announcer voice lines (Great, Wow, My god, Not bad, That was close,
+Showtime, Winner, You win)
+  John Carroll — Announcer Voice Pack
+  https://johncarroll.itch.io/
+
 FlickDisc wrap textures
 
 woodland.png, desert.png, urban.png

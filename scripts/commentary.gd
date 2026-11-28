@@ -7,16 +7,40 @@ extends Node
 
 const FOLDER := "res://assets/audio/commentary"
 const KEYS := [
-	"toucher", "amazing", "great_shot", "fantastic", "magnificent", "incredible",
+	"toucher", "amazing", "great", "great_shot", "fantastic", "magnificent", "incredible",
+	"wow", "my_god", "not_bad", "that_was_close", "showtime", "winner", "you_win",
 	"down_1", "down_2", "down_3", "up_1", "up_2", "up_3",
 	"tied_end", "you_win_end", "they_win_end", "you_win_match", "they_win_match",
 	"last_end", "match_point",
 ]
+const FALLBACK := {
+	"toucher": ["wow"],
+	"amazing": ["not_bad"],
+	"great_shot": ["great"],
+	"fantastic": ["great"],
+	"magnificent": ["wow"],
+	"incredible": ["my_god", "wow"],
+	"you_win_match": ["you_win", "winner"],
+	"you_win_end": ["winner"],
+	"last_end": ["showtime"],
+	"match_point": ["showtime"],
+}
 const ALIASES := {
 	"toucher": "toucher",
 	"toucha": "toucher",
 	"amazing": "amazing",
+	"great": "great",
+	"great 2": "great",
 	"great shot": "great_shot",
+	"wow": "wow",
+	"my god": "my_god",
+	"oh my god": "my_god",
+	"not bad": "not_bad",
+	"that was close": "that_was_close",
+	"showtime": "showtime",
+	"show time": "showtime",
+	"winner": "winner",
+	"you win": "you_win",
 	"fantastic": "fantastic",
 	"magnificent": "magnificent",
 	"incredible": "incredible",
@@ -47,7 +71,6 @@ const ALIASES := {
 	"you win the end": "you_win_end",
 	"you take the end": "you_win_end",
 	"they win the end": "they_win_end",
-	"you win": "you_win_match",
 	"you win the match": "you_win_match",
 	"they win": "they_win_match",
 	"they win the match": "they_win_match",
@@ -79,7 +102,21 @@ func is_talking() -> bool:
 	return _player != null and _player.playing
 
 
+func last_said() -> String:
+	return _last_key
+
+
 func say(key: String, force: bool = false) -> bool:
+	if _play_key(key, force):
+		return true
+	if FALLBACK.has(key):
+		for alt in FALLBACK[key]:
+			if _play_key(str(alt), force):
+				return true
+	return false
+
+
+func _play_key(key: String, force: bool) -> bool:
 	if not has_line(key):
 		return false
 	var now := Time.get_ticks_msec() * 0.001
