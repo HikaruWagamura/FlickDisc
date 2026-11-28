@@ -36,8 +36,11 @@ var pose_lock := false
 ## Chase rides behind the running bowl. Behind stays on the mat and looks up the green.
 var chase := true
 var overview := false
+var reveal := false
 var _overview_look := Vector3(0.0, 0.0, -22.0)
 var _overview_pan := Vector2.ZERO
+var _reveal_span := 8.0
+var _reveal_near := 6.5
 var _aiming := false
 var _shot_pos := Vector3(0.0, 0.0, -4.0)
 var _shot_vel := Vector3.ZERO
@@ -263,10 +266,18 @@ func _process(delta: float) -> void:
 	var response := 5.0
 	if overview:
 		var look := _overview_look + Vector3(_overview_pan.x, 0.0, _overview_pan.y)
-		goal_pos = look + Vector3(0.0, 24.5, 16.8)
-		goal_look = look + Vector3(0.0, 0.04, 0.0)
-		goal_fov = 48.0
-		response = 3.4
+		if reveal:
+			var lift := clampf(_reveal_span * 1.08, 7.4, 15.5)
+			var back := clampf(maxf(_reveal_span * 0.82, _reveal_near), 6.2, 14.0)
+			goal_pos = look + Vector3(0.0, lift, back)
+			goal_look = look + Vector3(0.0, 0.06, 0.0)
+			goal_fov = 46.0
+			response = 3.2
+		else:
+			goal_pos = look + Vector3(0.0, 24.5, 16.8)
+			goal_look = look + Vector3(0.0, 0.04, 0.0)
+			goal_fov = 48.0
+			response = 3.4
 	elif _head_hold:
 		goal_look = _head + Vector3(0.0, 0.18, 0.0)
 		if _head_gap > 12.0:
@@ -374,18 +385,30 @@ func release_head() -> void:
 
 func enter_overview(head_at: Vector3) -> void:
 	overview = true
+	reveal = false
 	_head_hold = false
 	_overview_look = Vector3(head_at.x, 0.0, head_at.z)
 	_overview_pan = Vector2.ZERO
 
 
+func enter_reveal(center: Vector3, span: float, near_pad: float = 6.5) -> void:
+	overview = true
+	reveal = true
+	_head_hold = false
+	_overview_look = Vector3(center.x, 0.0, center.z)
+	_overview_pan = Vector2.ZERO
+	_reveal_span = clampf(span, 7.0, 16.0)
+	_reveal_near = clampf(near_pad, 6.0, 14.0)
+
+
 func pan_overview(delta_xz: Vector2) -> void:
-	_overview_pan.x = clampf(_overview_pan.x + delta_xz.x, -8.5, 8.5)
-	_overview_pan.y = clampf(_overview_pan.y + delta_xz.y, -11.0, 11.0)
+	_overview_pan.x = clampf(_overview_pan.x + delta_xz.x, -10.0, 10.0)
+	_overview_pan.y = clampf(_overview_pan.y + delta_xz.y, -14.0, 14.0)
 
 
 func exit_overview() -> void:
 	overview = false
+	reveal = false
 	_overview_pan = Vector2.ZERO
 
 
@@ -398,6 +421,7 @@ func reset_view() -> void:
 	_aiming = false
 	_cam_ready = false
 	overview = false
+	reveal = false
 	_overview_pan = Vector2.ZERO
 
 

@@ -76,6 +76,7 @@ var _compare_power := 0.85
 var _compare_aim := Vector3(0.10, 0.0, -1.0)
 var _overview_held := false
 var _overview_last := Vector2.ZERO
+var _shout_toucher := false
 var distance_play := false
 var solo_play := false
 var solo_index := 0
@@ -198,6 +199,12 @@ func _ready() -> void:
 		call_deferred("_aitest")
 	elif OS.get_cmdline_user_args().has("--graphtest"):
 		call_deferred("_graphtest")
+	elif OS.get_cmdline_user_args().has("--campreview"):
+		call_deferred("_campreview")
+	elif OS.get_cmdline_user_args().has("--endreveal"):
+		call_deferred("_endreveal")
+	elif OS.get_cmdline_user_args().has("--callouttest"):
+		call_deferred("_callouttest")
 	elif _wants_livetest():
 		call_deferred("_livetest")
 
@@ -223,6 +230,17 @@ func _process(delta: float) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if rink == null or not rink.overview:
+		return
+	if event is InputEventScreenTouch:
+		_overview_held = event.pressed
+		_overview_last = event.position
+		get_viewport().set_input_as_handled()
+		return
+	if event is InputEventScreenDrag:
+		var move: Vector2 = event.position - _overview_last
+		_overview_last = event.position
+		rink.pan_overview(Vector2(-move.x * 0.014, move.y * 0.016))
+		get_viewport().set_input_as_handled()
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		_overview_held = event.pressed
@@ -715,6 +733,12 @@ func _apply_guide(kind: int) -> void:
 
 func _on_overview_requested() -> void:
 	feel.tap()
+	if ui != null and ui.summary != null and ui.summary.visible:
+		if rink.reveal:
+			_enter_overview()
+		else:
+			_open_end_reveal()
+		return
 	if rink.overview:
 		_leave_overview()
 	else:
@@ -727,16 +751,21 @@ func _enter_overview() -> void:
 		at = jack.global_position
 	rink.enter_overview(at)
 	ui.show_overview_mode(true)
-	_paint_closest()
+	if ui.summary == null or not ui.summary.visible:
+		_paint_closest()
 	if cue != null:
 		cue.clear()
 	if gesture != null and str(gesture.phase) != "busy":
 		gesture.busy()
-	ui.status_label.text = "OVERVIEW  •  DRAG TO LOOK AROUND"
-	ui.score_label.text = "CLOSEST BOWL IS RINGED IN GOLD"
+	if ui.summary == null or not ui.summary.visible:
+		ui.status_label.text = "OVERVIEW  •  DRAG TO LOOK AROUND"
+		ui.score_label.text = "CLOSEST BOWL IS RINGED IN GOLD"
 
 
 func _leave_overview() -> void:
+	if ui != null and ui.summary != null and ui.summary.visible:
+		_open_end_reveal()
+		return
 	rink.exit_overview()
 	ui.show_overview_mode(false)
 	_clear_closest()
@@ -746,6 +775,83 @@ func _leave_overview() -> void:
 		ui.show_jack_prompt(end_number, _match_label(), _score_line())
 	else:
 		ui.show_in_motion(_side_name(_side()), _bowl_name(bias_index), hand_sign < 0.0, _score_line())
+
+
+func _cheer_rest(distance: float, ditched: bool) -> bool:
+	if delivering_jack or ditched or _shout_toucher:
+		return _shout_toucher
+	var level := _praise_level(distance)
+	if level < 0:
+		return false
+	var lines := [
+		["AMAZING!", Color(1.0, 0.92, 0.58)],
+		["GREAT SHOT!", Color(1.0, 0.86, 0.32)],
+		["FANTASTIC!", Color(1.0, 0.84, 0.28)],
+		["MAGNIFICENT!", Color(1.0, 0.9, 0.42)],
+		["INCREDIBLE!", Color(1.0, 0.96, 0.55)],
+	]
+	var pick: Array = lines[clampi(level, 0, lines.size() - 1)]
+	if feel != null:
+		feel.praise(level)
+	if ui != null:
+		ui.show_shout(str(pick[0]), "%.2f m" % distance, pick[1])
+	return true
+
+
+func _praise_level(distance: float) -> int:
+	# Painted head: gold 0.34, pink 0.70, blue 1.02, white 1.32.
+	if distance < 0.34:
+		return 4
+	if distance < 0.70:
+		return 3
+	if distance < 1.02:
+		return 2
+	if distance < 1.32:
+		return 1
+	if distance < 2.20:
+		return 0
+	return -1
+
+
+func _open_end_reveal() -> void:
+	if rink == null or jack == null or not jack.visible:
+		return
+	var jack_pos: Vector3 = jack.global_position
+	var min_x := jack_pos.x
+	var max_x := jack_pos.x
+	var min_z := jack_pos.z
+	var max_z := jack_pos.z
+	var closest_other = null
+	var closest_other_d := 9999.0
+	for body in settled:
+		if body == null or not is_instance_valid(body) or not _bowl_is_live(body):
+			continue
+		var at: Vector3 = body.global_position
+		if body.scoring:
+			min_x = minf(min_x, at.x)
+			max_x = maxf(max_x, at.x)
+			min_z = minf(min_z, at.z)
+			max_z = maxf(max_z, at.z)
+		else:
+			var dist := _distance(at, jack_pos)
+			if dist < closest_other_d:
+				closest_other_d = dist
+				closest_other = body
+	if closest_other != null:
+		var other_at: Vector3 = closest_other.global_position
+		min_x = minf(min_x, other_at.x)
+		max_x = maxf(max_x, other_at.x)
+		min_z = minf(min_z, other_at.z)
+		max_z = maxf(max_z, other_at.z)
+	var center := Vector3((min_x + max_x) * 0.5, 0.0, (min_z + max_z) * 0.5)
+	var span := maxf(maxf(max_x - min_x, max_z - min_z) + 4.8, 7.2)
+	var near_pad := (max_z - center.z) + 5.2
+	rink.enter_reveal(center, span, near_pad)
+	ui.show_overview_mode(true)
+	if cue != null:
+		cue.clear()
+	if gesture != null:
+		gesture.busy()
 
 
 func _paint_closest() -> void:
@@ -813,6 +919,7 @@ func _on_match_cycle_requested() -> void:
 
 func _on_disc_shot_started() -> void:
 	clock_live = false
+	_shout_toucher = false
 	if delivering_jack:
 		ui.set_power_ratio(0.0)
 		ui.show_jack_running()
@@ -825,7 +932,10 @@ func _on_disc_shot_started() -> void:
 
 func _on_disc_impacted(speed: float, hit_jack: bool, hit_bank: bool) -> void:
 	feel.contact(speed, hit_jack, hit_bank)
-	if not hit_bank:
+	if hit_jack and not delivering_jack:
+		_shout_toucher = true
+		ui.show_shout("TOUCHER!", "On the jack", Color(1.0, 0.9, 0.38))
+	elif not hit_bank:
 		ui.show_contact(hit_jack)
 
 
@@ -898,9 +1008,10 @@ func _finish_shot(token: int) -> void:
 	var closest: float = score_manager.get_closest_distance()
 	var jack_moved: bool = jack_pos.distance_to(jack_home) > 0.2
 	ui.set_power_ratio(0.0)
-	rink.focus_head(jack_pos)
 	if throws_left > 0:
-		feel.settled(closest if closest >= 0.0 else 9.0)
+		rink.focus_head(jack_pos)
+		if not _cheer_rest(disc_distance, bowl_ditched):
+			feel.settled(closest if closest >= 0.0 else 9.0)
 		ui.show_throw_result(disc_distance, closest, _side_name(_side()), jack_moved, bowl_ditched, respotted, spares, _score_line())
 		if gesture != null:
 			gesture.busy()
@@ -933,6 +1044,7 @@ func _finish_shot(token: int) -> void:
 		feel.settled(0.2 if shots > 0 else 9.0)
 		var holder_name := "TIED" if shots <= 0 else _side_name(holder)
 		ui.show_end_summary(end_number, holder_name, shots, closest, _score_line(), match_complete)
+		_open_end_reveal()
 		if gesture != null:
 			gesture.busy()
 
@@ -1237,7 +1349,8 @@ func _apply_live_skip() -> void:
 	disc.visible = false
 	_place_rack()
 	var holder_name := "TIED" if shots <= 0 else _side_name(holder)
-	ui.show_end_summary(end_number, holder_name, shots, -1.0, _score_line(), match_complete)
+	ui.show_end_summary(end_number, holder_name, shots, float(count.get("closest", -1.0)), _score_line(), match_complete)
+	_open_end_reveal()
 
 
 func _play_computer(token: int) -> void:
@@ -2686,6 +2799,163 @@ func _apply_test_kit(skin_id: String, color: int) -> void:
 		disc.seat_visual()
 	for bowl in rack:
 		bowl.paint(0, hand_sign)
+
+
+func _campreview() -> void:
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+	DisplayServer.window_set_size(Vector2i(1080, 2400))
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if gesture != null:
+		gesture.busy()
+	delivering_jack = false
+	bias_index = 1
+	hand_sign = -1.0
+	disc.configure_bowl(bias_index, hand_sign)
+	disc.set_palette(0)
+	disc.reset_to_start()
+	_place_rack()
+	ui.show_bowl_controls(true)
+	ui.show_hand(true, _bowl_name(bias_index))
+	_use_cue_kind(0)
+	if cue_blocks != null and cue_blocks.has_method("set_style"):
+		cue_blocks.set_style(0)
+	_cue_compare = true
+	_compare_power = 0.58
+	_compare_aim = Vector3(0.10, 0.0, -1.0).normalized()
+	if gesture != null:
+		gesture.phase = "pull"
+		gesture.direct_hold = disc.start_position + Vector3(0.0, 0.0, 0.38)
+		gesture._raw_hold = gesture.direct_hold
+		gesture.direct_aim = _compare_aim
+		gesture._raw_aim = _compare_aim
+		gesture.direct_power = _compare_power
+		gesture._raw_power = _compare_power
+	disc.is_aiming = true
+	_sync_compare_cue()
+	for _i in 24:
+		await get_tree().process_frame
+	await _dump_compare_shot("cam_now_aim")
+	var cam: Camera3D = rink.view_camera()
+	if cam != null:
+		rink.pose_lock = true
+		# About a pixel or two at this range: a few centimetres back and up.
+		cam.position.y += 0.04
+		cam.position.z += 0.08
+		cam.fov = cam.fov + 0.6
+		var look_at := Vector3(0.0, 0.16, disc.global_position.z - 12.5)
+		cam.look_at(look_at, Vector3.UP)
+	for _j in 4:
+		await get_tree().process_frame
+	await _dump_compare_shot("cam_tiny_out_aim")
+	print("CAMPREVIEW done")
+	get_tree().quit(0)
+
+
+func _endreveal() -> void:
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+	DisplayServer.window_set_size(Vector2i(540, 960))
+	Engine.max_fps = 30
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if gesture != null:
+		gesture.busy()
+	delivering_jack = false
+	live_play = true
+	live_host = true
+	live_rival = "Marlow"
+	opponent = "ai"
+	end_number = 1
+	you_points = 0
+	them_points = 0
+	disc.visible = false
+	var jack_at := Vector3(0.0, 0.0, rink.tee_z() + 4.0)
+	jack.rest_at(jack_at)
+	jack.visible = true
+	jack_home = jack_at
+	rink.place_head(Vector2(jack_at.x, jack_at.z))
+	var win = BowlScript.new()
+	win.name = "RevealWin"
+	win.setup_disc(1, -1.0, 1)
+	win.side = 1
+	add_child(win)
+	win.rest_at(jack_at + Vector3(0.42, 0.0, 3.10))
+	settled.append(win)
+	var yours = BowlScript.new()
+	yours.name = "RevealYou"
+	yours.setup_disc(0, -1.0, 1)
+	yours.side = 0
+	add_child(yours)
+	yours.rest_at(jack_at + Vector3(-0.58, 0.0, 4.25))
+	settled.append(yours)
+	var extra = BowlScript.new()
+	extra.name = "RevealExtra"
+	extra.setup_disc(1, -1.0, 0)
+	extra.side = 1
+	add_child(extra)
+	extra.rest_at(jack_at + Vector3(1.05, 0.0, 5.6))
+	settled.append(extra)
+	var count := _count_end()
+	var shots: int = count["shots"]
+	var holder: int = count["side"]
+	if holder == 0:
+		you_points += shots
+	elif holder == 1:
+		them_points += shots
+	var holder_name := "TIED" if shots <= 0 else _side_name(holder)
+	ui.show_end_summary(end_number, holder_name, shots, float(count["closest"]), _score_line(), false)
+	_open_end_reveal()
+	for _i in 42:
+		await get_tree().process_frame
+	await _dump_compare_shot("end_reveal_head")
+	rink.pan_overview(Vector2(1.4, 2.2))
+	for _j in 18:
+		await get_tree().process_frame
+	await _dump_compare_shot("end_reveal_pan")
+	print("ENDREVEAL shots=%d holder=%s closest=%.2f" % [shots, holder_name, float(count["closest"])])
+	print("ENDREVEAL done")
+	get_tree().quit(0)
+
+
+func _callouttest() -> void:
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+	DisplayServer.window_set_size(Vector2i(540, 960))
+	Engine.max_fps = 30
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if gesture != null:
+		gesture.busy()
+	delivering_jack = false
+	disc.visible = false
+	var jack_at := Vector3(0.0, 0.0, rink.tee_z() + 4.0)
+	jack.rest_at(jack_at)
+	jack.visible = true
+	jack_home = jack_at
+	rink.place_head(Vector2(jack_at.x, jack_at.z))
+	var bowl = BowlScript.new()
+	bowl.name = "ShoutBowl"
+	bowl.setup_disc(0, -1.0, 1)
+	bowl.side = 0
+	add_child(bowl)
+	bowl.rest_at(jack_at + Vector3(0.22, 0.0, 0.28))
+	settled.append(bowl)
+	bowl.set_scoring(true)
+	rink.enter_reveal(jack_at, 7.2, 6.4)
+	for _i in 28:
+		await get_tree().process_frame
+	ui.show_shout("TOUCHER!", "On the jack", Color(1.0, 0.9, 0.38))
+	await get_tree().create_timer(0.38).timeout
+	await _dump_compare_shot("shout_toucher")
+	bowl.rest_at(jack_at + Vector3(0.35, 0.0, 0.88))
+	ui.show_shout("GREAT SHOT!", "0.92 m", Color(1.0, 0.86, 0.32))
+	await get_tree().create_timer(0.38).timeout
+	await _dump_compare_shot("shout_great")
+	bowl.rest_at(jack_at + Vector3(0.12, 0.0, 0.18))
+	ui.show_shout("INCREDIBLE!", "0.18 m", Color(1.0, 0.96, 0.55))
+	await get_tree().create_timer(0.38).timeout
+	await _dump_compare_shot("shout_incredible")
+	print("CALLOUTTEST done")
+	get_tree().quit(0)
 
 
 func _wants_cuetest() -> bool:
