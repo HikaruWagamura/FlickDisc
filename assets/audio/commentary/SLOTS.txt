@@ -1,22 +1,15 @@
 Name the file the exact words said. Extra takes: Great 2.wav or great_2.wav.
-A zip of more lines can drop straight in here.
+Drop WAV / OGG / MP3 in this folder, or attach the zip in the Cursor chat.
 
-In the game now
-  great.wav / great_2.wav   white or blue ring
-  wow.wav                   pink ring, or a toucher
-  my_god.wav                gold ring / on the jack
-  not_bad.wav               close, just outside the head
-  that_was_close.wav        near miss, under about 3.6 m
-  showtime.wav              first bowl of the match, last end, match point
-  winner.wav                you take the end
-  you_win.wav               you win the match
+Distance from the jack
+  outstanding / perfect     gold ring, under 0.34 m
+  amazing                   pink ring, under 0.70 m
+  great                     white or blue ring
+  not bad / okay            just outside the head, under 2.20 m
+  okay / that was close     near miss, or it ran past the jack, under 3.6 m
+  toucher / wow / my god    on the jack
 
-Drop these next and they wire themselves by distance
-  Okay / Not bad            just outside the head
-  Nice / Good / Great       white ring
-  Brilliant / Fantastic     blue ring
-  Wow / Excellent           pink ring
-  Incredible / Perfect      gold ring
-  Unlucky / So close        near miss
-  Toucher                   on the jack
-  Down by one / Up by one / They win
+Match lines
+  showtime                  first bowl, last end, match point
+  winner                    you take the end
+  you win                   you win the match

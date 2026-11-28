@@ -8,11 +8,11 @@ extends Node
 const CommentaryScript := preload("res://scripts/commentary.gd")
 const CrowdScript := preload("res://scripts/crowd.gd")
 const PRAISE_POOL := {
-	0: ["okay", "not_bad", "amazing"],
-	1: ["great", "great_shot", "nice", "good"],
-	2: ["great", "fantastic", "brilliant"],
-	3: ["wow", "brilliant", "magnificent", "excellent"],
-	4: ["incredible", "perfect", "my_god", "superb"],
+	0: ["okay", "not_bad"],
+	1: ["great", "great_shot"],
+	2: ["great", "fantastic"],
+	3: ["amazing", "wow"],
+	4: ["outstanding", "perfect", "my_god"],
 }
 
 var roll_amount := 0.0

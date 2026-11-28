@@ -781,15 +781,17 @@ func _leave_overview() -> void:
 		ui.show_in_motion(_side_name(_side()), _bowl_name(bias_index), hand_sign < 0.0, _score_line())
 
 
-func _cheer_rest(distance: float, ditched: bool, yours: bool) -> bool:
+func _cheer_rest(distance: float, ditched: bool, yours: bool, rest_pos: Vector3 = Vector3.ZERO) -> bool:
 	if delivering_jack or ditched or _shout_toucher:
 		return _shout_toucher
 	var level := _praise_level(distance)
 	if level < 0:
 		if yours and distance < 3.6 and feel != null:
 			feel.crowd_for(-1)
-			if feel.line("that_was_close"):
-				_shout_from_key("that_was_close", "%.2f m" % distance)
+			var through := _went_through_jack(rest_pos)
+			var key := "that_was_close" if through else "okay"
+			if feel.line(key) or feel.line("that_was_close") or feel.line("okay"):
+				_shout_from_key(feel.voice.last_said() if feel.voice != null else key, "%.2f m" % distance)
 				return true
 		return false
 	# Opponent bowls only get the big lines so it does not talk all match.
@@ -799,12 +801,14 @@ func _cheer_rest(distance: float, ditched: bool, yours: bool) -> bool:
 	if feel != null:
 		played = feel.praise(level)
 	if played == "":
-		if level >= 3:
-			played = "wow"
+		if level >= 4:
+			played = "outstanding"
+		elif level >= 3:
+			played = "amazing"
 		elif level >= 1:
 			played = "great"
 		else:
-			played = "not_bad"
+			played = "okay"
 	_shout_from_key(played, "%.2f m" % distance)
 	return true
 
@@ -827,9 +831,18 @@ func _shout_from_key(key: String, detail: String) -> void:
 		"great", "great_shot", "fantastic", "nice", "good", "well_done":
 			title = "GREAT!"
 			tint = Color(1.0, 0.86, 0.32)
-		"not_bad", "amazing", "okay":
+		"okay":
+			title = "OKAY!"
+			tint = Color(1.0, 0.9, 0.55)
+		"not_bad":
 			title = "NOT BAD!"
 			tint = Color(1.0, 0.9, 0.55)
+		"amazing":
+			title = "AMAZING!"
+			tint = Color(1.0, 0.92, 0.42)
+		"outstanding":
+			title = "OUTSTANDING!"
+			tint = Color(1.0, 0.96, 0.55)
 		"that_was_close", "unlucky", "so_close":
 			title = "THAT WAS CLOSE!"
 			tint = Color(0.95, 0.98, 0.7)
@@ -967,6 +980,7 @@ func _score_voice_key(_shots: int, _holder: int) -> String:
 
 func _praise_level(distance: float) -> int:
 	# Painted head: gold 0.34, pink 0.70, blue 1.02, white 1.32.
+	# Voice ladder: outstanding/perfect, amazing, great, not bad, okay.
 	if distance < 0.34:
 		return 4
 	if distance < 0.70:
@@ -978,6 +992,13 @@ func _praise_level(distance: float) -> int:
 	if distance < 2.20:
 		return 0
 	return -1
+
+
+func _went_through_jack(rest_pos: Vector3) -> bool:
+	if jack == null or not jack.visible:
+		return false
+	# Delivery runs toward -z. Past the jack is further down the green.
+	return rest_pos.z < jack.global_position.z - 0.12
 
 
 func _open_end_reveal() -> void:
@@ -1186,7 +1207,7 @@ func _finish_shot(token: int) -> void:
 	if throws_left > 0:
 		rink.focus_head(jack_pos)
 		var just_mine := ((throw_index - 1) % 2) == _you_side()
-		if not _cheer_rest(disc_distance, bowl_ditched, just_mine):
+		if not _cheer_rest(disc_distance, bowl_ditched, just_mine, rest_pos):
 			feel.settled(closest if closest >= 0.0 else 9.0)
 		ui.show_throw_result(disc_distance, closest, _side_name(_side()), jack_moved, bowl_ditched, respotted, spares, _score_line())
 		if gesture != null:
@@ -1205,7 +1226,7 @@ func _finish_shot(token: int) -> void:
 		return
 	else:
 		var just_mine := ((throw_index - 1) % 2) == _you_side()
-		var cheered := _cheer_rest(disc_distance, bowl_ditched, just_mine)
+		var cheered := _cheer_rest(disc_distance, bowl_ditched, just_mine, rest_pos)
 		var count := _count_end()
 		var shots: int = count["shots"]
 		var holder: int = count["side"]
@@ -3132,7 +3153,7 @@ func _callouttest() -> void:
 		await get_tree().process_frame
 	var loaded: PackedStringArray = PackedStringArray()
 	if feel != null and feel.voice != null:
-		for key in ["great", "wow", "my_god", "not_bad", "that_was_close", "showtime", "winner", "you_win"]:
+		for key in ["okay", "not_bad", "great", "amazing", "perfect", "outstanding", "wow", "my_god", "that_was_close", "showtime", "winner", "you_win"]:
 			if feel.voice.has_line(key):
 				loaded.append(key)
 	print("VOICE loaded=%s" % ",".join(loaded))
@@ -3142,11 +3163,13 @@ func _callouttest() -> void:
 			print("CROWD level=%d kind=%s" % [level, feel.crowd_for(level)])
 	var shouts: Array = [
 		["toucher", "On the jack", Vector3(0.22, 0.0, 0.28)],
+		["outstanding", "0.18 m", Vector3(0.10, 0.0, 0.16)],
+		["perfect", "0.22 m", Vector3(0.12, 0.0, 0.18)],
+		["amazing", "0.52 m", Vector3(0.28, 0.0, 0.48)],
 		["great", "0.92 m", Vector3(0.35, 0.0, 0.88)],
-		["wow", "0.62 m", Vector3(0.28, 0.0, 0.52)],
-		["my_god", "0.18 m", Vector3(0.12, 0.0, 0.18)],
 		["not_bad", "1.86 m", Vector3(0.55, 0.0, 1.55)],
-		["that_was_close", "3.10 m", Vector3(0.80, 0.0, 2.90)],
+		["okay", "2.05 m", Vector3(0.60, 0.0, 1.90)],
+		["that_was_close", "Past the jack", Vector3(0.22, 0.0, -1.40)],
 		["showtime", "", Vector3(0.22, 0.0, 0.28)],
 		["winner", "", Vector3(0.22, 0.0, 0.28)],
 		["you_win", "", Vector3(0.22, 0.0, 0.28)],
@@ -3158,15 +3181,15 @@ func _callouttest() -> void:
 			match key:
 				"toucher":
 					feel.crowd_toucher()
-				"that_was_close":
+				"that_was_close", "okay":
 					feel.crowd_for(-1)
 				"not_bad":
 					feel.crowd_for(0)
 				"great":
 					feel.crowd_for(1)
-				"wow":
+				"amazing", "wow":
 					feel.crowd_for(3)
-				"my_god":
+				"outstanding", "perfect", "my_god":
 					feel.crowd_for(4)
 				"showtime":
 					feel.crowd_score("showtime")
