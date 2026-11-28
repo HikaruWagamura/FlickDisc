@@ -46,6 +46,13 @@ var end_number := 1
 var you_points := 0
 var them_points := 0
 var opponent := "local"
+var live_play := false
+var live_host := true
+var live_rival := ""
+var shot_clock := 30.0
+var clock_live := false
+const LIVE_CLOCK := 30.0
+const LIVE_POINTS := 11
 var difficulty := 1
 var fast_play := false
 var _ai_token := 0
@@ -65,6 +72,8 @@ var _hold_finish := false
 var _compare_label: Label
 var _compare_power := 0.85
 var _compare_aim := Vector3(0.10, 0.0, -1.0)
+var _overview_held := false
+var _overview_last := Vector2.ZERO
 var distance_play := false
 var solo_play := false
 var solo_index := 0
@@ -141,12 +150,19 @@ func _ready() -> void:
 	ui.bias_selected.connect(_on_bias_selected)
 	ui.camera_requested.connect(_on_camera_requested)
 	ui.cue_cycle_requested.connect(_on_cue_cycle_requested)
+	ui.overview_requested.connect(_on_overview_requested)
 	_wire_shot()
 	_lock_portrait_on_device()
 	if _wants_bowltest():
 		fast_play = true
 		match_index = 0
 		opponent = "local"
+	if _wants_livetest() or live_play:
+		live_play = true
+		if _wants_livetest() and opponent != "ai" and opponent != "live":
+			opponent = "ai"
+		if live_rival == "":
+			live_rival = "Vesper" if opponent == "ai" else "Live player"
 	_build_rack()
 	_new_match()
 	if fast_play:
@@ -177,6 +193,10 @@ func _ready() -> void:
 		call_deferred("_rollshot")
 	elif OS.get_cmdline_user_args().has("--aitest"):
 		call_deferred("_aitest")
+	elif OS.get_cmdline_user_args().has("--graphtest"):
+		call_deferred("_graphtest")
+	elif _wants_livetest():
+		call_deferred("_livetest")
 
 
 func _process(delta: float) -> void:
@@ -190,11 +210,27 @@ func _process(delta: float) -> void:
 			fastest = maxf(fastest, body.velocity.length())
 	if feel != null:
 		feel.set_roll(fastest / DiscScript.MAX_SPEED)
+	_tick_live_clock(delta)
 	if rink != null and disc != null and not _freeze_cam:
 		var mat := Vector3(place_x, 0.0, line_z)
 		var head_at: Vector3 = jack.global_position if jack != null and jack.visible else disc.global_position
 		rink.note_delivery(disc.global_position, disc.velocity, disc.shot_in_progress, mat, head_at, disc.is_aiming)
 		_sync_head_rings()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if rink == null or not rink.overview:
+		return
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		_overview_held = event.pressed
+		_overview_last = event.position
+		get_viewport().set_input_as_handled()
+		return
+	if event is InputEventMouseMotion and _overview_held:
+		var move: Vector2 = event.position - _overview_last
+		_overview_last = event.position
+		rink.pan_overview(Vector2(-move.x * 0.014, move.y * 0.016))
+		get_viewport().set_input_as_handled()
 
 
 func _lock_portrait_on_device() -> void:
@@ -247,6 +283,9 @@ func _begin_ready() -> void:
 			gesture.busy()
 		disc.set_palette(1)
 		ui.show_computer(_side_name(1), _bowls_left(1))
+		if live_play:
+			ui.show_live_ai(_side_name(1), _score_line())
+		clock_live = false
 		_ai_token += 1
 		_play_computer(_ai_token)
 		return
@@ -262,6 +301,7 @@ func _begin_ready() -> void:
 		ui.show_bias(bias_index, _side())
 		ui.show_hand(hand_sign < 0.0, _bowl_name(bias_index))
 	ui.show_place_line(delivering_jack)
+	_arm_live_clock()
 
 
 func _on_place_at(spot: Vector3) -> void:
@@ -429,11 +469,14 @@ func _sync_direct(cam: Camera3D, placed: Vector3) -> void:
 		var rim := cam.unproject_position(live_pos + Vector3(cos(ang), 0.2, sin(ang)) * disc.radius)
 		bowl_r = maxf(bowl_r, centre.distance_to(rim))
 	fan.present(bowl_px, power, 0.0, false, -PI * 0.5, 120.0)
-	if cue != null and cue_kind != 3:
+	if rink != null and rink.overview:
+		if cue != null:
+			cue.clear()
+	elif cue != null and cue_kind != 3:
 		if pulling:
 			cue.present(disc.grass_cue(power), power, disc.aim_direction)
 		elif live and not delivering_jack:
-			cue.present(disc.grass_cue(0.52), 0.52, Vector3(0.0, 0.0, -1.0))
+			cue.present(disc.grass_cue(0.70), 0.20, Vector3(0.0, 0.0, -1.0))
 		else:
 			cue.clear()
 	elif cue != null:
@@ -528,10 +571,15 @@ func _place_rack() -> void:
 
 
 func _match_label() -> String:
+	if live_play:
+		return "TO 11"
 	return str(MATCHES[match_index]["label"])
 
 
 func _is_match_over() -> bool:
+	if live_play:
+		var lead := maxi(you_points, them_points)
+		return lead >= LIVE_POINTS and you_points != them_points
 	var fmt: Dictionary = MATCHES[match_index]
 	var ends_target := int(fmt["ends"])
 	var points_target := int(fmt["points"])
@@ -626,18 +674,78 @@ func _apply_guide(kind: int) -> void:
 	if cue_solid != null:
 		cue_solid.clear()
 	if cue_blocks != null and cue_blocks.has_method("set_heads"):
-		var heads := 8
-		if cue_kind == 1:
-			heads = 5
-		elif cue_kind == 2:
-			heads = 3
-		cue_blocks.set_heads(heads)
+		# Lawn always draws the 5+3 graph. Power never changes the count.
+		cue_blocks.set_heads(8)
 	if ui != null:
 		ui.show_cue_kind(cue_kind)
 
 
+func _on_overview_requested() -> void:
+	feel.tap()
+	if rink.overview:
+		_leave_overview()
+	else:
+		_enter_overview()
+
+
+func _enter_overview() -> void:
+	var at := Vector3(0.0, 0.0, rink.tee_z())
+	if jack != null and jack.visible:
+		at = jack.global_position
+	rink.enter_overview(at)
+	ui.show_overview_mode(true)
+	_paint_closest()
+	if cue != null:
+		cue.clear()
+	if gesture != null and str(gesture.phase) != "busy":
+		gesture.busy()
+	ui.status_label.text = "OVERVIEW  •  DRAG TO LOOK AROUND"
+	ui.score_label.text = "CLOSEST BOWL IS RINGED IN GOLD"
+
+
+func _leave_overview() -> void:
+	rink.exit_overview()
+	ui.show_overview_mode(false)
+	_clear_closest()
+	if not disc.shot_in_progress and not match_complete:
+		_begin_ready()
+	elif delivering_jack:
+		ui.show_jack_prompt(end_number, _match_label(), _score_line())
+	else:
+		ui.show_in_motion(_side_name(_side()), _bowl_name(bias_index), hand_sign < 0.0, _score_line())
+
+
+func _paint_closest() -> void:
+	if jack == null or not jack.visible:
+		return
+	var jack_pos: Vector3 = jack.global_position
+	var best = null
+	var best_d := 9999.0
+	for body in settled:
+		if body == null or not is_instance_valid(body):
+			continue
+		if body.has_method("set_scoring"):
+			body.set_scoring(false)
+		if not _bowl_is_live(body):
+			continue
+		var dist := _distance(body.global_position, jack_pos)
+		if dist < best_d:
+			best_d = dist
+			best = body
+	if best != null and best.has_method("set_scoring"):
+		best.set_scoring(true)
+
+
+func _clear_closest() -> void:
+	for body in settled:
+		if body != null and is_instance_valid(body) and body.has_method("set_scoring"):
+			body.set_scoring(false)
+
+
 func _on_camera_requested() -> void:
 	feel.tap()
+	if rink.overview:
+		_leave_overview()
 	rink.chase = not rink.chase
 	ui.show_camera_mode(rink.chase)
 	if not disc.shot_in_progress:
@@ -660,6 +768,8 @@ func _on_ditch_option_requested() -> void:
 
 
 func _on_match_cycle_requested() -> void:
+	if live_play:
+		return
 	if disc.shot_in_progress or not delivering_jack or end_number > 1 or you_points > 0 or them_points > 0:
 		return
 	feel.tap()
@@ -669,6 +779,7 @@ func _on_match_cycle_requested() -> void:
 
 
 func _on_disc_shot_started() -> void:
+	clock_live = false
 	if delivering_jack:
 		ui.set_power_ratio(0.0)
 		ui.show_jack_running()
@@ -935,6 +1046,12 @@ func _side() -> int:
 
 
 func _side_name(side: int) -> String:
+	if live_play:
+		if side == 0:
+			return "YOU"
+		if live_rival != "":
+			return live_rival.to_upper()
+		return "LIVE" if opponent == "live" else "CLUB AI"
 	return "RED" if side == 0 else "BLUE"
 
 
@@ -947,11 +1064,83 @@ func _bowls_left(side: int) -> int:
 
 
 func _score_line() -> String:
+	if live_play:
+		return "%s %d   %s %d" % [_side_name(0), you_points, _side_name(1), them_points]
 	return "RED %d   BLUE %d" % [you_points, them_points]
 
 
 func _computer_turn() -> bool:
 	return opponent == "ai" and not delivering_jack and _side() == 1
+
+
+func _arm_live_clock() -> void:
+	if not live_play or match_complete or _computer_turn():
+		clock_live = false
+		return
+	shot_clock = LIVE_CLOCK
+	clock_live = true
+	_paint_live_clock()
+
+
+func _tick_live_clock(delta: float) -> void:
+	if not live_play or not clock_live or disc == null or disc.shot_in_progress:
+		return
+	shot_clock = maxf(0.0, shot_clock - delta)
+	_paint_live_clock()
+	if shot_clock <= 0.0:
+		clock_live = false
+		_on_live_clock_out()
+
+
+func _paint_live_clock() -> void:
+	if ui == null:
+		return
+	var side := "JACK" if delivering_jack else _side_name(_side())
+	ui.show_live_clock(shot_clock, side, _score_line(), delivering_jack)
+
+
+func _on_live_clock_out() -> void:
+	if match_complete or disc == null or disc.shot_in_progress:
+		return
+	if gesture != null:
+		gesture.busy()
+	if delivering_jack:
+		disc.global_position = _tee_spot()
+		disc.in_ditch = false
+		_finish_jack(_tee_spot())
+		return
+	throws_left = maxi(throws_left - 1, 0)
+	throw_index += 1
+	disc.reset_to_start()
+	_place_rack()
+	disc.obstacles = _table()
+	if throws_left > 0:
+		if not _computer_turn():
+			bias_index = player_bias
+			hand_sign = player_hand
+			disc.configure_bowl(bias_index, hand_sign)
+			disc.set_palette(_side())
+			ui.show_bias(bias_index, _side())
+			ui.show_hand(hand_sign < 0.0, _bowl_name(bias_index))
+			ui.show_bowl_controls(true)
+		ui.show_throw_result(9.0, -1.0, _side_name(_side()), false, false, false, rink.spares_remaining() if rink != null else 0, _score_line())
+		_begin_ready()
+		return
+	var count := _count_end()
+	var shots: int = count["shots"]
+	var holder: int = count["side"]
+	if holder == 0:
+		you_points += shots
+	elif holder == 1:
+		them_points += shots
+	match_complete = _is_match_over()
+	if match_complete and not match_reported and you_points != them_points:
+		match_reported = true
+		match_decided.emit(you_points > them_points)
+	disc.visible = false
+	_place_rack()
+	var holder_name := "TIED" if shots <= 0 else _side_name(holder)
+	ui.show_end_summary(end_number, holder_name, shots, -1.0, _score_line(), match_complete)
 
 
 func _play_computer(token: int) -> void:
@@ -2426,6 +2615,107 @@ func _wants_solotest() -> bool:
 	return OS.get_cmdline_user_args().has("--solotest")
 
 
+func _wants_livetest() -> bool:
+	return OS.get_cmdline_user_args().has("--livetest")
+
+
+func _graphtest() -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+	_cue_compare = true
+	_use_cue_kind(0)
+	if cue_blocks != null and cue_blocks.has_method("set_style"):
+		cue_blocks.set_style(0)
+	# Jack first: the 5+3 graph sits on the dashed centre line.
+	delivering_jack = true
+	disc.delivering_jack = true
+	disc.reset_to_start()
+	_compare_aim = Vector3(0.0, 0.0, -1.0)
+	var jack_steps := [
+		{"power": 0.22, "file": "graph_jack_ice", "title": "5+3  •  LIGHT  •  SAME BARS"},
+		{"power": 0.55, "file": "graph_jack_mid", "title": "5+3  •  MID  •  SAME BARS"},
+		{"power": 0.88, "file": "graph_jack_hot", "title": "5+3  •  HOT  •  SAME BARS"},
+		{"power": 1.00, "file": "graph_jack_max", "title": "5+3  •  MAX  •  SHAKE ONLY"},
+	]
+	for step in jack_steps:
+		_compare_power = float(step["power"])
+		_set_compare_banner(str(step["title"]))
+		_sync_compare_cue()
+		await get_tree().process_frame
+		await get_tree().process_frame
+		await _dump_compare_shot(str(step["file"]))
+	delivering_jack = false
+	disc.delivering_jack = false
+	bias_index = 3
+	hand_sign = -1.0
+	disc.configure_bowl(3, -1.0)
+	disc.set_palette(0)
+	disc.reset_to_start()
+	_compare_aim = Vector3(0.18, 0.0, -1.0).normalized()
+	var steps := [
+		{"power": 0.22, "file": "graph_ice", "title": "GRAPH  •  LIGHT"},
+		{"power": 0.55, "file": "graph_mid", "title": "GRAPH  •  MID"},
+		{"power": 0.88, "file": "graph_hot", "title": "GRAPH  •  HOT"},
+		{"power": 1.00, "file": "graph_max", "title": "GRAPH  •  MAX SHAKE"},
+	]
+	for step in steps:
+		_compare_power = float(step["power"])
+		_set_compare_banner(str(step["title"]))
+		_sync_compare_cue()
+		await get_tree().process_frame
+		await get_tree().process_frame
+		await _dump_compare_shot(str(step["file"]))
+	_cue_compare = false
+	if cue != null:
+		cue.clear()
+	if _compare_label != null:
+		_compare_label.text = ""
+	var jack_at := Vector3(0.2, 0.0, line_z - 23.0)
+	jack.rest_at(jack_at)
+	jack.visible = true
+	jack_home = jack_at
+	rink.place_head(Vector2(jack_at.x, jack_at.z))
+	for offset in [Vector3(0.35, 0.0, 0.55), Vector3(-0.85, 0.0, 1.4), Vector3(1.1, 0.0, -0.7)]:
+		var bowl = BowlScript.new()
+		bowl.setup_disc(1, 1.0)
+		bowl.side = 1
+		add_child(bowl)
+		bowl.rest_at(jack_at + offset)
+		settled.append(bowl)
+	_enter_overview()
+	for _i in 22:
+		await get_tree().process_frame
+	await _dump_compare_shot("graph_overview")
+	rink.pan_overview(Vector2(3.2, -2.6))
+	for _i in 16:
+		await get_tree().process_frame
+	await _dump_compare_shot("graph_overview_pan")
+	print("GRAPHTEST done")
+	get_tree().quit(0)
+
+
+func _livetest() -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	_dump_live("live_hud")
+	print("LIVETEST done")
+	get_tree().quit(0)
+
+
+func _dump_live(name: String) -> void:
+	var tex: Texture2D = get_viewport().get_texture()
+	if tex == null:
+		return
+	var img := tex.get_image()
+	if img == null:
+		return
+	DirAccess.make_dir_recursive_absolute("/opt/cursor/artifacts")
+	img.save_png("/opt/cursor/artifacts/%s.png" % name)
+	print("LIVE_SHOT %s" % name)
+
+
 func _drivetest() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -2654,6 +2944,8 @@ func _distance(a: Vector3, b: Vector3) -> float:
 
 func _on_reset_requested() -> void:
 	feel.tap()
+	if ui != null:
+		ui.show_overview_mode(false)
 	_new_match()
 
 

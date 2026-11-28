@@ -23,12 +23,12 @@ var _raw_power := 0.0
 var _raw_hold := Vector3.ZERO
 const DIRECT_METRES := 0.78
 var direct_runup := DIRECT_METRES
-const DIRECT_PULL_PX := 235.0
+const DIRECT_PULL_PX := 278.0
 ## Widest send is about 50° so a right drag still fires up the green.
 const DIRECT_MAX_SIDE := 1.15
-const AIM_SMOOTH := 18.0
-const POWER_SMOOTH := 16.0
-const HOLD_SMOOTH := 14.0
+const AIM_SMOOTH := 11.0
+const POWER_SMOOTH := 9.5
+const HOLD_SMOOTH := 8.5
 
 const TakeScript := preload("res://scripts/shot_take.gd")
 
@@ -336,7 +336,7 @@ func _apply_direct(screen: Vector2) -> void:
 		send = send.normalized()
 	var travel := clampf(dist / DIRECT_PULL_PX, 0.0, 1.0)
 	_raw_aim = send
-	_raw_power = pow(travel, 0.84)
+	_raw_power = pow(travel, 0.92)
 	_raw_hold = anchor + Vector3(-send.x, 0.0, -send.z) * (travel * direct_runup)
 
 

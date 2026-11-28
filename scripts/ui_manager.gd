@@ -19,12 +19,14 @@ signal mode_requested(mode_name: String)
 signal leave_requested
 signal camera_requested
 signal cue_cycle_requested
+signal overview_requested
 
 var status_label: Label
 var score_label: Label
 var level_label: Label
 var throws_label: Label
 var reset_button: Button
+var overview_button: Button
 var next_button: Button
 var ditch_button: Button
 var aim_dial: Control
@@ -112,6 +114,11 @@ func _ready() -> void:
 	_paint_sync(reset_button, false)
 	reset_button.pressed.connect(func() -> void: reset_requested.emit())
 
+	overview_button = _make_button("OVERVIEW", Vector2(224.0, 24.0), Vector2(110.0, 40.0))
+	overview_button.add_theme_font_size_override("font_size", 13)
+	_paint_sync(overview_button, false)
+	overview_button.pressed.connect(func() -> void: overview_requested.emit())
+
 	cue_button = _make_button("5+3", Vector2(228.0, 24.0), Vector2(100.0, 40.0))
 	cue_button.add_theme_font_size_override("font_size", 13)
 	_paint_sync(cue_button, false)
@@ -165,8 +172,8 @@ func set_power_ratio(power_ratio: float) -> void:
 			power_max.self_modulate = Color(1.0, 0.22, 0.28, pulse)
 	if power_track != null:
 		var shake := Vector2.ZERO
-		if ratio >= 0.90:
-			var amp := ((ratio - 0.90) / 0.10) * 1.6
+		if ratio >= 0.94:
+			var amp := ((ratio - 0.94) / 0.06) * 1.6
 			var wave := Time.get_ticks_msec() * 0.001
 			shake = Vector2(sin(wave * 54.0) * amp, cos(wave * 61.0) * amp)
 		power_track.position = _power_home + shake
@@ -188,6 +195,34 @@ func show_match(match_label: String) -> void:
 	match_button.text = match_label
 
 
+func show_live_ai(rival: String, score_line: String) -> void:
+	level_label.text = "TO 11"
+	throws_label.text = "CLUB AI"
+	throws_label.add_theme_color_override("font_color", Color("#F5C84B"))
+	status_label.text = "%s  •  CLUB AI TO BOWL" % rival.to_upper()
+	score_label.text = "FIRST TO 11  •  %s" % score_line
+	reset_button.visible = true
+	next_button.visible = false
+	show_bowl_controls(false)
+
+
+func show_live_clock(seconds: float, side_name: String, score_line: String, jack: bool) -> void:
+	var secs := int(ceil(seconds))
+	level_label.text = "TO 11"
+	throws_label.text = "%ds" % secs
+	var heat := Color(0.96, 0.99, 0.97)
+	if secs <= 8:
+		heat = Color(1.0, 0.32, 0.28)
+	throws_label.add_theme_color_override("font_color", heat)
+	if jack:
+		status_label.text = "JACK  •  %ds  •  TAKE YOUR SHOT" % secs
+	else:
+		status_label.text = "%s TO BOWL  •  %ds" % [side_name, secs]
+	score_label.text = "FIRST TO 11  •  %s" % score_line
+	reset_button.visible = true
+	next_button.visible = false
+
+
 func show_ditch_mode(enabled: bool) -> void:
 	ditch_button.text = "DITCH ON" if enabled else "REBOUND"
 
@@ -201,6 +236,16 @@ func show_cue_kind(kind: int) -> void:
 	else:
 		cue_button.text = "5+3"
 		_paint_sync(cue_button, false)
+
+
+func show_overview_mode(on: bool) -> void:
+	if overview_button == null:
+		return
+	overview_button.text = "OVERVIEW"
+	if on:
+		_paint_selected(overview_button)
+	else:
+		_paint_sync(overview_button, false)
 
 
 func show_camera_mode(chase: bool) -> void:
@@ -517,7 +562,7 @@ func blocks_shot_at(screen: Vector2) -> bool:
 		for chip in bias_buttons:
 			if _rect_hits(chip, screen, 6.0):
 				return true
-	for node in [menu_button, reset_button, ditch_button, match_button, camera_button, cue_button, next_button]:
+	for node in [menu_button, reset_button, overview_button, ditch_button, match_button, camera_button, cue_button, next_button]:
 		if _rect_hits(node, screen, 4.0):
 			return true
 	if pause_layer != null and pause_layer.visible:
@@ -674,6 +719,8 @@ func _layout_hud() -> void:
 		menu_button.position = Vector2(16.0, 4.0 + top)
 	if reset_button != null:
 		reset_button.position = Vector2(122.0, 4.0 + top)
+	if overview_button != null:
+		overview_button.position = Vector2(224.0, 4.0 + top)
 	if cue_button != null:
 		cue_button.visible = false
 		cue_button.position = Vector2(228.0, 4.0 + top)

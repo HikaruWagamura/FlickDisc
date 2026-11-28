@@ -3,6 +3,7 @@ extends RefCounted
 ## Local Bowl & Roll profile. Wins, challenges, and the disc colour stay on this device.
 
 const Kit := preload("res://scripts/kit.gd")
+const LiveFaces := preload("res://scripts/live_faces.gd")
 
 const COLORS: Array[Color] = [
 	Color("#e12a32"),
@@ -35,6 +36,10 @@ var best_mark := 9999.0
 var solo_cleared := 0
 var solo_wins := 0
 var best_crazy := 0
+var live_wins := 0
+var live_losses := 0
+var face_id := 0
+var face_photo := false
 var results: PackedStringArray = PackedStringArray()
 
 
@@ -44,6 +49,10 @@ func level() -> int:
 
 func xp_ratio() -> float:
 	return float(xp % 40) / 40.0
+
+
+func face_color() -> Color:
+	return LiveFaces.color_at(face_id)
 
 
 func disc_color() -> Color:
@@ -138,6 +147,12 @@ func load_profile() -> void:
 	solo_cleared = int(cfg.get_value("player", "solo_cleared", 0))
 	solo_wins = int(cfg.get_value("player", "solo_wins", 0))
 	best_crazy = int(cfg.get_value("player", "best_crazy", 0))
+	live_wins = int(cfg.get_value("player", "live_wins", 0))
+	live_losses = int(cfg.get_value("player", "live_losses", 0))
+	face_id = clampi(int(cfg.get_value("player", "face_id", 0)), 0, 7)
+	face_photo = bool(cfg.get_value("player", "face_photo", false))
+	if face_photo and not FileAccess.file_exists(LiveFaces.photo_path()):
+		face_photo = false
 	results = PackedStringArray()
 	var history := str(cfg.get_value("player", "results", ""))
 	if history != "":
@@ -177,6 +192,10 @@ func save_profile() -> void:
 	cfg.set_value("player", "solo_cleared", solo_cleared)
 	cfg.set_value("player", "solo_wins", solo_wins)
 	cfg.set_value("player", "best_crazy", best_crazy)
+	cfg.set_value("player", "live_wins", live_wins)
+	cfg.set_value("player", "live_losses", live_losses)
+	cfg.set_value("player", "face_id", face_id)
+	cfg.set_value("player", "face_photo", face_photo)
 	cfg.set_value("player", "results", "|".join(results))
 	cfg.save("user://flickdisc.cfg")
 
@@ -241,6 +260,28 @@ func crazy_text() -> String:
 	if best_crazy <= 0:
 		return "NO ROUND YET"
 	return "%d STROKES" % best_crazy
+
+
+func live_text() -> String:
+	if live_wins + live_losses <= 0:
+		return "UNRANKED"
+	return "%d-%d" % [live_wins, live_losses]
+
+
+func record_live(you_won: bool, rival: String = "") -> void:
+	var vs := rival.strip_edges()
+	if vs == "":
+		vs = "the table"
+	if you_won:
+		live_wins += 1
+		wins += 1
+		_push_result("Live Game won  ·  vs %s" % vs)
+	else:
+		live_losses += 1
+		losses += 1
+		_push_result("Live Game lost  ·  vs %s" % vs)
+	xp += 10
+	save_profile()
 
 
 func mark_text() -> String:

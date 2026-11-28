@@ -36,6 +36,22 @@ func _apply_host() -> void:
 	if OS.get_cmdline_user_args().has("--crazytest"):
 		_play({"rink": "crazy", "back": "home"})
 		return
+	if OS.get_cmdline_user_args().has("--graphtest") or OS.get_cmdline_user_args().has("--cuetest") or OS.get_cmdline_user_args().has("--pulltest"):
+		_play({"rink": "lawn", "ditch": true, "back": "home", "match_index": 1, "opponent": "local"})
+		return
+	if OS.get_cmdline_user_args().has("--livetest"):
+		_play({
+			"rink": "lawn",
+			"live": true,
+			"live_host": true,
+			"opponent": "ai",
+			"rival": "Vesper",
+			"difficulty": 1,
+			"ditch": true,
+			"back": "home",
+			"match_index": 1,
+		})
+		return
 	if OS.has_feature("web"):
 		menu.rink = "lawn"
 		menu.open_screen("setup")
@@ -111,6 +127,10 @@ func _play(setup: Dictionary) -> void:
 		current.cue_kind = int(setup.get("guide", 0))
 		current.distance_play = bool(setup.get("distance", false))
 		current.solo_play = bool(setup.get("solo", false))
+		current.live_play = bool(setup.get("live", false))
+		current.live_host = bool(setup.get("live_host", true))
+		if current.get("live_rival") != null:
+			current.live_rival = str(setup.get("rival", ""))
 	get_tree().root.set_meta("flickdisc_sound", profile.sound)
 	get_tree().root.set_meta("flickdisc_haptics", profile.haptics)
 	get_tree().root.set_meta("flickdisc_kit", profile.kit())
@@ -148,6 +168,25 @@ func _menutest() -> void:
 	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
 	_dump_menu("menu_home_tall")
+	if menu.has_method("_launch_live"):
+		menu._launch_live()
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		_dump_menu("menu_live_search")
+		await get_tree().create_timer(0.45).timeout
+		await RenderingServer.frame_post_draw
+		_dump_menu("menu_live_reel")
+		if menu.has_method("_lock_live_rival"):
+			menu._lock_live_rival(false, "Vesper", {"name": "Vesper", "mark": "VE", "skill": 1, "color": 2}, false)
+			await get_tree().process_frame
+			await RenderingServer.frame_post_draw
+			_dump_menu("menu_live_matched")
+		if menu.has_method("_cancel_live_search"):
+			menu._cancel_live_search()
+		elif menu.live_layer != null:
+			menu.live_layer.visible = false
+			if menu.live_net != null:
+				menu.live_net.stop_search()
 	DisplayServer.window_set_size(Vector2i(540, 960))
 	await get_tree().process_frame
 	if menu.has_method("_layout_shell"):
@@ -158,6 +197,13 @@ func _menutest() -> void:
 	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
 	_dump_menu("menu_profile")
+	if menu.has_method("_open_face_sheet"):
+		menu._open_face_sheet()
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		_dump_menu("menu_face")
+		if menu.face_layer != null:
+			menu.face_layer.visible = false
 	menu.open_screen("shop")
 	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
@@ -275,7 +321,13 @@ func _on_goal() -> void:
 
 
 func _on_match(you_won: bool) -> void:
-	profile.record_match(you_won)
+	if current != null and bool(current.get("live_play")):
+		var rival := str(current.get("live_rival"))
+		if rival == "":
+			rival = "Club AI" if str(current.get("opponent")) == "ai" else "a live player"
+		profile.record_live(you_won, rival)
+	else:
+		profile.record_match(you_won)
 
 
 func _on_drive(metres: float, miss: float) -> void:

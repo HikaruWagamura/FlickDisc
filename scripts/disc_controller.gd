@@ -301,10 +301,11 @@ func preview_take(aim: Vector3, power: float) -> void:
 	_aim_target = direction
 	var shown := clampf(power, 0.0, 1.0)
 	_power_target = shown
+	aim_direction = direction
+	power_ratio = shown
 	shot_bias = 0.0 if delivering_jack else bias_ratio
 	is_aiming = shown >= 0.08
 	if not is_aiming:
-		aim_direction = direction
 		power_ratio = 0.0
 		_hide_guide()
 	_apply_visual(0.0)
@@ -1007,15 +1008,16 @@ func guide_points() -> PackedVector3Array:
 	return _predict_path()
 
 
-func grass_cue(power: float) -> PackedVector3Array:
-	# The blocks walk the same curl law as the bowl, so Standard sits
-	# tighter than Max on the first few metres.
-	var flat := Vector3(aim_direction.x, 0.0, aim_direction.z)
-	if (not is_aiming) or flat.length() < 0.001:
+func grass_cue(_power: float) -> PackedVector3Array:
+	# The graph of bars is a fixed length. Pull only changes colour, not
+	# how many arrows sit on the grass or how far the line runs.
+	var face := _aim_target if is_aiming else aim_direction
+	var flat := Vector3(face.x, 0.0, face.z)
+	if flat.length() < 0.001:
 		flat = Vector3(0.0, 0.0, -1.0)
 	flat = flat.normalized()
 	var pos := Vector3(global_position.x, 0.0, global_position.z)
-	var pace := clampf(power, 0.12, 1.0)
+	var pace := 0.70
 	var vel := _delivery_velocity(flat, pace)
 	var axis := Vector2(flat.x, flat.z)
 	if axis.length() < 0.001:
@@ -1023,29 +1025,32 @@ func grass_cue(power: float) -> PackedVector3Array:
 	else:
 		axis = axis.normalized()
 	var bias := 0.0 if delivering_jack else bias_ratio
-	var want := lerpf(5.4, 8.2, pace)
-	var out := PackedVector3Array()
-	out.append(pos)
+	var want := 6.6
+	var raw := PackedVector3Array()
+	var dist := PackedFloat32Array()
+	raw.append(pos)
+	dist.append(0.0)
 	var travelled := 0.0
-	var last_emit := 0.0
 	var step := 0.012
 	for _i in 420:
 		var prev := pos
 		var moved := _move_planar(pos, vel, radius, bias, not delivering_jack, step, pace, axis)
-		pos = moved[0]
-		vel = moved[1]
+		pos = Vector3(moved[0].x, 0.0, moved[0].z)
+		vel = Vector3(moved[1].x, 0.0, moved[1].z)
 		travelled += prev.distance_to(pos)
-		if travelled - last_emit >= 0.28:
-			var point := pos
-			point.y = 0.0
-			out.append(point)
-			last_emit = travelled
+		raw.append(pos)
+		dist.append(travelled)
 		if bool(moved[3]) or vel.length() < STOP_SPEED or travelled >= want:
 			break
-	if out.size() < 2:
-		var point := pos
-		point.y = 0.0
-		out.append(point)
+	if raw.size() < 2:
+		raw.append(pos)
+		dist.append(travelled)
+	var samples := 28
+	var out := PackedVector3Array()
+	var total := maxf(dist[dist.size() - 1], 0.05)
+	for i in samples:
+		var at := total * float(i) / float(samples - 1)
+		out.append(_sample_path(raw, dist, at))
 	return out
 
 

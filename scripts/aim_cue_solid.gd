@@ -85,7 +85,7 @@ func _place() -> void:
 	var sx := lerpf(0.36, 0.82, amount)
 	var sy := lerpf(0.40, 0.90, amount)
 	var sz := shaft / REST_LEN
-	var shake := clampf((amount - 0.90) / 0.10, 0.0, 1.0)
+	var shake := clampf((amount - 0.94) / 0.06, 0.0, 1.0)
 	shake = shake * shake
 	var wave := float(Time.get_ticks_msec()) * 0.001
 	var hop := 0.0

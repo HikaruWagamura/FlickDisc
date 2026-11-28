@@ -1,7 +1,7 @@
 extends Node3D
 
 ## Two real aim cues on the same grass path:
-##   BLOCKS — the purchased 5-chevron pack, 3/4/5 along the line with hop
+##   BLOCKS — a fixed 5+3 graph. Count and size stay put; only colour changes.
 ##   RIGGED — the 10-bone skinned arrow, posed along that same curve
 ##   BOTH   — both meshes sitting on the live aim line at once
 
@@ -13,8 +13,14 @@ const MAIN_ARROWS := 5
 const TAIL_ARROWS := 3
 const MAX_ARROWS := 8
 const PERIOD := 0.67
-const SEAT_BLOCK := 0.006
+## Sit above the dashed centre line (line top is ~0.024) so the small
+## tip arrows never clip the stripe or the grass. Hop only goes up.
+const SEAT_BLOCK := 0.052
 const SEAT_RIG := 0.052
+const SCALE_L := 0.58
+const SCALE_W := 0.36
+const SCALE_H := 0.84
+const SHAKE_FROM := 0.94
 const STYLE_BLOCKS := 0
 const STYLE_RIGGED := 1
 const STYLE_BOTH := 2
@@ -34,6 +40,8 @@ var _material: ShaderMaterial
 var _chevron: ArrayMesh
 var _local_centre := Vector3.ZERO
 var _local_size := Vector3.ONE
+var _mesh_min_y := -0.08
+var _faces: Array[Vector3] = []
 var _nodes: Array[MeshInstance3D] = []
 var _mats: Array[ShaderMaterial] = []
 var _rig: Node3D
@@ -56,15 +64,18 @@ func _ready() -> void:
 		var mi := MeshInstance3D.new()
 		mi.name = "MiniArrow%d" % i
 		mi.mesh = _chevron
-		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		mi.extra_cull_margin = 8.0
 		mi.visible = false
 		if _material != null:
 			var mat := _material.duplicate() as ShaderMaterial
+			mat.render_priority = 3
 			mi.material_override = mat
 			_mats.append(mat)
+		mi.sorting_offset = 4.0
 		add_child(mi)
 		_nodes.append(mi)
+		_faces.append(Vector3(0.0, 0.0, -1.0))
 	_load_rigged()
 
 
@@ -225,6 +236,7 @@ func _extract_one(source: ArrayMesh) -> ArrayMesh:
 		rot_max.y = maxf(rot_max.y, baked.y)
 		rot_max.z = maxf(rot_max.z, baked.z)
 	_local_size = rot_max - rot_min
+	_mesh_min_y = rot_min.y
 	var span_z := maxf(_local_size.z, 0.001)
 	for baked in out_verts:
 		var along := clampf((baked.z - rot_min.z) / span_z, 0.0, 1.0)
@@ -266,12 +278,14 @@ func present(path: PackedVector3Array, power: float, _facing: Vector3 = Vector3.
 	_showing = true
 	_path = path
 	_power = clampf(power, 0.0, 1.0)
+	# Count is the 5+3 graph, never the pull. Power only tints the bars.
 	_count = head_count
 	_place()
 
 
 func _process(_delta: float) -> void:
-	if _showing and _path.size() >= 2:
+	# Only keep ticking when the graph is shaking at full weight.
+	if _showing and _path.size() >= 2 and _power >= SHAKE_FROM:
 		_place()
 
 
@@ -309,18 +323,20 @@ func _hide_rigged() -> void:
 
 func _place_blocks() -> void:
 	var amount := _power
-	var length := _path_length()
 	var total := head_count
 	var start_t := path_start
-	var body := maxf(_local_size.z, 0.18)
-	var fit := (length * 0.88) / maxf(float(total), 1.0)
-	var scale_l := clampf(fit / body, 0.10, 0.60) * size_scale
-	var scale_w := scale_l * 0.62
-	# Weight is colour, not size. Keep the blocks chunky on a small table.
-	var scale_h := 0.74 * lerpf(1.0, size_scale, 0.22)
+	# 5+3 taper stays. Pull never adds, hides, or resizes bars — only colour.
+	var scale_l := SCALE_L * size_scale
+	var scale_w := SCALE_W * size_scale
+	var scale_h := SCALE_H
 	if style == STYLE_BOTH:
 		scale_l *= 0.90
 		scale_w *= 0.90
+	var hop := 0.0
+	if amount >= SHAKE_FROM:
+		var shake := clampf((amount - SHAKE_FROM) / (1.0 - SHAKE_FROM), 0.0, 1.0)
+		var wave := 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.052)
+		hop = wave * (0.012 * shake)
 	for i in MAX_ARROWS:
 		var mi := _nodes[i]
 		if i >= total:
@@ -335,10 +351,16 @@ func _place_blocks() -> void:
 			taper = float(TAPER[i])
 		var centre := _sample(_path, t)
 		var tangent := _facing(_path, t)
+		if tangent.length() < 0.04:
+			tangent = _faces[i]
+		else:
+			_faces[i] = tangent
 		var sl := scale_l * taper
 		var sw := scale_w * taper
-		var sh := scale_h * lerpf(1.0, taper, 0.35)
-		var origin := Vector3(centre.x, SEAT_BLOCK + _local_size.y * 0.42 * sh, centre.z)
+		# Keep height up so the small tip still sits on the grass, not in it.
+		var sh := scale_h * lerpf(1.0, taper, 0.12)
+		var lift := SEAT_BLOCK - _mesh_min_y * sh
+		var origin := Vector3(centre.x, lift + hop, centre.z)
 		var xf := Transform3D()
 		xf.origin = origin
 		xf = xf.looking_at(origin + tangent, Vector3.UP)
@@ -363,7 +385,9 @@ func _place_rigged() -> void:
 		chord = _tangent(_path, 0.10)
 	var tan := chord.normalized()
 	var wave := float(Time.get_ticks_msec()) * 0.001
-	var hop := (0.5 + 0.5 * sin((wave / PERIOD) * TAU)) * 0.01
+	var hop := 0.0
+	if _power >= SHAKE_FROM:
+		hop = (0.5 + 0.5 * sin((wave / PERIOD) * TAU)) * 0.01
 	var origin := Vector3(start.x, SEAT_RIG + hop, start.z)
 	_rig.visible = true
 	# Mesh rest length is 0.75 along local -Z. look_at points -Z down the path.
@@ -465,11 +489,20 @@ func _path_length() -> float:
 
 
 func _sample(path: PackedVector3Array, t: float) -> Vector3:
-	var last := path.size() - 1
-	var index := clampi(int(t * float(last)), 0, last - 1)
-	var local := t * float(last) - float(index)
-	var point := path[index].lerp(path[index + 1], local)
-	return Vector3(point.x, 0.0, point.z)
+	var total := _path_length()
+	var want := clampf(t, 0.0, 1.0) * total
+	var walked := 0.0
+	for i in range(1, path.size()):
+		var a := path[i - 1]
+		var b := path[i]
+		var span := a.distance_to(b)
+		if walked + span >= want or i == path.size() - 1:
+			var u := 0.0 if span < 0.0001 else clampf((want - walked) / span, 0.0, 1.0)
+			var point := a.lerp(b, u)
+			return Vector3(point.x, 0.0, point.z)
+		walked += span
+	var last := path[path.size() - 1]
+	return Vector3(last.x, 0.0, last.z)
 
 
 func _tangent(path: PackedVector3Array, t: float) -> Vector3:

@@ -522,11 +522,14 @@ func _build_disc(index: int, hand: float) -> void:
 	_bowl_sit = sit_from_holder(_pip)
 	set_hand(hand)
 	_score_ring = MeshInstance3D.new()
-	_score_ring.mesh = _annulus(0.2, 0.26, 28)
-	_score_ring.position = Vector3(0.0, 0.02, 0.0)
+	_score_ring.mesh = _annulus(0.22, 0.34, 32)
+	_score_ring.position = Vector3(0.0, 0.045, 0.0)
 	var ring_mat := _flat(Color(0.98, 0.84, 0.32))
 	ring_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	ring_mat.albedo_color.a = 0.9
+	ring_mat.albedo_color.a = 0.95
+	ring_mat.emission_enabled = true
+	ring_mat.emission = Color(1.0, 0.82, 0.28)
+	ring_mat.emission_energy_multiplier = 0.55
 	_score_ring.material_override = ring_mat
 	_score_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_score_ring.visible = false

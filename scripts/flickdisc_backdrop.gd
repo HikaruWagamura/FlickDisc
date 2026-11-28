@@ -20,12 +20,9 @@ func _draw() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), DEEP, true)
 	if SCENE == null:
 		return
-	# Cover the whole control. The PNG is already a full-length wash,
-	# so we never leave a black foot or a letterbox.
+	# Stretch the two-tone wash to the real phone, including the strip
+	# behind and below the tab, so the foot is never a black slab.
 	var src := SCENE.get_size()
 	if src.x < 2.0 or src.y < 2.0:
 		return
-	var scale := maxf(size.x / src.x, size.y / src.y)
-	var draw := src * scale
-	var origin := Vector2((size.x - draw.x) * 0.5, (size.y - draw.y) * 0.5)
-	draw_texture_rect(SCENE, Rect2(origin, draw), false)
+	draw_texture_rect(SCENE, Rect2(Vector2.ZERO, size), false)

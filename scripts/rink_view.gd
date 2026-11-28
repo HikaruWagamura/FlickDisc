@@ -35,6 +35,9 @@ var _camera: Camera3D
 var pose_lock := false
 ## Chase rides behind the running bowl. Behind stays on the mat and looks up the green.
 var chase := true
+var overview := false
+var _overview_look := Vector3(0.0, 0.0, -22.0)
+var _overview_pan := Vector2.ZERO
 var _aiming := false
 var _shot_pos := Vector3(0.0, 0.0, -4.0)
 var _shot_vel := Vector3.ZERO
@@ -258,7 +261,13 @@ func _process(delta: float) -> void:
 	var goal_look := Vector3.ZERO
 	var goal_fov := 48.0
 	var response := 5.0
-	if _head_hold:
+	if overview:
+		var look := _overview_look + Vector3(_overview_pan.x, 0.0, _overview_pan.y)
+		goal_pos = look + Vector3(0.0, 24.5, 16.8)
+		goal_look = look + Vector3(0.0, 0.04, 0.0)
+		goal_fov = 48.0
+		response = 3.4
+	elif _head_hold:
 		goal_look = _head + Vector3(0.0, 0.18, 0.0)
 		if _head_gap > 12.0:
 			var lift := clampf(_head_gap * 0.22, 4.0, 36.0)
@@ -363,6 +372,23 @@ func release_head() -> void:
 	_head_gap = 0.0
 
 
+func enter_overview(head_at: Vector3) -> void:
+	overview = true
+	_head_hold = false
+	_overview_look = Vector3(head_at.x, 0.0, head_at.z)
+	_overview_pan = Vector2.ZERO
+
+
+func pan_overview(delta_xz: Vector2) -> void:
+	_overview_pan.x = clampf(_overview_pan.x + delta_xz.x, -8.5, 8.5)
+	_overview_pan.y = clampf(_overview_pan.y + delta_xz.y, -11.0, 11.0)
+
+
+func exit_overview() -> void:
+	overview = false
+	_overview_pan = Vector2.ZERO
+
+
 func reset_view() -> void:
 	# New end, same light as the first. Do not ease back from the head
 	# shot — that high look made the green read as a dark shadow.
@@ -371,6 +397,8 @@ func reset_view() -> void:
 	_shot_live = false
 	_aiming = false
 	_cam_ready = false
+	overview = false
+	_overview_pan = Vector2.ZERO
 
 
 func _build_grounds() -> void:
