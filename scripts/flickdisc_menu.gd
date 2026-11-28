@@ -2113,31 +2113,47 @@ func _live_rival_card(wide: float, tall: float, fill: Color, mark: String, who: 
 	card.add_child(monogram)
 	var copy_x := inset + ring_d + 18.0
 	var copy_w := maxf(80.0, wide - copy_x - 22.0)
-	var name_lab := _label(who.to_upper(), int(clampf(tall * 0.22, 26.0, 42.0)), GOLD, title_font)
+	var col := VBoxContainer.new()
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.alignment = BoxContainer.ALIGNMENT_CENTER
+	col.add_theme_constant_override("separation", 8)
+	col.position = Vector2(copy_x, 16.0)
+	col.size = Vector2(copy_w, tall - 32.0)
+	card.add_child(col)
+	var name_px := int(clampf(tall * 0.18, 24.0, 34.0))
+	var name_lab := _label(who.to_upper(), name_px, GOLD, title_font)
 	name_lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	name_lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	name_lab.position = Vector2(copy_x, (tall - 78.0) * 0.5)
-	name_lab.size = Vector2(copy_w, 42.0)
+	name_lab.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	name_lab.clip_text = true
+	name_lab.custom_minimum_size = Vector2(0, float(name_px) + 6.0)
+	name_lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	name_lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	card.add_child(name_lab)
-	var tag_lab := _label(tag, 14, MUTED, bold_font)
+	col.add_child(name_lab)
+	col.add_child(_gap(4.0))
+	var tag_lab := _label(tag, 13, MUTED, bold_font)
 	tag_lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	tag_lab.position = Vector2(copy_x, name_lab.position.y + 40.0)
-	tag_lab.size = Vector2(copy_w, 20.0)
+	tag_lab.custom_minimum_size = Vector2(0, 18.0)
+	tag_lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tag_lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	card.add_child(tag_lab)
+	col.add_child(tag_lab)
+	var filled := _skill_stars(skill)
 	var stars := ""
-	for i in 3:
-		stars += "●" if i <= skill else "○"
-		if i < 2:
-			stars += "  "
-	var star_lab := _label(stars, 12, GOLD, bold_font)
+	for i in 5:
+		stars += "★" if i < filled else "☆"
+		if i < 4:
+			stars += " "
+	var star_lab := _label(stars, 16, GOLD, bold_font)
 	star_lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	star_lab.position = Vector2(copy_x, tag_lab.position.y + 20.0)
-	star_lab.size = Vector2(copy_w, 18.0)
+	star_lab.custom_minimum_size = Vector2(0, 20.0)
+	star_lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	star_lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	card.add_child(star_lab)
+	col.add_child(star_lab)
 	return card
+
+
+func _skill_stars(skill: int) -> int:
+	# Easy 2, medium 3, hard 5 — out of five.
+	return [2, 3, 5][clampi(skill, 0, 2)]
 
 
 func _place_live_sights(reel_w: float, reel_h: float, focus_y: float, focus_h: float) -> void:
