@@ -19,7 +19,12 @@ const DISC_CENTER_Y := 0.016
 const DITCH_Y := -0.006
 const PLAYER_START_Z := 12.35 * INCH
 const LANE_HALF := 3.2 * INCH
+const DISCS_PER_PLAYER := 8
 const DISCS_PER_ROUND := 8
+const ROUNDS_PER_GAME := 4
+const YOU_TINT := Color("#f4ece6")
+const THEM_TINT := Color("#6b3a18")
+const MOVE_THRESHOLD := DISC_RADIUS * 0.7
 
 const MIN_SPEED := 1.15
 const MAX_SPEED := 3.6
@@ -31,12 +36,37 @@ const DISC_RESTITUTION := 0.9
 const RAIL_RESTITUTION := 0.4
 const STOP_SPEED := 0.055
 
+## Filled when the paid crokinole pack is on the table. Pegs and buttons
+## then use the pack's own size and placement instead of the procedural set.
+static var club_pegs: Array[Vector3] = []
+static var club_dark: Array = []
+static var club_light: Array = []
+static var club_disc_xform := Transform3D.IDENTITY
+static var club_figures_mat: Material
+static var club_center_y := DISC_CENTER_Y
+static var club_ditch_y := DITCH_Y
+
 static func peg_positions() -> Array[Vector3]:
+	if club_pegs.size() >= 8:
+		return club_pegs
 	var points: Array[Vector3] = []
 	for index in 8:
 		var angle := PI / 8.0 + float(index) * TAU / 8.0
 		points.append(Vector3(cos(angle) * PEG_RING, 0.0, sin(angle) * PEG_RING))
 	return points
+
+
+static func sit_y(in_ditch: bool) -> float:
+	return club_ditch_y if in_ditch else club_center_y
+
+
+static func club_disc_mesh(player_disc: bool, kit_index: int) -> Mesh:
+	var bank: Array = club_light if player_disc else club_dark
+	if bank.is_empty():
+		bank = club_light if player_disc else club_dark
+	if bank.is_empty():
+		return null
+	return bank[kit_index % bank.size()]
 
 static func points_for(distance_from_center: float, sunk: bool) -> int:
 	# A disc scores a ring only when it is clear of that ring's line.
@@ -51,6 +81,18 @@ static func points_for(distance_from_center: float, sunk: bool) -> int:
 	if distance_from_center <= RING_5 - clear:
 		return 5
 	return 0
+
+static func inside_15(distance_from_center: float) -> bool:
+	return distance_from_center + DISC_RADIUS <= RING_15
+
+
+static func touches_15(distance_from_center: float) -> bool:
+	# A legal clear-board shot may touch the 15 line, not only sit inside it.
+	return distance_from_center - DISC_RADIUS <= RING_15
+
+
+static func start_radius() -> float:
+	return SURFACE_RADIUS - DISC_RADIUS
 
 static func plastic(color: Color, roughness: float, emission: float = 0.0) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()

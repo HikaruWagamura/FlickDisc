@@ -1,29 +1,468 @@
 extends Node3D
 
-## High-resolution crokinole table: recessed ditch, scoring rings, and eight pegs.
+## FlickDisc table. The paid crokinole mesh is the board you play on.
+## Peg collision still uses NCA measures so scoring stays honest.
 
 const Metrics = preload("res://scripts/table_metrics.gd")
+const CLUB_BOARD := preload("res://assets/board/crokinole.fbx")
 
-const LOGO_PATH := "res://assets/flick_disc_logo.png"
+const LOGO_PATH := "res://assets/bowl_and_roll_logo.png"
+const MARK_PATH := "res://assets/bowl_and_roll_logo.png"
 const COURSE_PATH := "res://assets/course_background.png"
 
 func _ready() -> void:
 	_build_room()
-	_build_body()
-	_build_surface()
-	_build_rail()
-	_build_pegs()
+	var club := _mount_club()
+	if not club:
+		_build_body()
+		_build_surface()
+		_build_rail()
+		_build_pegs()
+	_dress_table()
 	_build_lane()
 
+
+func _mount_club() -> bool:
+	if CLUB_BOARD == null:
+		return false
+	var raw: Node = CLUB_BOARD.instantiate()
+	if raw == null:
+		return false
+	var playfield := _named_mesh(raw, "playfield")
+	if playfield == null or playfield.mesh == null:
+		raw.free()
+		return false
+	var holder := Node3D.new()
+	holder.name = "ClubBoard"
+	add_child(holder)
+	holder.add_child(raw)
+	# Fit the painted playfield to the NCA surface so the ditch and the
+	# 20-hole stay where the discs already play. Pins and buttons keep
+	# the pack's own size on that same scale.
+	var face := _world_aabb(playfield)
+	var radius := maxf(face.size.x, face.size.z) * 0.5
+	if radius < 0.001:
+		radius = 0.2748
+	var pack_scale := Metrics.SURFACE_RADIUS / radius
+	holder.scale = Vector3.ONE * pack_scale
+	# Sit the playing face on y=0. Ignore packed discs so they do not
+	# lift the whole table.
+	var box := _world_aabb(playfield)
+	holder.position.y -= box.position.y + box.size.y
+	_dress_club(raw)
+	_hide_named(raw, "AnimationPlayer")
+	_stash_pack_discs(raw)
+	_stash_pack_pins(raw)
+	var disc := _named_mesh(raw, "disc_01")
+	if disc != null:
+		var xf := disc.global_transform
+		xf.origin = Vector3.ZERO
+		Metrics.club_disc_xform = xf
+		var disc_box := _world_aabb(disc)
+		Metrics.club_center_y = disc_box.size.y * 0.5
+		Metrics.club_ditch_y = -0.012
+	return true
+
+
+func _dress_club(node: Node) -> void:
+	var playfield := _pbr(
+		"res://assets/board/textures/crokinole_playfield_Mat_BaseColor.jpg",
+		"res://assets/board/textures/crokinole_playfield_Mat_Normal.jpg",
+		"res://assets/board/textures/crokinole_playfield_Mat_Roughness.jpg",
+		"res://assets/board/textures/crokinole_playfield_Mat_Metallic.jpg"
+	)
+	var figures := _pbr(
+		"res://assets/board/textures/crokinole_figures_Mat_BaseColor.jpg",
+		"res://assets/board/textures/crokinole_figures_Mat_Normal.jpg",
+		"res://assets/board/textures/crokinole_figures_Mat_Roughness.jpg",
+		"res://assets/board/textures/crokinole_figures_Mat_Metallic.jpg"
+	)
+	Metrics.club_figures_mat = figures
+	playfield.albedo_color = Color(1.06, 0.94, 0.84)
+	_apply_mats(node, playfield, figures)
+
+
+func _pbr(albedo_path: String, normal_path: String, rough_path: String, metal_path: String) -> StandardMaterial3D:
+	var mat := StandardMaterial3D.new()
+	var albedo: Texture2D = load(albedo_path)
+	var normal: Texture2D = load(normal_path)
+	var rough: Texture2D = load(rough_path)
+	var metal: Texture2D = load(metal_path)
+	if albedo != null:
+		mat.albedo_texture = albedo
+		mat.albedo_color = Color(1, 1, 1)
+	else:
+		mat.albedo_color = Color(0.62, 0.42, 0.24)
+	if normal != null:
+		mat.normal_enabled = true
+		mat.normal_texture = normal
+		mat.normal_scale = 0.7
+	if rough != null:
+		mat.roughness_texture = rough
+		mat.roughness = 0.72
+	else:
+		mat.roughness = 0.55
+	if metal != null:
+		mat.metallic_texture = metal
+		mat.metallic = 0.04
+	else:
+		mat.metallic = 0.04
+	mat.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	return mat
+
+
+func _apply_mats(node: Node, playfield: StandardMaterial3D, figures: StandardMaterial3D) -> void:
+	if node is MeshInstance3D:
+		var n := str(node.name).to_lower()
+		var mat := figures if ("pin" in n or "disc" in n or "figure" in n) else playfield
+		(node as MeshInstance3D).material_override = mat
+	for child in node.get_children():
+		_apply_mats(child, playfield, figures)
+
+
+func _named_mesh(node: Node, key: String) -> MeshInstance3D:
+	if node is MeshInstance3D:
+		var n := str(node.name).to_lower()
+		if key in n:
+			return node
+	for child in node.get_children():
+		var found := _named_mesh(child, key)
+		if found != null:
+			return found
+	return null
+
+
+func _stash_pack_discs(node: Node) -> void:
+	Metrics.club_dark.clear()
+	Metrics.club_light.clear()
+	var albedo_tex: Texture2D = load("res://assets/board/textures/crokinole_figures_Mat_BaseColor.jpg")
+	var albedo: Image = albedo_tex.get_image() if albedo_tex != null else null
+	if albedo != null and albedo.is_compressed():
+		albedo.decompress()
+	_collect_discs(node, albedo)
+	_hide_packed_discs(node)
+
+
+func _collect_discs(node: Node, albedo: Image) -> void:
+	if node is MeshInstance3D and "disc" in str(node.name).to_lower() and (node as MeshInstance3D).mesh != null:
+		var mi := node as MeshInstance3D
+		var luma := _disc_luma(mi, albedo)
+		if luma < 0.28:
+			Metrics.club_dark.append(mi.mesh)
+		else:
+			Metrics.club_light.append(mi.mesh)
+	for child in node.get_children():
+		_collect_discs(child, albedo)
+
+
+func _disc_luma(mi: MeshInstance3D, albedo: Image) -> float:
+	if albedo == null or albedo.is_empty():
+		return 0.5
+	var arrays := mi.mesh.surface_get_arrays(0)
+	var uvs: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]
+	if uvs.is_empty():
+		return 0.5
+	var c := Vector2.ZERO
+	for uv in uvs:
+		c += uv
+	c /= float(uvs.size())
+	var px := Vector2i(
+		clampi(int(c.x * albedo.get_width()), 0, albedo.get_width() - 1),
+		clampi(int(c.y * albedo.get_height()), 0, albedo.get_height() - 1)
+	)
+	var col: Color = albedo.get_pixelv(px)
+	return col.r * 0.3 + col.g * 0.59 + col.b * 0.11
+
+
+func _stash_pack_pins(node: Node) -> void:
+	var pins := _named_mesh(node, "pins")
+	if pins == null or pins.mesh == null:
+		return
+	var verts: PackedVector3Array = pins.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var bins: Array[Vector2] = []
+	for v in verts:
+		var p := Vector2(v.x, v.y)
+		var placed := false
+		for i in bins.size():
+			if p.distance_to(bins[i]) < 0.012:
+				bins[i] = (bins[i] + p) * 0.5
+				placed = true
+				break
+		if not placed:
+			bins.append(p)
+	Metrics.club_pegs.clear()
+	for c in bins:
+		var world: Vector3 = pins.to_global(Vector3(c.x, c.y, 0.0))
+		Metrics.club_pegs.append(Vector3(world.x, 0.0, world.z))
+
+
+func _hide_packed_discs(node: Node) -> void:
+	if "disc" in str(node.name).to_lower() and node is Node3D:
+		(node as Node3D).visible = false
+	for child in node.get_children():
+		_hide_packed_discs(child)
+
+
+func _hide_named(node: Node, key: String) -> void:
+	if key.to_lower() in str(node.name).to_lower():
+		if node is Node3D:
+			(node as Node3D).visible = false
+		elif node is AnimationPlayer:
+			(node as AnimationPlayer).stop()
+			node.queue_free()
+		return
+	for child in node.get_children():
+		_hide_named(child, key)
+
+
+func _world_aabb(node: Node) -> AABB:
+	var box := AABB()
+	var first := true
+	if node is MeshInstance3D and (node as MeshInstance3D).mesh != null:
+		var mi := node as MeshInstance3D
+		var local := mi.mesh.get_aabb()
+		for i in 8:
+			var p: Vector3 = mi.global_transform * local.get_endpoint(i)
+			if first:
+				box = AABB(p, Vector3.ZERO)
+				first = false
+			else:
+				box = box.expand(p)
+	for child in node.get_children():
+		var child_box := _world_aabb(child)
+		if child_box.size.length() > 0.00001:
+			if first:
+				box = child_box
+				first = false
+			else:
+				box = box.merge(child_box)
+	return box
+
 func _build_room() -> void:
-	var floor_material := StandardMaterial3D.new()
-	floor_material.albedo_color = Color("#1a6b3c")
-	floor_material.roughness = 0.92
-	Metrics.add_mesh(self, _box(Vector3(18.0, 0.04, 22.0)), floor_material, Vector3(0.0, -0.64, -4.0))
+	# Indoor games room. Scoring rings stay on the table.
+	_build_grounds()
+	_build_games_room()
+
+
+func _build_grounds() -> void:
+	var floor := StandardMaterial3D.new()
+	floor.albedo_color = Color("#2A1810")
+	floor.roughness = 0.82
+	Metrics.add_mesh(self, _box(Vector3(18.0, 0.06, 16.0)), floor, Vector3(0.0, -0.70, 0.4))
+	var plank := StandardMaterial3D.new()
+	plank.albedo_color = Color("#3A2416")
+	plank.roughness = 0.74
+	for i in 14:
+		var x := -3.6 + float(i) * 0.55
+		Metrics.add_mesh(self, _box(Vector3(0.04, 0.006, 12.0)), plank, Vector3(x, -0.668, 0.2))
+	var deck := StandardMaterial3D.new()
+	deck.albedo_color = Color("#5A341C")
+	deck.roughness = 0.58
+	Metrics.add_mesh(self, _box(Vector3(4.4, 0.08, 4.4)), deck, Vector3(0.0, -0.62, 0.0))
+	var seam := StandardMaterial3D.new()
+	seam.albedo_color = Color("#4A2A16")
+	seam.roughness = 0.68
+	for i in 11:
+		var sx := -2.0 + float(i) * 0.4
+		Metrics.add_mesh(self, _box(Vector3(0.03, 0.006, 4.3)), seam, Vector3(sx, -0.576, 0.0))
+
+
+func _build_games_room() -> void:
+	var wall := StandardMaterial3D.new()
+	wall.albedo_color = Color("#2A1018")
+	wall.roughness = 0.86
+	var trim := StandardMaterial3D.new()
+	trim.albedo_color = Color("#5A3A22")
+	trim.roughness = 0.48
+	trim.metallic = 0.12
+	Metrics.add_mesh(self, _box(Vector3(8.6, 3.6, 0.16)), wall, Vector3(0.0, 1.05, -2.72))
+	Metrics.add_mesh(self, _box(Vector3(8.8, 0.14, 0.22)), trim, Vector3(0.0, -0.52, -2.62))
+	Metrics.add_mesh(self, _box(Vector3(8.8, 0.12, 0.18)), trim, Vector3(0.0, 2.78, -2.62))
+	for side in [-1.0, 1.0]:
+		Metrics.add_mesh(self, _box(Vector3(0.16, 3.6, 7.2)), wall, Vector3(side * 4.25, 1.05, 0.2))
+		Metrics.add_mesh(self, _box(Vector3(0.18, 0.14, 7.2)), trim, Vector3(side * 4.14, -0.52, 0.2))
+	_build_shelves()
+	_build_sconces()
 	var rug := StandardMaterial3D.new()
-	rug.albedo_color = Color("#241018")
+	rug.albedo_color = Color("#3A1020")
 	rug.roughness = 0.9
-	Metrics.add_mesh(self, Metrics.cylinder(Metrics.DITCH_OUTER + 0.55, 0.02, 64), rug, Vector3(0.0, -0.595, 0.0))
+	Metrics.add_mesh(self, _box(Vector3(3.2, 0.02, 3.2)), rug, Vector3(0.0, -0.575, 0.0))
+
+
+func _build_shelves() -> void:
+	var wood := StandardMaterial3D.new()
+	wood.albedo_color = Color("#4A2E18")
+	wood.roughness = 0.62
+	var spines: Array[Color] = [
+		Color("#6B1C28"), Color("#1C3A5A"), Color("#C4A46A"), Color("#2A6B3A"),
+		Color("#FF3D9A"), Color("#3A2450"), Color("#8A3A18"), Color("#F0E2C8"),
+	]
+	for bay in 3:
+		var x := -2.2 + float(bay) * 2.2
+		Metrics.add_mesh(self, _box(Vector3(1.9, 2.55, 0.22)), wood, Vector3(x, 0.78, -2.58))
+		for shelf in 5:
+			var y := -0.28 + float(shelf) * 0.46
+			Metrics.add_mesh(self, _box(Vector3(1.78, 0.04, 0.26)), wood, Vector3(x, y, -2.52))
+			var books := 7 + (bay + shelf) % 3
+			var cursor := x - 0.78
+			for b in books:
+				var w := 0.09 + float((bay * 5 + shelf + b) % 4) * 0.02
+				var h := 0.28 + float((shelf + b) % 3) * 0.05
+				var spine := spines[(bay * 7 + shelf * 3 + b) % spines.size()]
+				var paper := StandardMaterial3D.new()
+				paper.albedo_color = spine
+				paper.roughness = 0.78
+				Metrics.add_mesh(self, _box(Vector3(w, h, 0.16)), paper, Vector3(cursor + w * 0.5, y + 0.02 + h * 0.5, -2.48))
+				cursor += w + 0.02
+
+
+func _build_sconces() -> void:
+	var brass := Metrics.plastic(Color("#C4A46A"), 0.32, 0.0)
+	brass.metallic = 0.55
+	var glow := Metrics.plastic(Color("#FFE6B0"), 0.22, 1.8)
+	for side in [-1.0, 1.0]:
+		for lamp_z in [-1.55, 0.35, 1.85]:
+			Metrics.add_mesh(self, _box(Vector3(0.08, 0.22, 0.08)), brass, Vector3(side * 2.35, 1.15, lamp_z))
+			Metrics.add_mesh(self, Metrics.cylinder(0.07, 0.10, 12), glow, Vector3(side * 2.28, 1.02, lamp_z))
+			var lamp := OmniLight3D.new()
+			lamp.position = Vector3(side * 2.15, 1.08, lamp_z)
+			lamp.light_color = Color("#FFE4C4")
+			lamp.light_energy = 0.42
+			lamp.omni_range = 3.2
+			lamp.shadow_enabled = false
+			add_child(lamp)
+
+
+func _res_image(path: String) -> Image:
+	var tex: Texture2D = load(path) as Texture2D
+	if tex == null:
+		return null
+	var image := tex.get_image()
+	if image != null and image.is_compressed():
+		image.decompress()
+	return image
+
+
+func _dress_table() -> void:
+	_paint_hole()
+	_paint_ditch()
+	_place_board_logos()
+
+
+func _paint_hole() -> void:
+	# Keep the pack's painted 20-hole open. A filled black disc on the
+	# mouth made it look plugged. Only the rim is darker, like the hole
+	# was stained into the wood.
+	var rim := MeshInstance3D.new()
+	rim.mesh = _annulus(Metrics.HOLE_RADIUS * 0.92, Metrics.HOLE_RADIUS * 1.14, 0.0016, 64)
+	var stain := StandardMaterial3D.new()
+	stain.albedo_color = Color("#2A1812")
+	stain.roughness = 0.72
+	stain.metallic = 0.08
+	rim.material_override = stain
+	rim.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(rim)
+	var lip := TorusMesh.new()
+	lip.inner_radius = Metrics.HOLE_RADIUS * 0.94
+	lip.outer_radius = Metrics.HOLE_RADIUS * 1.08
+	lip.rings = 36
+	lip.ring_segments = 10
+	var ring := Metrics.plastic(Color("#241410"), 0.42, 0.0)
+	ring.metallic = 0.12
+	Metrics.add_mesh(self, lip, ring, Vector3(0.0, 0.002, 0.0))
+
+
+func _paint_ditch() -> void:
+	var ditch := StandardMaterial3D.new()
+	ditch.albedo_color = Color("#14100E")
+	ditch.roughness = 0.88
+	var ring := MeshInstance3D.new()
+	ring.mesh = _annulus(Metrics.SURFACE_RADIUS + 0.004, Metrics.DITCH_OUTER - 0.01, 0.001, 96)
+	ring.material_override = ditch
+	add_child(ring)
+	var drop := StandardMaterial3D.new()
+	drop.albedo_color = Color("#0E0A0A")
+	drop.roughness = 0.9
+	var wall := MeshInstance3D.new()
+	wall.mesh = _wall(Metrics.SURFACE_RADIUS, 0.0, -0.016, 96)
+	wall.material_override = drop
+	add_child(wall)
+
+
+func _place_board_logos() -> void:
+	var tex := _logo_decal()
+	if tex == null:
+		return
+	# Bowl & Roll mark in the 10-ring, readable from the shooting seat.
+	var radius := (Metrics.RING_15 + Metrics.RING_10) * 0.5
+	_logo_plate(Vector3(-radius, 0.0028, 0.0), 180.0, tex)
+	_logo_plate(Vector3(radius, 0.0028, 0.0), 180.0, tex)
+	_logo_plate(Vector3(0.0, 0.0028, radius), 180.0, tex)
+	_logo_plate(Vector3(0.0, 0.0028, -radius), 180.0, tex)
+
+
+func _logo_plate(at: Vector3, yaw: float, tex: Texture2D) -> void:
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.28, 0.16)
+	var mi := MeshInstance3D.new()
+	mi.mesh = quad
+	mi.position = at
+	mi.rotation_degrees = Vector3(-90.0, yaw, 0.0)
+	var mat := StandardMaterial3D.new()
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+	mat.alpha_scissor_threshold = 0.35
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_texture = tex
+	mat.albedo_color = Color(1, 1, 1, 1)
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	mi.material_override = mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+
+
+func _png_pixels(path: String) -> Image:
+	var file := FileAccess.open(path, FileAccess.READ)
+	if file != null:
+		var image := Image.new()
+		if image.load_png_from_buffer(file.get_buffer(file.get_length())) == OK:
+			if image.is_compressed():
+				image.decompress()
+			return image
+	return _res_image(path)
+
+
+func _logo_decal() -> Texture2D:
+	var image: Image = _png_pixels(LOGO_PATH)
+	if image == null or image.is_empty():
+		image = _png_pixels(MARK_PATH)
+	if image == null or image.is_empty():
+		return null
+	if image.is_compressed():
+		image.decompress()
+	image.convert(Image.FORMAT_RGBA8)
+	# Downsample so the 10-ring plates stay a mark, not sparkle.
+	var target_w := 384
+	if image.get_width() > target_w:
+		var ratio := float(target_w) / float(image.get_width())
+		image.resize(target_w, maxi(int(image.get_height() * ratio), 8), Image.INTERPOLATE_LANCZOS)
+	var width := image.get_width()
+	var height := image.get_height()
+	for y in height:
+		for x in width:
+			var pixel: Color = image.get_pixel(x, y)
+			var luma := pixel.r * 0.3 + pixel.g * 0.59 + pixel.b * 0.11
+			var chroma := maxf(pixel.r, maxf(pixel.g, pixel.b)) - minf(pixel.r, minf(pixel.g, pixel.b))
+			if luma < 0.07 and chroma < 0.10:
+				pixel.a = 0.0
+			elif pixel.a < 0.04:
+				pixel.a = 0.0
+			else:
+				pixel.a = 1.0
+			image.set_pixel(x, y, pixel)
+	image.generate_mipmaps()
+	return ImageTexture.create_from_image(image)
 
 func _build_body() -> void:
 	var body := StandardMaterial3D.new()
@@ -116,7 +555,7 @@ func _build_rail() -> void:
 	inlay.outer_radius = Metrics.DITCH_OUTER + 0.065
 	inlay.rings = 72
 	inlay.ring_segments = 10
-	Metrics.add_mesh(self, inlay, Metrics.plastic(Color("#ff2f9a"), 0.18, 1.15), Vector3(0.0, 0.028, 0.0))
+	Metrics.add_mesh(self, inlay, Metrics.plastic(Color("#e8c56a"), 0.18, 1.15), Vector3(0.0, 0.028, 0.0))
 
 func _build_pegs() -> void:
 	for peg_position in Metrics.peg_positions():
@@ -142,33 +581,22 @@ func _build_lane() -> void:
 	var rail := StandardMaterial3D.new()
 	rail.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	rail.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	rail.albedo_color = Color(1.0, 0.84, 0.46, 0.72)
+	rail.albedo_color = Color(1.0, 0.84, 0.46, 0.78)
 	rail.cull_mode = BaseMaterial3D.CULL_DISABLED
-	var bar := BoxMesh.new()
-	bar.size = Vector3(Metrics.LANE_HALF * 2.0, 0.003, 0.006)
-	var near_z := Metrics.PLAYER_START_Z + Metrics.DISC_RADIUS + 0.045
-	var far_z := Metrics.PLAYER_START_Z - Metrics.DISC_RADIUS - 0.055
-	Metrics.add_mesh(self, bar, rail, Vector3(0.0, 0.008, near_z))
-	Metrics.add_mesh(self, bar, rail, Vector3(0.0, 0.008, far_z))
 	var point := StandardMaterial3D.new()
 	point.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	point.albedo_color = Color("#ffe27a")
-	var pip := CylinderMesh.new()
-	pip.top_radius = 0.022
-	pip.bottom_radius = 0.022
-	pip.height = 0.006
-	pip.radial_segments = 24
-	Metrics.add_mesh(self, pip, point, Vector3(0.0, 0.01, far_z))
-	var tick := BoxMesh.new()
-	tick.size = Vector3(0.012, 0.004, Metrics.DISC_RADIUS * 2.2)
-	Metrics.add_mesh(self, tick, point, Vector3(0.0, 0.009, Metrics.PLAYER_START_Z))
-	for side in [-1.0, 1.0]:
-		var cap := CylinderMesh.new()
-		cap.top_radius = 0.012
-		cap.bottom_radius = 0.012
-		cap.height = 0.006
-		cap.radial_segments = 16
-		Metrics.add_mesh(self, cap, rail, Vector3(side * Metrics.LANE_HALF, 0.01, Metrics.PLAYER_START_Z))
+	var r := Metrics.start_radius()
+	var steps := 16
+	for index in range(steps + 1):
+		var t := lerpf(-PI * 0.25, PI * 0.25, float(index) / float(steps))
+		var at := Vector3(sin(t) * r, 0.009, cos(t) * r)
+		var pip := CylinderMesh.new()
+		pip.top_radius = 0.008 if index != 8 else 0.016
+		pip.bottom_radius = pip.top_radius
+		pip.height = 0.006
+		pip.radial_segments = 12
+		Metrics.add_mesh(self, pip, point if index == 8 else rail, at)
 
 
 func _disc_mesh(radius: float, thickness: float) -> ArrayMesh:
@@ -304,7 +732,7 @@ func _build_club_rink() -> void:
 	var backdrop_material := StandardMaterial3D.new()
 	backdrop_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	backdrop_material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	var course := Image.load_from_file(COURSE_PATH)
+	var course: Image = _res_image(COURSE_PATH)
 	if course != null and not course.is_empty():
 		var crop_y := int(course.get_height() * 0.30)
 		var crop_h := int(course.get_height() * 0.16)
@@ -355,9 +783,11 @@ func _add_lawn_mark(at: Vector3, width: float, strength: float) -> void:
 	mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 func _stamp_logo(image: Image, center: Vector2, diameter: float, strength: float, cutout: bool) -> void:
-	var logo: Image = Image.load_from_file(LOGO_PATH)
+	var logo: Image = _res_image(LOGO_PATH)
 	if logo == null or logo.is_empty():
 		return
+	if logo.is_compressed():
+		logo.decompress()
 	var copy: Image = logo.duplicate()
 	copy.convert(Image.FORMAT_RGBA8)
 	var side := maxi(int(diameter), 8)
@@ -441,8 +871,8 @@ func _paint_play_lines(albedo: Image) -> void:
 	var surface := Metrics.SURFACE_RADIUS
 	var hole := Metrics.HOLE_RADIUS / surface * center
 	var lip := hole * 1.45
-	_fill_disc(albedo, center, lip, Color("#f0c56a"))
-	_fill_disc(albedo, center, hole, Color("#12080c"))
+	_fill_disc(albedo, center, lip, Color("#c4a46a"))
+	_stroke_circle(albedo, center, hole, center * 0.011, Color("#2A1812"))
 	for ring in [Metrics.RING_15, Metrics.RING_10, Metrics.RING_5]:
 		_stroke_circle(albedo, center, ring / surface * center, center * 0.007, Color("#fff6fc"))
 	_stroke_cross(albedo, center, Color(1.0, 0.92, 0.96))

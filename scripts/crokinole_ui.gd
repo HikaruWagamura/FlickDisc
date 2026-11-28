@@ -15,7 +15,14 @@ var reset_button: Button
 var next_button: Button
 var bias_button: Button
 var stop_button: Button
-var power_fill: ColorRect
+var power_fill: TextureRect
+var power_track: Panel
+var power_cap: Panel
+var power_max: Label
+var _power_home := Vector2(486.0, 128.0)
+var _power_paint := -1.0
+var _power_cap_box: StyleBoxFlat
+var _power_ratio := 0.0
 var current_bias := 0.0
 var overview: Control
 var overview_panel: ColorRect
@@ -23,21 +30,33 @@ var overview_title: Label
 var overview_rules: Label
 var overview_body: RichTextLabel
 var _count_token := 0
+var pause_layer: Control
+var _callout_root: Control
+var _callout_card: Panel
+var _callout_word: Label
+var _callout_tag: Label
+var _callout_used: Dictionary = {}
+var _callout_tween: Tween
+var you_left := 8
+var them_left := 8
+var rules_layer: Control
+var rules_button: Button
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	_make_scrim(Rect2(0.0, 0.0, 540.0, 108.0), Color(0.03, 0.02, 0.04, 0.72))
 
 	var menu_button := _make_button("MENU", Vector2(16.0, 10.0), Vector2(104.0, 32.0))
-	menu_button.add_theme_stylebox_override("normal", _button_style(Color("#ff4d9a"), Color("#ffd0e8")))
-	menu_button.add_theme_color_override("font_color", Color("#1a0a12"))
-	menu_button.pressed.connect(func() -> void: leave_requested.emit())
-	level_label = _make_label(Vector2(300.0, 10.0), Vector2(216.0, 22.0), 16, Color("#f7fbff"), "LEVEL 01")
+	menu_button.add_theme_stylebox_override("normal", _button_style(Color("#F5C84B"), Color("#FFE9A0")))
+	menu_button.add_theme_color_override("font_color", Color("#1A1208"))
+	menu_button.pressed.connect(_open_pause)
+	level_label = _make_label(Vector2(300.0, 10.0), Vector2(216.0, 22.0), 16, Color("#f7fbff"), "ROUND 01")
 	level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	throws_label = _make_label(Vector2(300.0, 34.0), Vector2(216.0, 18.0), 12, Color("#8fd7ea"), "8 DISCS")
+	throws_label = _make_label(Vector2(300.0, 34.0), Vector2(216.0, 18.0), 12, Color("#8fd7ea"), "YOU 8   THEM 8")
 	throws_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 
-	status_label = _make_label(Vector2(22.0, 58.0), Vector2(496.0, 22.0), 13, Color("#d9f5e8"), "")
-	score_label = _make_label(Vector2(22.0, 80.0), Vector2(496.0, 20.0), 11, Color("#8fc9bf"), "")
+	status_label = _make_label(Vector2(22.0, 58.0), Vector2(496.0, 22.0), 13, Color("#FFF6FF"), "")
+	score_label = _make_label(Vector2(22.0, 80.0), Vector2(496.0, 20.0), 11, Color("#F7D4EA"), "")
 
 	reset_button = _make_button("RESET", Vector2(128.0, 10.0), Vector2(96.0, 32.0))
 	reset_button.pressed.connect(func() -> void: reset_requested.emit())
@@ -48,21 +67,29 @@ func _ready() -> void:
 
 	stop_button = _make_button("STOP", Vector2(144.0, 852.0), Vector2(250.0, 40.0))
 	stop_button.add_theme_font_size_override("font_size", 20)
-	stop_button.add_theme_stylebox_override("normal", _button_style(Color("#ff2f86"), Color("#ffd0e8")))
-	stop_button.add_theme_stylebox_override("hover", _button_style(Color("#ff5aa3"), Color("#ffe4f2")))
-	stop_button.add_theme_stylebox_override("pressed", _button_style(Color("#c41068"), Color("#ffd0e8")))
+	stop_button.add_theme_stylebox_override("normal", _button_style(Color("#E12A32"), Color("#FF8A90")))
+	stop_button.add_theme_stylebox_override("hover", _button_style(Color("#F03A42"), Color("#FFB0B4")))
+	stop_button.add_theme_stylebox_override("pressed", _button_style(Color("#B41C24"), Color("#FF8A90")))
 	stop_button.add_theme_color_override("font_color", Color("#fff7fb"))
 	stop_button.add_theme_color_override("font_hover_color", Color("#fff7fb"))
 	stop_button.add_theme_color_override("font_pressed_color", Color("#fff7fb"))
 	stop_button.pressed.connect(func() -> void: stop_requested.emit())
 	stop_button.visible = false
-	next_button.text = "NEXT END"
+	next_button.text = "NEXT ROUND"
 	_build_overview()
+	_build_pause()
+	_build_power()
+	_build_callout()
+	_build_rules()
+	rules_button = _make_button("?", Vector2(232.0, 10.0), Vector2(36.0, 32.0))
+	rules_button.add_theme_font_size_override("font_size", 20)
+	rules_button.z_index = 50
+	rules_button.pressed.connect(_toggle_rules)
 
-func show_touch(level_number: int, discs_left: int, you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0) -> void:
+func show_touch(level_number: int, discs_left: int, you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0, them_remaining: int = -1, rule: String = "") -> void:
 	hide_overview()
-	status_label.text = "TOUCH TO AIM  •  TAP THE DISC TO LOCK"
-	show_match_status(level_number, discs_left, you_board, far_board, match_you, match_them)
+	status_label.text = rule if rule != "" else "PULL BACK  •  LET GO TO SHOOT"
+	show_match_status(level_number, discs_left, you_board, far_board, match_you, match_them, them_remaining)
 	reset_button.text = "RESET"
 	reset_button.visible = true
 	next_button.visible = false
@@ -70,14 +97,14 @@ func show_touch(level_number: int, discs_left: int, you_board: int = 0, far_boar
 	show_power(0.0)
 
 func show_sliding() -> void:
-	status_label.text = "TOUCH TO AIM  •  TAP THE DISC TO LOCK"
+	status_label.text = "SLIDE ON YOUR LINE  •  THEN PULL"
 
 
 func show_aim_ready() -> void:
-	status_label.text = "TAP THE DISC TO LOCK"
+	status_label.text = "PULL THE DISC"
 
 func show_take() -> void:
-	status_label.text = "PULL THE PUCK  •  RELEASE ON THE GREEN"
+	status_label.text = "PULL BACK  •  LET GO TO SHOOT"
 	_show_stop(false)
 
 func show_lane(level_number: int, discs_left: int, difficulty: String = "", you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0) -> void:
@@ -92,57 +119,143 @@ func _show_stop(_rolling: bool) -> void:
 
 func show_ready(level_number: int, discs_left: int, difficulty: String = "", you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0) -> void:
 	hide_overview()
-	var layout := difficulty.to_upper() if difficulty != "" else "CROKINOLE"
-	status_label.text = "LEVEL %02d  •  %s  •  TAP YOUR DISC" % [level_number, layout]
+	var layout := difficulty.to_upper() if difficulty != "" else "CROCK & HOLE"
+	status_label.text = "ROUND %02d  •  %s  •  PULL YOUR DISC" % [level_number, layout]
 	show_match_status(level_number, discs_left, you_board, far_board, match_you, match_them)
 	reset_button.text = "RESET"
 	reset_button.visible = true
 	next_button.visible = false
 
-func show_match_status(level_number: int, discs_left: int, you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0) -> void:
-	level_label.text = "LEVEL %02d" % level_number
-	if discs_left <= 0:
-		throws_label.text = "END"
+func show_match_status(level_number: int, discs_left: int, you_board: int = 0, far_board: int = 0, match_you: int = 0, match_them: int = 0, them_remaining: int = -1) -> void:
+	you_left = discs_left
+	if them_remaining >= 0:
+		them_left = them_remaining
+	level_label.text = "ROUND %02d" % level_number
+	if discs_left <= 0 and them_left <= 0:
+		throws_label.text = "ROUND"
 	else:
-		throws_label.text = "%d LEFT" % discs_left
-	score_label.text = "BOARD %d–%d    MATCH %d–%d" % [you_board, far_board, match_you, match_them]
+		throws_label.text = "YOU %d   THEM %d" % [discs_left, them_left]
+	score_label.text = "BOARD %d–%d    GAME %d–%d" % [you_board, far_board, match_you, match_them]
 
 func show_aiming(_power_ratio: float) -> void:
-	status_label.text = "RELEASE ON THE GREEN"
+	status_label.text = "LET GO TO SHOOT"
 
-func show_power(_ratio: float) -> void:
-	pass
+func _process(_delta: float) -> void:
+	if power_track == null:
+		return
+	var shake := Vector2.ZERO
+	if _power_ratio >= 0.90:
+		var amp := ((_power_ratio - 0.90) / 0.10) * 1.6
+		var wave := Time.get_ticks_msec() * 0.001
+		shake = Vector2(sin(wave * 54.0) * amp, cos(wave * 61.0) * amp)
+	power_track.position = _power_home + shake
+	if power_max != null:
+		power_max.visible = _power_ratio >= 0.94
+		if power_max.visible:
+			var pulse := 0.72 + 0.28 * sin(Time.get_ticks_msec() * 0.012)
+			power_max.self_modulate = Color(1.0, 0.22, 0.28, pulse)
+
+
+func show_power(ratio: float) -> void:
+	if power_fill == null or power_track == null:
+		return
+	var amount := clampf(ratio, 0.0, 1.0)
+	_power_ratio = amount
+	var inset := 5.0
+	var inner := maxf(power_track.size.y - inset * 2.0, 8.0)
+	var fill_w := maxf(power_track.size.x - inset * 2.0, 8.0)
+	var tall := maxf(inner * amount, 6.0 if amount > 0.0 else 6.0)
+	power_fill.size = Vector2(fill_w, tall)
+	power_fill.position = Vector2(inset, inset + inner - tall)
+	if absf(amount - _power_paint) > 0.006 or amount >= 0.90:
+		_paint_power_fill(amount)
+		_power_paint = amount
+	if power_cap != null:
+		power_cap.visible = amount > 0.03
+		var heat := Color(0.75, 0.95, 1.0).lerp(Color(1.0, 0.12, 0.18), smoothstep(0.35, 1.0, amount))
+		if _power_cap_box == null:
+			_power_cap_box = StyleBoxFlat.new()
+			_power_cap_box.set_border_width_all(2)
+			_power_cap_box.set_corner_radius_all(11)
+			_power_cap_box.shadow_size = 6
+			power_cap.add_theme_stylebox_override("panel", _power_cap_box)
+		_power_cap_box.bg_color = heat.lerp(Color(1.0, 0.96, 0.94), 0.35)
+		_power_cap_box.border_color = heat
+		_power_cap_box.shadow_color = Color(heat.r, heat.g, heat.b, 0.45)
+		var cap_w := minf(fill_w + 2.0, power_track.size.x - 4.0)
+		power_cap.size = Vector2(cap_w, 18.0)
+		power_cap.position = Vector2((power_track.size.x - cap_w) * 0.5, power_fill.position.y - 5.0)
+		power_cap.position.y = clampf(power_cap.position.y, 2.0, maxf(inner - 8.0, 2.0))
+	if power_max != null:
+		power_max.visible = amount >= 0.94
+
+
+func _paint_power_fill(amount: float) -> void:
+	var gradient := Gradient.new()
+	var ice := Color(0.75, 0.95, 1.0)
+	var blue := Color(0.18, 0.42, 1.0)
+	var gold := Color(0.96, 0.78, 0.29)
+	var red := Color(0.85, 0.08, 0.18)
+	gradient.set_color(0, ice)
+	if amount < 0.5:
+		gradient.set_color(gradient.get_point_count() - 1, ice.lerp(blue, clampf(amount / 0.5, 0.0, 1.0)))
+	elif amount < 0.82:
+		gradient.add_point(0.45, blue)
+		gradient.set_color(gradient.get_point_count() - 1, blue.lerp(gold, clampf((amount - 0.5) / 0.32, 0.0, 1.0)))
+	else:
+		gradient.add_point(0.42, blue)
+		gradient.add_point(0.78, gold)
+		gradient.set_color(gradient.get_point_count() - 1, gold.lerp(red, clampf((amount - 0.82) / 0.18, 0.0, 1.0)))
+	var texture := GradientTexture2D.new()
+	texture.gradient = gradient
+	texture.width = 24
+	texture.height = 256
+	texture.fill_from = Vector2(0.5, 1.0)
+	texture.fill_to = Vector2(0.5, 0.0)
+	power_fill.texture = texture
 
 func show_in_motion() -> void:
 	_show_stop(false)
 	status_label.text = "IN FLIGHT  •  PEGS AND DISCS ARE LIVE"
 
-func show_landed(shot_points: int, sunk: bool, ditched: bool) -> void:
-	if sunk:
+func show_landed(shot_points: int, sunk: bool, ditched: bool, foul: String = "") -> void:
+	if foul == "no_hit":
+		status_label.text = "NO HIT  •  SHOT AND EVERYTHING STRUCK COME OFF"
+	elif foul == "not_inner":
+		status_label.text = "NOT IN 15  •  SHOT COMES OFF"
+	elif sunk:
 		status_label.text = "20 IN THE HOLE"
+	elif shot_points >= 15:
+		status_label.text = "IN 15"
+	elif shot_points == 10:
+		status_label.text = "10"
+	elif shot_points == 5:
+		status_label.text = "5"
 	elif shot_points > 0:
 		status_label.text = "LANDED FOR %d" % shot_points
 	elif ditched:
-		status_label.text = "IN THE DITCH  •  NO POINTS"
+		status_label.text = "IN THE DITCH"
 	else:
-		status_label.text = "ON THE LINE  •  NO POINTS"
+		status_label.text = "ON THE LINE  •  LOWER RING"
 	next_button.visible = false
 
 func hide_overview() -> void:
 	_count_token += 1
 	if overview != null:
 		overview.visible = false
+	show_rules(false)
 
 func show_end_overview(end_number: int, layout_name: String, you_items: Array, them_items: Array, award_you: int, award_them: int, match_you: int, match_them: int, match_target: int, has_next: bool) -> void:
 	_count_token += 1
 	var token := _count_token
 	_show_stop(false)
+	show_rules(false)
 	overview.visible = true
-	overview_title.text = "END %d" % end_number
-	overview_rules.text = "%s\n20 IN THE HOLE   •   15   •   10   •   5\nA DISC ON A LINE SCORES THE LOWER RING.\nTHE END SCORES THE DIFFERENCE." % layout_name.to_upper()
+	overview_title.text = "ROUND %d" % end_number
+	overview_rules.text = "%s\nTHEIR DISC ON: YOU MUST HIT IT.\nBOARD CLEAR: REACH 15 OR THE 20.\n20 IN THE HOLE   •   15   •   10   •   5\nA DISC ON A LINE SCORES THE LOWER RING.\nROUND WINNER +2   •   TIE +1 EACH   •   4 ROUNDS." % layout_name.to_upper()
 	overview_body.text = ""
 	_set_overview_height(230.0)
-	status_label.text = "END %d  •  COUNTING THE BOARD" % end_number
+	status_label.text = "ROUND %d  •  COUNTING THE BOARD" % end_number
 	reset_button.text = "REPLAY"
 	reset_button.visible = true
 	next_button.visible = false
@@ -165,23 +278,24 @@ func _play_end_count(token: int, end_number: int, you_items: Array, them_items: 
 	await get_tree().create_timer(0.4).timeout
 	if token != _count_token:
 		return
-	var verdict := "END IS LEVEL    +0"
-	if award_you > 0:
-		verdict = "YOU TAKE THE END    +%d" % award_you
-	elif award_them > 0:
-		verdict = "FAR SIDE TAKES THE END    +%d" % award_them
-	var match_line := "[color=#ffe27a]%s[/color]\n\n[color=#f7fbff]MATCH TO %d[/color]\n[color=#f7fbff]YOU %d[/color]          [color=#8fd7ea]FAR %d[/color]" % [verdict, match_target, match_you, match_them]
-	if match_you >= match_target and match_you >= match_them:
-		match_line += "\n[color=#ffe27a]YOU WIN THE MATCH[/color]"
-	elif match_them >= match_target and match_them > match_you:
-		match_line += "\n[color=#ffe27a]FAR SIDE WINS THE MATCH[/color]"
+	var verdict := "ROUND IS LEVEL    +1 EACH"
+	if award_you == 2:
+		verdict = "YOU TAKE THE ROUND    +2"
+	elif award_them == 2:
+		verdict = "FAR SIDE TAKES THE ROUND    +2"
+	var match_line := "[color=#ffe27a]%s[/color]\n\n[color=#f7fbff]GAME TO %d ROUNDS[/color]\n[color=#f7fbff]YOU %d[/color]          [color=#8fd7ea]FAR %d[/color]" % [verdict, match_target, match_you, match_them]
+	if end_number >= match_target:
+		if match_you >= match_them:
+			match_line += "\n[color=#ffe27a]YOU WIN THE GAME[/color]"
+		else:
+			match_line += "\n[color=#ffe27a]FAR SIDE WINS THE GAME[/color]"
 	overview_body.text = built + match_line
 	await _fit_overview()
 	if token != _count_token:
 		return
-	status_label.text = "END %d  •  %s" % [end_number, verdict]
-	next_button.visible = has_next
-	next_button.text = "NEXT END"
+	status_label.text = "ROUND %d  •  %s" % [end_number, verdict]
+	next_button.visible = true
+	next_button.text = "NEXT ROUND" if has_next else "NEW GAME"
 
 func _count_side(token: int, built: String, title: String, items: Array) -> String:
 	var block := "[color=#9fd8cc]%s[/color]\n" % title
@@ -235,7 +349,7 @@ func _build_overview() -> void:
 	var accent := ColorRect.new()
 	accent.position = Vector2(0.0, 0.0)
 	accent.size = Vector2(492.0, 4.0)
-	accent.color = Color("#ff2f9a")
+	accent.color = Color("#F5C84B")
 	accent.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overview.add_child(accent)
 
@@ -283,6 +397,144 @@ func _bias_name() -> String:
 		return "RIGHT"
 	return "CENTER"
 
+func _build_pause() -> void:
+	pause_layer = Control.new()
+	pause_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	pause_layer.visible = false
+	pause_layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	pause_layer.process_mode = Node.PROCESS_MODE_ALWAYS
+	pause_layer.z_index = 40
+	add_child(pause_layer)
+	var dim := ColorRect.new()
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0.04, 0.02, 0.08, 0.82)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	pause_layer.add_child(dim)
+	var resume := Button.new()
+	resume.text = "RESUME"
+	resume.position = Vector2(70.0, 380.0)
+	resume.size = Vector2(400.0, 64.0)
+	resume.add_theme_font_size_override("font_size", 20)
+	resume.add_theme_stylebox_override("normal", _button_style(Color("#F5C84B"), Color("#FFE9A0")))
+	resume.add_theme_color_override("font_color", Color("#1A1208"))
+	resume.pressed.connect(_resume_game)
+	pause_layer.add_child(resume)
+	var hub := Button.new()
+	hub.text = "HUB"
+	hub.position = Vector2(70.0, 460.0)
+	hub.size = Vector2(400.0, 64.0)
+	hub.add_theme_font_size_override("font_size", 20)
+	hub.add_theme_stylebox_override("normal", _button_style(Color("#123849"), Color("#397d88")))
+	hub.add_theme_color_override("font_color", Color("#e9fbff"))
+	hub.pressed.connect(_leave_to_hub)
+	pause_layer.add_child(hub)
+
+
+func _open_pause() -> void:
+	if pause_layer != null and pause_layer.visible:
+		_resume_game()
+		return
+	show_rules(false)
+	if pause_layer != null:
+		pause_layer.visible = true
+	get_tree().paused = true
+
+
+func _resume_game() -> void:
+	if pause_layer != null:
+		pause_layer.visible = false
+	get_tree().paused = false
+
+
+func _leave_to_hub() -> void:
+	_resume_game()
+	leave_requested.emit()
+
+
+func _toggle_rules() -> void:
+	show_rules(rules_layer == null or not rules_layer.visible)
+
+
+func show_rules(open: bool) -> void:
+	if rules_layer == null:
+		return
+	rules_layer.visible = open
+	if open:
+		if pause_layer != null:
+			pause_layer.visible = false
+		get_tree().paused = true
+	elif pause_layer == null or not pause_layer.visible:
+		get_tree().paused = false
+
+
+func _build_rules() -> void:
+	rules_layer = Control.new()
+	rules_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	rules_layer.visible = false
+	rules_layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	rules_layer.process_mode = Node.PROCESS_MODE_ALWAYS
+	rules_layer.z_index = 45
+	add_child(rules_layer)
+	var dim := ColorRect.new()
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0.04, 0.02, 0.08, 0.86)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	dim.gui_input.connect(func(event: InputEvent) -> void:
+		if event is InputEventMouseButton and event.pressed:
+			show_rules(false)
+	)
+	rules_layer.add_child(dim)
+	var card := Panel.new()
+	card.position = Vector2(22.0, 72.0)
+	card.size = Vector2(496.0, 780.0)
+	card.mouse_filter = Control.MOUSE_FILTER_STOP
+	var sheet := StyleBoxFlat.new()
+	sheet.bg_color = Color("#1a120e")
+	sheet.border_color = Color("#e8d2a8")
+	sheet.set_border_width_all(2)
+	sheet.set_corner_radius_all(18)
+	card.add_theme_stylebox_override("panel", sheet)
+	rules_layer.add_child(card)
+	var title := Label.new()
+	title.text = "CROCK & HOLE"
+	title.position = Vector2(24.0, 18.0)
+	title.size = Vector2(448.0, 36.0)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 28)
+	title.add_theme_color_override("font_color", Color("#fff6e8"))
+	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(title)
+	var tag := Label.new()
+	tag.text = "HOW TO PLAY"
+	tag.position = Vector2(24.0, 52.0)
+	tag.size = Vector2(448.0, 20.0)
+	tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	tag.add_theme_font_size_override("font_size", 13)
+	tag.add_theme_color_override("font_color", Color("#c4a574"))
+	tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(tag)
+	var body := RichTextLabel.new()
+	body.bbcode_enabled = true
+	body.fit_content = true
+	body.scroll_active = false
+	body.position = Vector2(22.0, 80.0)
+	body.size = Vector2(452.0, 590.0)
+	body.add_theme_font_size_override("normal_font_size", 15)
+	body.add_theme_color_override("default_color", Color("#f4ece6"))
+	body.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	body.text = "[center]You are cream. They are brown. Eight discs each.\nFour rounds make a game.[/center]\n\n[color=#c4a574]SHOOT[/color]\nSit your disc on your outer line. Slide it along that line, then pull back and let go. The five bars show weight.\n\n[color=#c4a574]THEIR DISC IS ON[/color]\nYou must hit their colour, direct or off another disc. Miss, and your shot and every disc that was struck come off — even a 20.\n\n[color=#c4a574]BOARD CLEAR[/color]\nYour shot, or a disc it struck, must finish touching or inside 15, or go in the 20. If not, those discs come off.\n\n[color=#c4a574]SCORE[/color]\n20 in the hole  •  15  •  10  •  5\nA disc on a line scores the lower ring.\nTouch or cross the outer line and you are in the ditch — no score.\n20s sit in a pile and count at the end of the round.\n\n[color=#c4a574]THE ROUND[/color]\nBoard plus 20s. Winner +2. Tie +1 each."
+	card.add_child(body)
+	var close := Button.new()
+	close.text = "GOT IT"
+	close.position = Vector2(48.0, 696.0)
+	close.size = Vector2(400.0, 56.0)
+	close.add_theme_font_size_override("font_size", 20)
+	close.add_theme_stylebox_override("normal", _button_style(Color("#f4ece6"), Color("#c4a574")))
+	close.add_theme_color_override("font_color", Color("#1a120e"))
+	close.pressed.connect(func() -> void: show_rules(false))
+	card.add_child(close)
+
+
 func _make_scrim(rect: Rect2, color: Color) -> void:
 	var panel := ColorRect.new()
 	panel.position = rect.position
@@ -301,6 +553,65 @@ func _make_label(label_position: Vector2, label_size: Vector2, font_size: int, c
 	label.add_theme_color_override("font_color", color)
 	add_child(label)
 	return label
+
+func _build_power() -> void:
+	power_track = Panel.new()
+	power_track.position = _power_home
+	power_track.size = Vector2(36.0, 320.0)
+	power_track.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	power_track.clip_contents = true
+	var track := StyleBoxFlat.new()
+	track.bg_color = Color(0.07, 0.02, 0.10, 0.94)
+	track.border_color = Color(1.0, 0.32, 0.62, 0.95)
+	track.set_border_width_all(2)
+	track.set_corner_radius_all(14)
+	track.shadow_color = Color(1.0, 0.18, 0.55, 0.28)
+	track.shadow_size = 8
+	power_track.add_theme_stylebox_override("panel", track)
+	add_child(power_track)
+	power_fill = TextureRect.new()
+	power_fill.position = Vector2(5.0, 5.0)
+	power_fill.size = Vector2(26.0, 6.0)
+	power_fill.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	power_fill.stretch_mode = TextureRect.STRETCH_SCALE
+	power_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	power_track.add_child(power_fill)
+	for tick in 5:
+		var mark := ColorRect.new()
+		mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		mark.color = Color(1.0, 1.0, 1.0, 0.16)
+		mark.size = Vector2(14.0, 2.0)
+		mark.position = Vector2(11.0, 18.0 + float(tick) * 58.0)
+		power_track.add_child(mark)
+	power_cap = Panel.new()
+	power_cap.size = Vector2(26.0, 18.0)
+	power_cap.position = Vector2(5.0, 286.0)
+	power_cap.visible = false
+	power_cap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	power_track.add_child(power_cap)
+	power_max = Label.new()
+	power_max.text = "MAX"
+	power_max.position = Vector2(2.0, 4.0)
+	power_max.size = Vector2(32.0, 16.0)
+	power_max.visible = false
+	power_max.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	power_max.add_theme_font_size_override("font_size", 11)
+	power_max.add_theme_color_override("font_color", Color(1.0, 0.22, 0.32))
+	power_max.add_theme_color_override("font_outline_color", Color(0.18, 0.02, 0.06, 0.85))
+	power_max.add_theme_constant_override("outline_size", 4)
+	power_max.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	power_track.add_child(power_max)
+	var label := Label.new()
+	label.text = "POWER"
+	label.position = Vector2(472.0, 454.0)
+	label.size = Vector2(64.0, 16.0)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.add_theme_font_size_override("font_size", 11)
+	label.add_theme_color_override("font_color", Color(1.0, 0.72, 0.88, 0.95))
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(label)
+	show_power(0.0)
+
 
 func _make_button(button_text: String, button_position: Vector2, button_size: Vector2) -> Button:
 	var button := Button.new()
@@ -324,3 +635,89 @@ func _button_style(fill: Color, border: Color) -> StyleBoxFlat:
 	style.set_border_width_all(1)
 	style.set_corner_radius_all(10)
 	return style
+
+
+func reset_callouts() -> void:
+	_callout_used.clear()
+
+
+func slap(kind: String, speed: float = 0.0) -> void:
+	if _callout_used.get(kind, false):
+		return
+	_callout_used[kind] = true
+	if _callout_root == null:
+		return
+	var line := _callout_line(kind, speed)
+	_callout_word.text = str(line[0])
+	_callout_tag.text = str(line[1])
+	_callout_root.visible = true
+	_callout_root.modulate = Color(1, 1, 1, 1)
+	_callout_root.scale = Vector2(0.42, 0.42)
+	_callout_root.rotation_degrees = randf_range(-8.0, 8.0)
+	_callout_root.pivot_offset = _callout_root.size * 0.5
+	if _callout_tween != null:
+		_callout_tween.kill()
+	_callout_tween = create_tween()
+	_callout_tween.tween_property(_callout_root, "scale", Vector2(1.12, 1.12), 0.12).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_callout_tween.tween_property(_callout_root, "scale", Vector2.ONE, 0.08)
+	_callout_tween.tween_interval(1.12)
+	_callout_tween.tween_property(_callout_root, "modulate:a", 0.0, 0.28)
+	_callout_tween.tween_callback(func() -> void:
+		_callout_root.visible = false
+	)
+
+
+func _callout_line(kind: String, speed: float) -> PackedStringArray:
+	if kind == "disc" and speed >= 1.35:
+		return PackedStringArray(["BIG HIT", "SEND IT"])
+	var bank := {
+		"disc": [["CRACK", "DISC"], ["CLEAN", "CONTACT"], ["POP", "BUTTON"], ["BANG", "ON THEM"]],
+		"peg": [["PEG", "RATTLE"], ["CLACK", "PEG"], ["PIN", "KISS"]],
+		"out": [["DITCH", "GONE"], ["OUT", "NO SCORE"], ["RIM", "OFF"]],
+		"hole": [["TWENTY", "IN THE HOLE"], ["DOWN", "TWENTY"], ["CUP", "YES"]],
+		"foul": [["NO HIT", "COMES OFF"], ["WHIFF", "OFF THE BOARD"], ["FOUL", "TAKE IT OFF"]],
+	}
+	var lines: Array = bank.get(kind, [["NICE", "SHOT"]])
+	var pick: Array = lines[randi() % lines.size()]
+	return PackedStringArray([str(pick[0]), str(pick[1])])
+
+
+func _build_callout() -> void:
+	_callout_root = Control.new()
+	_callout_root.position = Vector2(86.0, 168.0)
+	_callout_root.size = Vector2(368.0, 132.0)
+	_callout_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_callout_root.z_index = 28
+	_callout_root.visible = false
+	add_child(_callout_root)
+	_callout_card = Panel.new()
+	_callout_card.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_callout_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var card := StyleBoxFlat.new()
+	card.bg_color = Color(0.06, 0.12, 0.24, 0.96)
+	card.border_color = Color("#F5C84B")
+	card.set_border_width_all(5)
+	card.set_corner_radius_all(18)
+	card.shadow_color = Color(0.95, 0.72, 0.18, 0.35)
+	card.shadow_size = 12
+	_callout_card.add_theme_stylebox_override("panel", card)
+	_callout_root.add_child(_callout_card)
+	_callout_word = Label.new()
+	_callout_word.position = Vector2(18.0, 14.0)
+	_callout_word.size = Vector2(332.0, 64.0)
+	_callout_word.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_callout_word.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_callout_word.add_theme_font_size_override("font_size", 42)
+	_callout_word.add_theme_color_override("font_color", Color("#F5C84B"))
+	_callout_word.add_theme_color_override("font_outline_color", Color("#1a0a12"))
+	_callout_word.add_theme_constant_override("outline_size", 8)
+	_callout_word.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_callout_root.add_child(_callout_word)
+	_callout_tag = Label.new()
+	_callout_tag.position = Vector2(18.0, 82.0)
+	_callout_tag.size = Vector2(332.0, 32.0)
+	_callout_tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_callout_tag.add_theme_font_size_override("font_size", 16)
+	_callout_tag.add_theme_color_override("font_color", Color("#3d5cff"))
+	_callout_tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_callout_root.add_child(_callout_tag)

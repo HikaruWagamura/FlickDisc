@@ -1,6 +1,6 @@
-# FlickDisc
+# Flick Bowls
 
-Portrait club for the two tables. The game opens on the FlickDisc splash and home. **Play** leads to Classic 1v1, where **Crokinmode** is the round board and **Long rink** is the lawn and the jack. Practice, challenges, friends, rankings, profile, customise, shop, and settings live on the same menu.
+Portrait club. The game opens on the Flick Bowls splash. **Bowl a match** is the long rink or the round board. **Solo ends** give you one bowl against three that are already down. **The long green** is ten times that rink: bowl as far as you can, and find the mark. The board on this device keeps matches won, ends cleared, the longest bowl, and the nearest mark.
 
 A finished match writes the win or loss onto this device. Challenges clear when the shot lands: the 20, a 15, or a bowl inside a metre of the jack. Online rows are on the Classic screen; this build plays that setup on the same device until a club server is connected.
 

@@ -1,18 +1,25 @@
 extends CanvasLayer
 
-## FlickDisc club. Splash, home, and the Classic 1v1 table select in front of the two rinks.
+## Bowl & Roll club. Splash, home, and the 1v1 table select in front of the two rinks.
 
 signal play_requested(setup: Dictionary)
 
-const PINK := Color("#873EFF")
-const PINK_DEEP := Color("#5425A5")
-const INK := Color("#080719")
-const CARD := Color(0.14, 0.09, 0.24, 0.98)
-const PLUM := Color(0.09, 0.06, 0.16, 0.98)
-const MUTED := Color("#A69DBD")
-const CREAM := Color("#E7E0F5")
+const GOLD := Color("#F5C84B")
+const GOLD_DEEP := Color("#E0A21A")
+const GOLD_GLOW := Color("#FFE08A")
+const BLUE := Color("#1C6CFF")
+const BLUE_LIT := Color("#2A7BFF")
+const RED := Color("#E12A32")
+const INK := Color("#050814")
+const CARD := Color(0.06, 0.13, 0.26, 0.94)
+const PLUM := Color(0.08, 0.16, 0.34, 0.96)
+const MUTED := Color("#A9C6EA")
+const CREAM := Color("#F4F7FF")
+const CHROME := Color("#E8EEF8")
+const NAVY := Color("#07101C")
 
 var profile
+var feel
 var root: Control
 var backdrop: Control
 var pages := {}
@@ -32,11 +39,23 @@ var script_font: Font
 var body_font: Font
 var bold_font: Font
 var logo_tex: Texture2D
+var bowl_tex: Texture2D
+var _home_art := {}
 
 var home_name: Label
 var home_level: Label
 var home_letter: Label
 var home_record: Label
+var home_tally: Label
+var home_record_box: Panel
+var home_play: Button
+var home_mark: TextureRect
+var home_pill: Button
+var home_gear: Button
+var home_cards: Array = []
+var splash_mark: TextureRect
+var splash_line: Label
+var starting: Control
 var home_xp: ColorRect
 var chip_wins: Label
 var chip_losses: Label
@@ -46,6 +65,7 @@ var hint_label: Label
 var difficulty_button: Button
 var race_button: Button
 var big_play: Button
+var friend_button: Button
 var online_box: Control
 var duo_note: Label
 var crokin_card: Button
@@ -66,27 +86,153 @@ var profile_disc: Label
 var profile_xp: ColorRect
 var rank_name: Label
 var rank_record: Label
+var board_solo: Label
+var board_drive: Label
+var board_mark: Label
+var board_recent: Label
 var friend_code: Label
 var nav: Control
+var nav_row: HBoxContainer
+var nav_glow: ColorRect
 var nav_icons: Array = []
 var nav_captions: Array = []
+var nav_buttons: Array = []
+var nav_glyphs: Array = []
+var match_chips: Array = []
+var skill_chips: Array = []
+var match_kicker: Label
+var skill_kicker: Label
+var emoji_font: Font
 var choice_layer: Control
 var choice_box: VBoxContainer
 var online_layer: Control
 var online_title: Label
 var online_body: Label
+var live_net
+var live_layer: Control
+var live_title: Label
+var live_body: Label
+var live_you_letter: Label
+var live_you_photo: TextureRect
+var live_you_name: Label
+var live_rival_name: Label
+var live_rival_tag: Label
+var live_reel: Control
+var live_strip: Control
+var live_searching := false
+var live_reel_x := 0.0
+var live_reel_y := 0.0
+var live_card_step := 176.0
+var live_panel: Control
+var live_you_chip: Panel
+var live_you_tag: Label
+var live_focus: Control
+var live_token := 0
+var live_found_live := false
+var live_found_name := ""
+var live_hosting := true
+var live_mode := "open"
+var live_table_code := ""
+var live_friend_button: Button
+var live_copy_button: Button
+var live_cancel_button: Button
+var live_reel_frame: Control
+var live_fade_top: TextureRect
+var live_fade_bot: TextureRect
+var live_sight_top: ColorRect
+var live_sight_bot: ColorRect
+var _crest_cache := {}
+var friends_back := "home"
+var friend_add_edit: LineEdit
+var friend_join_edit: LineEdit
+var friend_list_box: VBoxContainer
+var friend_code_label: Label
+var profile_friend_edit: LineEdit
+var profile_friend_box: VBoxContainer
+const LiveNetScript := preload("res://scripts/live_net.gd")
+var home_face: TextureRect
+var profile_face: TextureRect
+var profile_avatar: Panel
+var home_avatar: Panel
+var face_layer: Control
+var profile_live: Label
+const LiveFaces := preload("res://scripts/live_faces.gd")
+const LIVE_SEARCH_WAIT := 12.0
+var lobby_race := 2
+var lobby_guide := 0
+var lobby_ditch := true
+var lobby_guide_chips: Array = []
+var lobby_ditch_chips: Array = []
+var lobby_match_chips: Array = []
+var lobby_title: Label
+var lobby_sub: Label
+var lobby_note: Label
+var lobby_guide_kicker: Label
+var lobby_ditch_kicker: Label
+var lobby_match_kicker: Label
+var lobby_search_btn: Button
+var lobby_play_btn: Button
+var lobby_invite_btn: Button
+var friend_search_box: VBoxContainer
+var invite_layer: Control
+var invite_title: Label
+var invite_body: Label
+var invite_from := ""
+var invite_code := ""
+var live_options := {"guide": 0, "ditch": true, "race": 2, "points": 7, "ends": 0}
 var toast: Control
 var toast_label: Label
 var splash_bar: ColorRect
 var challenge_trails := {}
 var swatch_buttons: Array = []
+var kit_tab := "bowl"
+var kit_preview_bowl: TextureRect
+var kit_preview_disc: TextureRect
+var kit_skin_row: GridContainer
+var kit_caption: Label
+var kit_bowl_tab: Button
+var kit_disc_tab: Button
+var customize_button: Button
+var guide := 0
+var ditch_on := true
+var guide_kicker: Label
+var ditch_kicker: Label
+var guide_chips: Array = []
+var ditch_chips: Array = []
+var photo_kicker: Label
+var photo_blurb: Label
+var photo_a_button: Button
+var photo_b_button: Button
+var photo_place_row: Control
+var photo_place_chips: Array = []
+var photo_picker: FileDialog
+var photo_slot := "a"
+var studio
+var studio_box: Control
+var theme_kicker: Label
+var look_panel: VBoxContainer
+var disc_block: VBoxContainer
+var disc_look_host: VBoxContainer
+var hub_page_margins: Array = []
+var hub_scrolls: Array = []
+var hub_scroll_inners: Array = []
+var profile_bowl: TextureRect
 
 
 func setup(player_profile) -> void:
 	profile = player_profile
+	feel = preload("res://scripts/feel.gd").new()
+	feel.name = "MenuFeel"
+	add_child(feel)
 	room_code = _make_code()
 	_prepare_fonts()
 	logo_tex = _logo_texture()
+	_home_art = {
+		"crazy": _tex("res://assets/home_crazy.png"),
+		"solo": _tex("res://assets/home_solo.png"),
+		"practice": _tex("res://assets/home_practice.png"),
+		"board": _tex("res://assets/home_board.png"),
+	}
 	root = Control.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -102,20 +248,32 @@ func setup(player_profile) -> void:
 	_build_splash()
 	_build_home()
 	_build_setup()
+	_build_lobby()
 	_build_simple_pages()
 	_build_nav()
 	_build_choice_layer()
 	_build_online_layer()
+	_build_live_layer()
+	_build_invite_layer()
+	_build_face_layer()
 	_build_toast()
+	_build_starting()
+	get_viewport().size_changed.connect(_layout_shell)
+	call_deferred("_layout_shell")
+	_ensure_live_net()
 	_show("splash")
 
 
 func set_open(is_open: bool) -> void:
 	root.visible = is_open
+	if starting != null:
+		starting.visible = false
 
 
 func open_screen(screen_name: String) -> void:
 	root.visible = true
+	if starting != null:
+		starting.visible = false
 	_show(screen_name)
 	refresh()
 
@@ -144,14 +302,36 @@ func _prepare_fonts() -> void:
 	script_font = FONT_PACIFICO
 	body_font = FONT_INTER
 	bold_font = FONT_INTER_BOLD
+	emoji_font = SystemFont.new()
+	emoji_font.font_names = PackedStringArray(["Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji"])
+	var marks := SystemFont.new()
+	marks.font_names = PackedStringArray(["Noto Sans Symbols2", "DejaVu Sans"])
+	var stack: Array[Font] = [emoji_font, marks]
+	var faces: Array[FontFile] = [FONT_ANTON, FONT_INTER, FONT_INTER_BOLD, FONT_PACIFICO]
+	for face in faces:
+		face.fallbacks = stack
 
 
-const LOGO := preload("res://assets/syncbowls_logo.png")
+const LOGO := preload("res://assets/bowl_and_roll_logo.png")
+const BOWLS_ART := preload("res://assets/bowls_card.png")
+const CROCK_ART := preload("res://assets/crock_and_hole_card.png")
+const Kit := preload("res://scripts/kit.gd")
+const StudioScript := preload("res://scripts/bowl_studio.gd")
 
 
 func _logo_texture() -> Texture2D:
 	# preload packs the mark into the phone export. Image.load does not.
 	return LOGO
+
+
+func _tex(path: String) -> Texture2D:
+	var packed := load(path)
+	if packed is Texture2D:
+		return packed
+	var img := Image.new()
+	if img.load(path) == OK:
+		return ImageTexture.create_from_image(img)
+	return null
 
 
 func _show(next: String) -> void:
@@ -161,6 +341,11 @@ func _show(next: String) -> void:
 		page.visible = str(key) == next
 	var hub := next == "home" or next == "profile" or next == "customise" or next == "shop" or next == "settings"
 	nav.visible = hub
+	var keep_live := next == "friends" or next == "lobby"
+	if live_searching and not keep_live:
+		_cancel_live_search()
+	elif live_layer != null and not live_searching:
+		live_layer.visible = false
 	backdrop.visible = true
 	choice_layer.visible = false
 	online_layer.visible = false
@@ -169,7 +354,342 @@ func _show(next: String) -> void:
 		_arm_splash()
 	if next == "setup":
 		_sync_setup()
+	if next == "lobby":
+		_sync_lobby()
+	if next == "customise":
+		if studio != null:
+			studio.refresh()
+		_paint_kit()
+	if next == "friends":
+		_paint_friends()
 	_sync_identity()
+	_layout_shell()
+
+
+func _view_size() -> Vector2:
+	var size := Vector2(540, 960)
+	if is_inside_tree():
+		size = get_viewport().get_visible_rect().size
+	if size.x < 2.0:
+		size.x = 540.0
+	if size.y < 2.0:
+		size.y = 960.0
+	return size
+
+
+func _safe_pad() -> Vector2:
+	# About 15px from the glass. If a system bar is actually showing,
+	# sit above that instead of adding a second cushion.
+	var min_top := 15.0
+	var min_bottom := 15.0
+	var safe := DisplayServer.get_display_safe_area()
+	var win := DisplayServer.window_get_size()
+	if win.x < 1 or win.y < 1:
+		return Vector2(min_top, min_bottom)
+	var scale := float(win.x) / 540.0
+	if scale <= 0.001:
+		return Vector2(min_top, min_bottom)
+	var top := maxf(min_top, float(safe.position.y) / scale)
+	var bottom_px := float(win.y) - float(safe.position.y + safe.size.y)
+	var bottom := maxf(min_bottom, bottom_px / scale)
+	return Vector2(top, bottom)
+
+
+func _layout_shell() -> void:
+	if root == null:
+		return
+	var view := _view_size()
+	var pad := _safe_pad()
+	var wide := view.x
+	var tall := view.y
+	if splash_bar != null:
+		splash_bar.position = Vector2(0, pad.x)
+	if splash_mark != null:
+		var mark_h := minf(360.0, tall * 0.38)
+		splash_mark.position = Vector2(40.0, pad.x + (tall - pad.x - pad.y - mark_h) * 0.28)
+		splash_mark.size = Vector2(wide - 80.0, mark_h)
+	if splash_line != null and splash_mark != null:
+		splash_line.position = Vector2(30.0, splash_mark.position.y + splash_mark.size.y + 8.0)
+		splash_line.size = Vector2(wide - 60.0, 36.0)
+	if nav != null:
+		nav.size = Vector2(wide - 28.0, 104.0)
+		nav.position = Vector2(14.0, tall - pad.y - 104.0)
+		if nav_glow != null:
+			nav_glow.position = Vector2(28.0, 2.0)
+			nav_glow.size = Vector2(nav.size.x - 56.0, 3.0)
+		if nav_row != null:
+			nav_row.position = Vector2(8.0, 8.0)
+			nav_row.size = Vector2(nav.size.x - 16.0, 90.0)
+	if toast != null:
+		toast.position = Vector2(40.0, maxf(80.0, nav.position.y - 56.0))
+		toast.size = Vector2(wide - 80.0, 48.0)
+	if backdrop != null:
+		backdrop.set_anchors_preset(Control.PRESET_FULL_RECT)
+		backdrop.offset_left = 0.0
+		backdrop.offset_top = 0.0
+		backdrop.offset_right = 0.0
+		backdrop.offset_bottom = 0.0
+		backdrop.size = view
+		backdrop.queue_redraw()
+	var top_m := int(round(pad.x + 6.0))
+	var tab_clear := 16
+	if nav != null:
+		tab_clear = int(round(tall - nav.position.y + 24.0))
+	for margin in hub_page_margins:
+		if margin is MarginContainer:
+			(margin as MarginContainer).add_theme_constant_override("margin_top", top_m)
+			(margin as MarginContainer).add_theme_constant_override("margin_bottom", tab_clear)
+	var scroll_h := tall
+	if nav != null:
+		scroll_h = nav.position.y
+	for item in hub_scrolls:
+		if item is ScrollContainer:
+			var scroller := item as ScrollContainer
+			scroller.set_anchors_preset(Control.PRESET_FULL_RECT)
+			scroller.anchor_right = 1.0
+			scroller.anchor_bottom = 1.0
+			scroller.offset_left = 0.0
+			scroller.offset_right = 0.0
+			scroller.offset_top = 0.0
+			scroller.offset_bottom = 0.0
+	for item in hub_scroll_inners:
+		if item is Control:
+			(item as Control).custom_minimum_size = Vector2(wide, tall)
+	_layout_home(view, pad)
+	_layout_live(view, pad)
+	_layout_lobby(view, pad)
+	_layout_invite(view, pad)
+
+
+func _layout_home(view: Vector2, pad: Vector2) -> void:
+	if home_pill == null or home_mark == null or home_play == null:
+		return
+	var wide := view.x
+	var chrome_y := pad.x
+	home_pill.position = Vector2(16.0, chrome_y)
+	if chip_wins != null and chip_wins.get_parent() is Control:
+		(chip_wins.get_parent() as Control).position = Vector2(wide - 148.0, chrome_y + 10.0)
+	if chip_losses != null and chip_losses.get_parent() is Control:
+		(chip_losses.get_parent() as Control).position = Vector2(wide - 104.0, chrome_y + 10.0)
+	if home_gear != null:
+		home_gear.position = Vector2(wide - 56.0, chrome_y + 8.0)
+	var y := chrome_y + 58.0 + 8.0
+	var floor := view.y - pad.y - 12.0
+	if nav != null:
+		floor = nav.position.y
+	var extra := maxf(0.0, view.y - 960.0)
+	var play_h := clampf(64.0 + extra * 0.04, 64.0, 72.0)
+	var rec_h := 64.0
+	var rec_gap := 6.0
+	var logo_play := 11.0
+	var play_cards := 12.0
+	var card_gap := 10.0
+	var cards_to_rec := 8.0
+	var rec_y := floor - rec_gap - rec_h
+	var logo_h := clampf(204.0 + extra * 0.14, 188.0, 244.0)
+	var card_h := clampf(136.0 + extra * 0.36, 136.0, 220.0)
+	var inner := rec_y - cards_to_rec - y - logo_play - play_h - play_cards - card_gap
+	var slack := inner - logo_h - card_h * 2.0
+	if slack > 0.0:
+		card_h += slack * 0.5
+	if logo_h + card_h * 2.0 > inner:
+		logo_h = clampf(inner - card_h * 2.0, 156.0, logo_h)
+	if logo_h + card_h * 2.0 > inner:
+		card_h = maxf(118.0, (inner - logo_h) * 0.5)
+	home_mark.position = Vector2(40.0, y)
+	home_mark.size = Vector2(wide - 80.0, logo_h)
+	y += logo_h + logo_play
+	home_play.position = Vector2(28.0, y)
+	home_play.size = Vector2(wide - 56.0, play_h)
+	home_play.add_theme_font_size_override("font_size", int(round(clampf(22.0 + extra * 0.02, 22.0, 26.0))))
+	y += play_h + play_cards
+	var card_w := (wide - 28.0 - 16.0 - 12.0) * 0.5
+	if home_cards.size() >= 4:
+		_place_home_card(home_cards[0] as Button, Vector2(28.0, y), Vector2(card_w, card_h))
+		_place_home_card(home_cards[1] as Button, Vector2(28.0 + card_w + 12.0, y), Vector2(card_w, card_h))
+		_place_home_card(home_cards[2] as Button, Vector2(28.0, y + card_h + card_gap), Vector2(card_w, card_h))
+		_place_home_card(home_cards[3] as Button, Vector2(28.0 + card_w + 12.0, y + card_h + card_gap), Vector2(card_w, card_h))
+	if home_record_box != null:
+		home_record_box.position = Vector2(48.0, rec_y)
+		home_record_box.size = Vector2(wide - 96.0, rec_h)
+		home_record_box.custom_minimum_size = Vector2(wide - 96.0, rec_h)
+		home_record_box.add_theme_stylebox_override("panel", _chrome(Color(0.05, 0.10, 0.22, 0.92), GOLD, 2, int(round(rec_h * 0.5)), 0, 0.0, Color(0, 0, 0, 0)))
+		var wrap := home_record_box.get_node_or_null("RecWrap") as CenterContainer
+		if wrap != null:
+			wrap.set_anchors_preset(Control.PRESET_FULL_RECT)
+			wrap.offset_left = 12.0
+			wrap.offset_right = -12.0
+			wrap.offset_top = 4.0
+			wrap.offset_bottom = -6.0
+	if home_record != null:
+		home_record.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		home_record.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		home_record.add_theme_constant_override("line_spacing", -6)
+	if home_tally != null:
+		home_tally.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		home_tally.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		home_tally.add_theme_constant_override("line_spacing", -4)
+
+
+func _layout_live(view: Vector2, pad: Vector2) -> void:
+	if live_layer == null or live_panel == null:
+		return
+	var wide := view.x
+	var tall := view.y
+	live_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	live_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var top := pad.x + 10.0
+	var bottom := tall - pad.y - 14.0
+	var friend := live_mode == "host" or live_mode == "join"
+	var btn_h := 54.0
+	var btn_gap := 10.0
+	var btn_x := 22.0
+	var btn_w := wide - 44.0
+	if live_cancel_button != null:
+		live_cancel_button.position = Vector2(btn_x, bottom - btn_h)
+		live_cancel_button.size = Vector2(btn_w, btn_h)
+	var stack := bottom - btn_h
+	if live_friend_button != null and live_friend_button.visible:
+		stack -= btn_gap + btn_h
+		live_friend_button.position = Vector2(btn_x, stack)
+		live_friend_button.size = Vector2(btn_w, btn_h)
+	if live_copy_button != null and live_copy_button.visible:
+		stack -= btn_gap + btn_h
+		live_copy_button.position = Vector2(btn_x, stack)
+		live_copy_button.size = Vector2(btn_w, btn_h)
+	var floor_y := stack - 12.0
+	if live_title != null:
+		live_title.position = Vector2(20.0, top)
+		live_title.size = Vector2(wide - 40.0, 40.0)
+		live_title.add_theme_font_size_override("font_size", 38 if tall > 1400.0 else 30)
+	if live_body != null:
+		live_body.position = Vector2(28.0, top + 36.0)
+		live_body.size = Vector2(wide - 56.0, 52.0)
+		live_body.clip_text = false
+	var you_d := 48.0 if tall > 1200.0 else 42.0
+	var you_y := top + 110.0
+	if live_you_chip != null:
+		live_you_chip.position = Vector2((wide - you_d) * 0.5, you_y)
+		live_you_chip.size = Vector2(you_d, you_d)
+		live_you_chip.custom_minimum_size = Vector2(you_d, you_d)
+		var fill: Color = GOLD
+		if profile != null:
+			fill = profile.face_color()
+		live_you_chip.add_theme_stylebox_override("panel", _chrome(fill, GOLD, 2, int(you_d * 0.5), 0, 0.8, Color(0.96, 0.72, 0.12, 0.28)))
+		if live_you_letter != null:
+			live_you_letter.add_theme_font_size_override("font_size", 20 if you_d > 48.0 else 16)
+	if live_you_tag != null:
+		live_you_tag.visible = false
+	if live_you_name != null:
+		live_you_name.position = Vector2(24.0, you_y + you_d + 4.0)
+		live_you_name.size = Vector2(wide - 48.0, 22.0)
+		live_you_name.add_theme_font_size_override("font_size", 14)
+	var tag_h := 20.0
+	var reel_top := you_y + you_d + 28.0
+	var reel_x := 0.0
+	var reel_w := wide
+	if friend:
+		if live_rival_tag != null:
+			live_rival_tag.visible = true
+			live_rival_tag.position = Vector2(24.0, floor_y - tag_h)
+			live_rival_tag.size = Vector2(wide - 48.0, tag_h)
+		var reel_h := maxf(280.0, floor_y - tag_h - 10.0 - reel_top)
+		if live_reel_frame != null:
+			live_reel_frame.position = Vector2(reel_x, reel_top)
+			live_reel_frame.size = Vector2(reel_w, reel_h)
+		if live_rival_name != null:
+			live_rival_name.visible = true
+			live_rival_name.position = Vector2(24.0, reel_top)
+			live_rival_name.size = Vector2(wide - 48.0, reel_h)
+			live_rival_name.add_theme_font_size_override("font_size", 72 if tall > 1400.0 else 52)
+		if live_reel != null:
+			live_reel.visible = false
+		if live_focus != null:
+			live_focus.visible = false
+		_show_live_sights(false)
+	else:
+		if live_rival_tag != null:
+			live_rival_tag.visible = true
+			live_rival_tag.position = Vector2(24.0, floor_y - tag_h)
+			live_rival_tag.size = Vector2(wide - 48.0, tag_h)
+		if live_rival_name != null:
+			live_rival_name.visible = false
+		var reel_h := maxf(280.0, floor_y - tag_h - 8.0 - reel_top)
+		if live_reel_frame != null:
+			live_reel_frame.position = Vector2(reel_x, reel_top)
+			live_reel_frame.size = Vector2(reel_w, reel_h)
+		if live_reel != null:
+			live_reel.visible = true
+			live_reel.position = Vector2.ZERO
+			live_reel.size = Vector2(reel_w, reel_h)
+		live_card_step = clampf(reel_h / 3.05, 168.0, 320.0)
+		var focus_h := live_card_step
+		var focus_y := (reel_h - focus_h) * 0.5
+		if live_focus != null:
+			live_focus.visible = true
+			live_focus.position = Vector2(14.0, focus_y)
+			live_focus.size = Vector2(reel_w - 28.0, focus_h)
+		_place_live_sights(reel_w, reel_h, focus_y, focus_h)
+
+
+func _place_home_card(card: Button, pos: Vector2, box: Vector2) -> void:
+	card.position = pos
+	card.size = box
+	card.custom_minimum_size = box
+	var s := clampf(box.y / 136.0, 1.0, 1.55)
+	var inset := 14.0
+	var title_h := clampf(32.0 * s, 30.0, 40.0)
+	var detail_h := clampf(22.0 * s, 20.0, 28.0)
+	var heading := card.get_node_or_null("Heading") as Label
+	if heading != null:
+		heading.position = Vector2(inset, 10.0)
+		heading.size = Vector2(box.x - inset * 2.0, title_h)
+		heading.add_theme_font_size_override("font_size", int(round(clampf(26.0 * s, 26.0, 34.0))))
+		heading.add_theme_color_override("font_color", GOLD)
+		heading.autowrap_mode = TextServer.AUTOWRAP_OFF
+		heading.clip_text = true
+		heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		heading.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var detail := card.get_node_or_null("Detail") as Label
+	if detail != null:
+		detail.position = Vector2(inset, 8.0 + title_h)
+		detail.size = Vector2(box.x - inset * 2.0, detail_h)
+		detail.add_theme_font_size_override("font_size", int(round(clampf(15.0 * s, 15.0, 19.0))))
+		detail.add_theme_color_override("font_color", CREAM)
+		detail.autowrap_mode = TextServer.AUTOWRAP_OFF
+		detail.clip_text = true
+		detail.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var shine := card.get_node_or_null("Shine") as ColorRect
+	if shine != null:
+		shine.position = Vector2(18.0, 3.0)
+		shine.size = Vector2(box.x - 36.0, 3.0)
+	var art := card.get_node_or_null("Art") as TextureRect
+	var copy_bottom := 10.0 + title_h + detail_h
+	if art != null:
+		art.position = Vector2(12.0, copy_bottom)
+		art.size = Vector2(box.x - 24.0, maxf(64.0, box.y - copy_bottom - 10.0))
+		art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		art.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+
+
+func _process(delta: float) -> void:
+	if live_searching and live_mode == "open" and live_strip != null and live_reel != null and live_reel.visible:
+		live_reel_y += 96.0 * delta
+		var span := float(LiveFaces.RIVALS.size()) * live_card_step
+		if span < 8.0:
+			return
+		live_strip.position.x = 0.0
+		live_strip.position.y = -fmod(live_reel_y, span)
+		_light_live_cards()
+		if live_rival_name != null:
+			var n := LiveFaces.RIVALS.size()
+			var world := live_reel.size.y * 0.5 - live_strip.position.y
+			var idx := int(floor(world / live_card_step)) % n
+			if idx < 0:
+				idx += n
+			live_rival_name.text = str(LiveFaces.RIVALS[idx]["name"]).to_upper()
+			live_rival_name.modulate.a = 1.0
 
 
 func _arm_splash() -> void:
@@ -177,7 +697,7 @@ func _arm_splash() -> void:
 	var token := splash_token
 	splash_bar.size = Vector2(0, 3)
 	var tween := create_tween()
-	tween.tween_property(splash_bar, "size:x", 540.0, 2.05)
+	tween.tween_property(splash_bar, "size:x", _view_size().x, 2.05)
 	get_tree().create_timer(2.15).timeout.connect(func() -> void:
 		if screen == "splash" and token == splash_token:
 			_show("home")
@@ -203,19 +723,19 @@ func _build_splash() -> void:
 			_show("home")
 	)
 	page.add_child(hit)
-	var mark := _mark_rect()
-	mark.position = Vector2(70, 230)
-	mark.size = Vector2(400, 400)
-	page.add_child(mark)
-	var tag := _label("FLICK HARD. PLAY DIRTY.", 26, PINK, script_font)
-	tag.position = Vector2(30, 660)
-	tag.size = Vector2(480, 48)
-	tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	page.add_child(tag)
+	splash_mark = _mark_rect()
+	splash_mark.position = Vector2(40, 150)
+	splash_mark.size = Vector2(460, 360)
+	page.add_child(splash_mark)
+	splash_line = _label("Pick the table. Then bowl.", 22, CREAM, script_font)
+	splash_line.position = Vector2(30, 530)
+	splash_line.size = Vector2(480, 36)
+	splash_line.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	page.add_child(splash_line)
 	splash_bar = ColorRect.new()
 	splash_bar.position = Vector2(0, 0)
 	splash_bar.size = Vector2(0, 3)
-	splash_bar.color = Color("#4da3ff")
+	splash_bar.color = GOLD
 	splash_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	page.add_child(splash_bar)
 
@@ -227,216 +747,312 @@ func _build_home() -> void:
 	pages["home"] = page
 	root.add_child(page)
 
-	var pill := Button.new()
-	_place(page, pill, Vector2(16, 16), Vector2(250, 58))
-	_paint_button(pill, PLUM, PINK, CREAM, 28, 12)
-	pill.pressed.connect(_show.bind("profile"))
+	home_pill = Button.new()
+	_place(page, home_pill, Vector2(16, 16), Vector2(250, 58))
+	_paint_button(home_pill, PLUM, GOLD, CREAM, 28, 12)
+	home_pill.pressed.connect(_show.bind("profile"))
 	var avatar := Panel.new()
 	avatar.position = Vector2(8, 10)
 	avatar.size = Vector2(38, 38)
 	avatar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	avatar.add_theme_stylebox_override("panel", _flat(PINK, PINK, 0, 19, 0))
-	pill.add_child(avatar)
-	home_letter = _label("F", 18, Color("#1a0a12"), bold_font)
+	home_avatar = avatar
+	avatar.add_theme_stylebox_override("panel", _flat(GOLD, GOLD, 0, 19, 0))
+	home_pill.add_child(avatar)
+	home_face = TextureRect.new()
+	home_face.position = Vector2(8, 10)
+	home_face.size = Vector2(38, 38)
+	home_face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	home_face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	home_face.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	home_face.visible = false
+	home_pill.add_child(home_face)
+	home_letter = _label("B", 18, Color("#07101C"), bold_font)
 	home_letter.position = Vector2(8, 16)
 	home_letter.size = Vector2(38, 26)
 	home_letter.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	pill.add_child(home_letter)
+	home_pill.add_child(home_letter)
 	home_name = _label("Flicker", 16, CREAM, bold_font)
 	home_name.position = Vector2(54, 8)
 	home_name.size = Vector2(180, 22)
-	pill.add_child(home_name)
-	home_level = _label("Level 1", 12, PINK, bold_font)
+	home_pill.add_child(home_name)
+	home_level = _label("Level 1", 12, CREAM, bold_font)
 	home_level.position = Vector2(54, 30)
 	home_level.size = Vector2(180, 16)
-	pill.add_child(home_level)
+	home_pill.add_child(home_level)
 	var track := ColorRect.new()
 	track.position = Vector2(54, 48)
 	track.size = Vector2(150, 3)
 	track.color = Color(1, 1, 1, 0.14)
 	track.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	pill.add_child(track)
+	home_pill.add_child(track)
 	home_xp = ColorRect.new()
 	home_xp.position = Vector2(54, 48)
 	home_xp.size = Vector2(8, 3)
-	home_xp.color = PINK
+	home_xp.color = GOLD
 	home_xp.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	pill.add_child(home_xp)
+	home_pill.add_child(home_xp)
 
 	chip_wins = _chip(page, Vector2(392, 26))
 	chip_losses = _chip(page, Vector2(436, 26))
-	var gear := _button("⚙", 18)
-	_place(page, gear, Vector2(484, 24), Vector2(40, 40))
-	_paint_button(gear, PLUM, PINK, CREAM, 12, 0)
-	gear.pressed.connect(_show.bind("settings"))
+	home_gear = _button("⚙", 18)
+	_place(page, home_gear, Vector2(484, 24), Vector2(40, 40))
+	_paint_button(home_gear, PLUM, GOLD, CREAM, 12, 0)
+	home_gear.pressed.connect(_show.bind("settings"))
 
-	var server := _label("SERVER ONLINE", 11, PINK, bold_font)
-	_place(page, server, Vector2(20, 80), Vector2(220, 16))
+	home_mark = _mark_rect()
+	_place(page, home_mark, Vector2(40, 82), Vector2(460, 220))
 
-	var plate := Panel.new()
-	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_place(page, plate, Vector2(36, 102), Vector2(468, 262))
-	plate.add_theme_stylebox_override("panel", _flat(Color(0.05, 0.04, 0.12, 0.55), Color("#873EFF"), 1, 28, 0))
-	var mark := _mark_rect()
-	_place(page, mark, Vector2(115, 108), Vector2(310, 248))
+	var play := _button("▶  PLAY A MATCH", 22)
+	_place(page, play, Vector2(28, 360), Vector2(484, 64))
+	_paint_button(play, GOLD, Color("#FFE9A0"), Color("#1A1208"), 22, 0, 2)
+	play.add_theme_stylebox_override("normal", _chrome(GOLD, GOLD_GLOW, 2, 22, 0, 2.1, Color(0.96, 0.72, 0.12, 0.55)))
+	play.add_theme_stylebox_override("hover", _chrome(GOLD.lightened(0.08), GOLD_GLOW, 2, 22, 0, 2.1, Color(0.96, 0.72, 0.12, 0.62)))
+	play.add_theme_stylebox_override("pressed", _chrome(GOLD.darkened(0.08), GOLD, 2, 22, 0, 1.2, Color(0.96, 0.72, 0.12, 0.35)))
+	home_play = play
+	play.pressed.connect(func() -> void:
+		_tap()
+		_open_setup("classic")
+	)
 
-	var play := _button("PLAY", 22)
-	_place(page, play, Vector2(20, 392), Vector2(500, 64))
-	_paint_button(play, PINK_DEEP, Color("#C4AEFF"), CREAM, 18, 0)
-	var play_mark := _label("▶", 18, CREAM, bold_font)
-	play_mark.position = Vector2(430, 18)
-	play_mark.size = Vector2(40, 28)
-	play.add_child(play_mark)
-	play.pressed.connect(_open_setup.bind("classic"))
+	home_cards = [
+		_home_card(page, Rect2(28, 444, 236, 136), "LIVE GAME", "Lobby · search or invite", _home_art.get("crazy") as Texture2D, "live", true),
+		_home_card(page, Rect2(276, 444, 236, 136), "SOLO ENDS", "One bowl · the jack", _home_art.get("solo") as Texture2D, "solo", false),
+		_home_card(page, Rect2(28, 584, 236, 136), "PRACTICE", "You and the jack", _home_art.get("practice") as Texture2D, "practice", false),
+		_home_card(page, Rect2(276, 584, 236, 136), "THE BOARD", "Wins · ends · runs", _home_art.get("board") as Texture2D, "rankings", true),
+	]
 
-	home_record = _label("0W  ·  0L", 15, Color("#a894a0"), bold_font)
-	_place(page, home_record, Vector2(20, 464), Vector2(500, 22))
+	home_record_box = Panel.new()
+	_place(page, home_record_box, Vector2(48, 720), Vector2(444, 64))
+	home_record_box.add_theme_stylebox_override("panel", _chrome(Color(0.05, 0.10, 0.22, 0.92), GOLD, 2, 32, 0, 0.0, Color(0, 0, 0, 0)))
+	var rec_wrap := CenterContainer.new()
+	rec_wrap.name = "RecWrap"
+	rec_wrap.set_anchors_preset(Control.PRESET_FULL_RECT)
+	rec_wrap.offset_left = 12.0
+	rec_wrap.offset_right = -12.0
+	rec_wrap.offset_top = 4.0
+	rec_wrap.offset_bottom = -6.0
+	rec_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	home_record_box.add_child(rec_wrap)
+	var rec_col := VBoxContainer.new()
+	rec_col.alignment = BoxContainer.ALIGNMENT_CENTER
+	rec_col.add_theme_constant_override("separation", 0)
+	rec_col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rec_wrap.add_child(rec_col)
+	home_record = _label("0W  ·  0L", 17, CREAM, bold_font)
 	home_record.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	home_record.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	home_record.add_theme_constant_override("line_spacing", -6)
+	rec_col.add_child(home_record)
+	home_tally = _label("ENDS 0  ·  NO DRIVE YET", 12, MUTED, bold_font)
+	home_tally.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	home_tally.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	home_tally.add_theme_constant_override("line_spacing", -4)
+	rec_col.add_child(home_tally)
 
-	_home_card(page, Rect2(16, 496, 164, 112), "1", "CLASSIC 1V1", "Skill. Strategy.\nVictory.", "classic")
-	_home_card(page, Rect2(188, 496, 164, 112), "2", "CLASSIC 2V2", "Team up.\nTake control.", "duo")
-	_home_card(page, Rect2(360, 496, 164, 112), "⚡", "CHAOS MODE", "Power-ups.\nNo mercy.", "chaos")
-	_home_card(page, Rect2(16, 618, 249, 104), "", "PRACTICE", "Improve your game", "practice")
-	_home_card(page, Rect2(275, 618, 249, 104), "", "CHALLENGES", "Daily shots. Big rewards.", "challenges")
-	_home_card(page, Rect2(16, 732, 249, 104), "", "FRIENDS", "Play with mates", "friends")
-	_home_card(page, Rect2(275, 732, 249, 104), "", "RANKINGS", "Climb the leaderboard", "rankings")
 
-
-func _home_card(page: Control, rect: Rect2, kicker: String, title: String, body: String, target: String) -> void:
+func _home_card(page: Control, rect: Rect2, title: String, body: String, art_tex: Texture2D, target: String, warm: bool) -> Button:
 	var button := Button.new()
 	button.text = ""
+	button.clip_contents = false
 	_place(page, button, rect.position, rect.size)
-	_paint_button(button, CARD, Color(1, 0.55, 0.72, 0.85), CREAM, 16, 12)
-	var y := 12.0
-	if kicker != "":
-		var kick := _label(kicker, 13, PINK, bold_font)
-		kick.position = Vector2(12, 8)
-		kick.size = Vector2(rect.size.x - 24, 18)
-		button.add_child(kick)
-		y = 30.0
-	var heading := _label(title, 15, CREAM, bold_font)
-	heading.position = Vector2(12, y)
-	heading.size = Vector2(rect.size.x - 24, 36)
-	heading.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	var fill := Color(0.42, 0.08, 0.12, 0.94) if warm else Color(0.07, 0.16, 0.46, 0.94)
+	var shade := Color(0.55, 0.08, 0.10, 0.38) if warm else Color(0.08, 0.16, 0.55, 0.38)
+	button.add_theme_stylebox_override("normal", _chrome(fill, GOLD, 2, 22, 8, 1.8, shade))
+	button.add_theme_stylebox_override("hover", _chrome(fill.lightened(0.08), GOLD_GLOW, 2, 22, 8, 2.0, shade))
+	button.add_theme_stylebox_override("pressed", _chrome(fill.darkened(0.08), GOLD, 2, 22, 8, 1.1, shade))
+	button.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	button.add_theme_color_override("font_color", CREAM)
+	var shine := ColorRect.new()
+	shine.name = "Shine"
+	shine.color = Color(1, 0.9, 0.45, 0.38)
+	shine.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	shine.position = Vector2(18, 3)
+	shine.size = Vector2(rect.size.x - 36, 3)
+	button.add_child(shine)
+	var heading := _label(title, 26, GOLD, title_font)
+	heading.name = "Heading"
+	heading.position = Vector2(14, 10)
+	heading.size = Vector2(rect.size.x - 28, 32)
+	heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	heading.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	button.add_child(heading)
-	var detail := _label(body, 12, MUTED, body_font)
-	detail.position = Vector2(12, y + 38)
-	detail.size = Vector2(rect.size.x - 24, 40)
-	detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	var detail := _label(body, 15, CREAM, body_font)
+	detail.name = "Detail"
+	detail.position = Vector2(14, 42)
+	detail.size = Vector2(rect.size.x - 28, 22)
+	detail.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	detail.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	button.add_child(detail)
+	var art := TextureRect.new()
+	art.name = "Art"
+	art.texture = art_tex
+	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	art.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	art.position = Vector2(12, 64)
+	art.size = Vector2(rect.size.x - 24, rect.size.y - 74)
+	button.add_child(art)
 	button.pressed.connect(func() -> void:
-		if target == "classic" or target == "duo":
-			_open_setup(target)
+		if target == "solo":
+			_launch_solo()
+		elif target == "live":
+			_open_lobby()
+		elif target == "crazy" or target == "drive":
+			_open_lobby()
 		else:
-			_show(target)
+			_tap()
+			if target == "classic" or target == "duo":
+				_open_setup(target)
+			else:
+				_show(target)
 	)
+	return button
 
 
 func _build_setup() -> void:
-	var built: Dictionary = _column_page(72, 28)
-	var page := built["page"] as Control
-	var box := built["box"] as VBoxContainer
+	# One clean play sheet. Online lives on Friends, not here.
+	var page := Control.new()
+	page.set_anchors_preset(Control.PRESET_FULL_RECT)
+	page.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	pages["setup"] = page
 	root.add_child(page)
 	_back_on(page, "home")
 
-	var hero := Control.new()
-	hero.custom_minimum_size = Vector2(0, 248)
-	hero.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var ghost := _mark_rect()
-	ghost.anchor_left = 0.5
-	ghost.anchor_right = 0.5
-	ghost.offset_left = -160.0
-	ghost.offset_right = 160.0
-	ghost.offset_top = 0.0
-	ghost.offset_bottom = 188.0
-	hero.add_child(ghost)
-	title_label = _label("CLASSIC 1V1", 36, CREAM, title_font)
-	title_label.anchor_left = 0.0
-	title_label.anchor_right = 1.0
-	title_label.anchor_top = 1.0
-	title_label.anchor_bottom = 1.0
-	title_label.offset_top = -40.0
-	title_label.offset_bottom = 0.0
+	title_label = _label("PLAY", 40, CREAM, title_font)
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	hero.add_child(title_label)
-	box.add_child(hero)
-
-	sub_label = _label("Set the rink, then choose who you bowl.", 15, MUTED, body_font)
+	_place(page, title_label, Vector2(16, 128), Vector2(508, 44))
+	sub_label = _label("Pick the table. Then bowl.", 16, CREAM, script_font)
 	sub_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	sub_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	box.add_child(sub_label)
+	_place(page, sub_label, Vector2(16, 170), Vector2(508, 26))
 
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
-	row.custom_minimum_size = Vector2(0, 142)
-	crokin_card = _rink_card("CROKINMODE", "Classic round board")
-	lawn_card = _rink_card("LONG RINK", "Bowls and curling style.\nAbout 10 seconds to the jack.")
-	crokin_tag = crokin_card.get_node("Tag") as Label
+	lawn_card = _rink_card("BOWLS", "The long green.", BOWLS_ART)
+	crokin_card = _rink_card("CROCK & HOLE", "The round board.", CROCK_ART)
 	lawn_tag = lawn_card.get_node("Tag") as Label
-	crokin_card.pressed.connect(func() -> void:
-		rink = "crokinole"
-		_sync_setup()
-	)
+	crokin_tag = crokin_card.get_node("Tag") as Label
 	lawn_card.pressed.connect(func() -> void:
 		rink = "lawn"
 		_sync_setup()
 	)
-	row.add_child(lawn_card)
-	row.add_child(crokin_card)
-	box.add_child(row)
-	box.add_child(_gap(8))
+	crokin_card.pressed.connect(func() -> void:
+		rink = "crokinole"
+		_sync_setup()
+	)
+	_place(page, lawn_card, Vector2(20, 202), Vector2(244, 210))
+	_place(page, crokin_card, Vector2(276, 202), Vector2(244, 210))
 
-	hint_label = _label("The original round board and scoring rules.", 14, MUTED, body_font)
+	hint_label = _label("", 13, MUTED, body_font)
 	hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	box.add_child(hint_label)
-	box.add_child(_kicker("AI DIFFICULTY"))
-	difficulty_button = _choice_button()
-	difficulty_button.pressed.connect(func() -> void:
-		_open_choices(_difficulty_options(), difficulty, _set_difficulty)
-	)
-	box.add_child(difficulty_button)
-	box.add_child(_kicker("MATCH"))
-	race_button = _choice_button()
-	race_button.pressed.connect(func() -> void:
-		_open_choices(_race_options(), race, _set_race)
-	)
-	box.add_child(race_button)
-	box.add_child(_gap(6))
-	box.add_child(_row_button("PLAY ON YOUR OWN", func() -> void: _practice("jack")))
-	big_play = _primary("PLAY THE COMPUTER", func() -> void: _launch("ai"))
-	box.add_child(big_play)
+	hint_label.visible = false
+	_place(page, hint_label, Vector2(20, 360), Vector2(500, 18))
 
-	duo_note = _label("Both teams play on this device. Pass the phone each shot.", 14, MUTED, body_font)
+	customize_button = _button("CUSTOMIZE", 11)
+	customize_button.focus_mode = Control.FOCUS_NONE
+	customize_button.action_mode = BaseButton.ACTION_MODE_BUTTON_PRESS
+	customize_button.position = Vector2(12, 164)
+	customize_button.size = Vector2(220, 36)
+	customize_button.custom_minimum_size = Vector2(220, 36)
+	_paint_button(customize_button, BLUE_LIT, Color("#8EC4FF"), CREAM, 10, 8, 2)
+	customize_button.pressed.connect(func() -> void:
+		_tap()
+		rink = "lawn"
+		_open_kit(kind if kind != "" else "classic")
+	)
+	lawn_card.add_child(customize_button)
+
+	guide_kicker = _kicker("AIM GUIDE")
+	_place(page, guide_kicker, Vector2(28, 426), Vector2(240, 16))
+	guide_chips = _chip_row(page, Vector2(20, 446), PackedStringArray(["5 + 3", "5", "3", "NONE"]), func(i: int) -> void:
+		guide = i
+		_sync_setup()
+	)
+	ditch_kicker = _kicker("DITCH")
+	_place(page, ditch_kicker, Vector2(28, 508), Vector2(200, 16))
+	ditch_chips = _chip_row(page, Vector2(20, 528), PackedStringArray(["ON", "OFF"]), func(i: int) -> void:
+		ditch_on = i == 0
+		_sync_setup()
+	)
+
+	match_kicker = _kicker("MATCH")
+	_place(page, match_kicker, Vector2(28, 590), Vector2(200, 16))
+	match_chips = _chip_row(page, Vector2(20, 610), PackedStringArray(["1 END", "4 ENDS", "TO 10", "TO 21"]), func(i: int) -> void:
+		race = i
+		_sync_setup()
+	)
+	skill_kicker = _kicker("AI")
+	_place(page, skill_kicker, Vector2(28, 672), Vector2(200, 16))
+	skill_chips = _chip_row(page, Vector2(20, 692), PackedStringArray(["EASY", "MEDIUM", "HARD"]), func(i: int) -> void:
+		difficulty = i
+		_sync_setup()
+	)
+
+	big_play = _primary("▶  PLAY VERSUS AI", func() -> void: _launch("ai"))
+	_place(page, big_play, Vector2(20, 770), Vector2(500, 64))
+	friend_button = _row_button("PLAY A FRIEND", _open_lobby)
+	_place(page, friend_button, Vector2(20, 848), Vector2(500, 56))
+
+	duo_note = _label("Both teams play on this device. Pass the phone each shot.", 13, MUTED, body_font)
 	duo_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	duo_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(duo_note)
+	duo_note.visible = false
+	_place(page, duo_note, Vector2(20, 752), Vector2(500, 40))
 
-	online_box = VBoxContainer.new()
-	online_box.add_theme_constant_override("separation", 10)
-	online_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	online_box.add_child(_row_button("PLAY A FRIEND", func() -> void: _launch("local")))
-	online_box.add_child(_row_button("Online casual", func() -> void: _show_online("casual")))
-	online_box.add_child(_row_button("Online ranked", func() -> void: _show_online("ranked")))
-	online_box.add_child(_row_button("Create private room", _create_room))
-	online_box.add_child(_kicker("ROOM CODE"))
-	online_box.add_child(_code_row())
+	difficulty_button = _choice_button()
+	difficulty_button.visible = false
+	_place(page, difficulty_button, Vector2(20, 900), Vector2(20, 20))
+	race_button = _choice_button()
+	race_button.visible = false
+	_place(page, race_button, Vector2(48, 900), Vector2(20, 20))
+
+	online_box = Control.new()
+	online_box.visible = false
+	online_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_place(page, online_box, Vector2(20, 900), Vector2(20, 20))
 	join_edit = LineEdit.new()
-	join_edit.placeholder_text = "ROOM CODE"
-	join_edit.max_length = 5
-	join_edit.custom_minimum_size = Vector2(0, 52)
-	_style_edit(join_edit)
-	join_edit.text_changed.connect(func(value: String) -> void:
-		var upper := value.to_upper()
-		if upper != value:
-			join_edit.text = upper
-			join_edit.caret_column = upper.length()
+	join_edit.visible = false
+	_place(online_box, join_edit, Vector2(0, 0), Vector2(20, 20))
+
+
+func _build_lobby() -> void:
+	var page := Control.new()
+	page.set_anchors_preset(Control.PRESET_FULL_RECT)
+	page.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pages["lobby"] = page
+	root.add_child(page)
+	_back_on(page, "home")
+	lobby_title = _label("LOBBY", 40, CREAM, title_font)
+	lobby_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_place(page, lobby_title, Vector2(16, 128), Vector2(508, 44))
+	lobby_sub = _label("Set the match. Then search, play, or invite.", 16, CREAM, script_font)
+	lobby_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_place(page, lobby_sub, Vector2(16, 170), Vector2(508, 26))
+	lobby_note = _label("Wi-Fi or 5G. Thirty seconds a shot.", 13, MUTED, body_font)
+	lobby_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_place(page, lobby_note, Vector2(20, 200), Vector2(500, 20))
+	lobby_guide_kicker = _kicker("AIM GUIDE")
+	_place(page, lobby_guide_kicker, Vector2(28, 236), Vector2(240, 16))
+	lobby_guide_chips = _chip_row(page, Vector2(20, 256), PackedStringArray(["5 + 3", "5", "3", "NONE"]), func(i: int) -> void:
+		lobby_guide = i
+		_sync_lobby()
 	)
-	online_box.add_child(join_edit)
-	online_box.add_child(_primary("JOIN ROOM", _join_room))
-	box.add_child(online_box)
+	lobby_ditch_kicker = _kicker("DITCH")
+	_place(page, lobby_ditch_kicker, Vector2(28, 320), Vector2(200, 16))
+	lobby_ditch_chips = _chip_row(page, Vector2(20, 340), PackedStringArray(["ON", "OFF"]), func(i: int) -> void:
+		lobby_ditch = i == 0
+		_sync_lobby()
+	)
+	lobby_match_kicker = _kicker("MATCH")
+	_place(page, lobby_match_kicker, Vector2(28, 404), Vector2(200, 16))
+	lobby_match_chips = _chip_row(page, Vector2(20, 424), PackedStringArray(["1 END", "4 ENDS", "TO 7", "TO 10", "TO 21"]), func(i: int) -> void:
+		lobby_race = i
+		_sync_lobby()
+	)
+	lobby_search_btn = _primary("SEARCH AND PLAY", _lobby_search)
+	_place(page, lobby_search_btn, Vector2(20, 520), Vector2(500, 64))
+	lobby_play_btn = _row_button("PLAY", _lobby_play_now)
+	_place(page, lobby_play_btn, Vector2(20, 596), Vector2(500, 56))
+	lobby_invite_btn = _row_button("INVITE A FRIEND", _open_friends.bind("lobby"))
+	_place(page, lobby_invite_btn, Vector2(20, 664), Vector2(500, 56))
 
 
 func _build_simple_pages() -> void:
@@ -452,7 +1068,7 @@ func _build_simple_pages() -> void:
 
 
 func _build_chaos() -> void:
-	var built: Dictionary = _column_page(72, 28)
+	var built: Dictionary = _column_page(122, 28)
 	var page := built["page"] as Control
 	var box := built["box"] as VBoxContainer
 	pages["chaos"] = page
@@ -467,7 +1083,7 @@ func _build_chaos() -> void:
 	box.add_child(_wide_card("OPEN HOLE", "The 20 is the shot everyone is hunting.", "NEXT"))
 	box.add_child(_gap(8))
 	box.add_child(_primary("PLAY THE ROUND BOARD", func() -> void:
-		play_requested.emit({
+		_emit_play({
 			"rink": "crokinole",
 			"target": 50,
 			"level": 2,
@@ -482,14 +1098,20 @@ func _build_chaos() -> void:
 
 
 func _build_practice() -> void:
-	var built: Dictionary = _column_page(72, 28)
+	var built: Dictionary = _column_page(122, 28)
 	var page := built["page"] as Control
 	var box := built["box"] as VBoxContainer
 	pages["practice"] = page
 	root.add_child(page)
 	_back_on(page, "home")
 	box.add_child(_title("PRACTICE"))
-	box.add_child(_wrapped("Improve your game. These tables keep score, and nothing is on the line except the shot."))
+	box.add_child(_wrapped("Nothing is on the line except the shot. Solo ends keep a tally. Live Game opens a lobby: set the match, then search, invite a friend, or just play."))
+	box.add_child(_wide_card("SOLO ENDS", "Three bowls are already down. One bowl to be the shot.", "PLAY"))
+	box.get_child(box.get_child_count() - 1).pressed.connect(_launch_solo)
+	box.add_child(_wide_card("LIVE GAME", "Lobby. Search the club, invite a friend, or play.", "PLAY"))
+	box.get_child(box.get_child_count() - 1).pressed.connect(_open_lobby)
+	box.add_child(_wide_card("PLAY A FRIEND", "Search a username, add them, then invite.", "PLAY"))
+	box.get_child(box.get_child_count() - 1).pressed.connect(_open_friends.bind("practice"))
 	box.add_child(_wide_card("OPEN BOARD", "Crokinmode with a clear road to the hole.", "PLAY"))
 	box.get_child(box.get_child_count() - 1).pressed.connect(_practice.bind("open"))
 	box.add_child(_wide_card("PEG GUARD", "The far side is sitting on the pegs.", "PLAY"))
@@ -499,7 +1121,7 @@ func _build_practice() -> void:
 
 
 func _build_challenges() -> void:
-	var built: Dictionary = _column_page(72, 28)
+	var built: Dictionary = _column_page(122, 28)
 	var page := built["page"] as Control
 	var box := built["box"] as VBoxContainer
 	pages["challenges"] = page
@@ -520,60 +1142,112 @@ func _challenge_card(box: VBoxContainer, ident: String, title: String, body: Str
 
 
 func _build_friends() -> void:
-	var built: Dictionary = _column_page(72, 28)
+	var built: Dictionary = _column_page(122, 28)
 	var page := built["page"] as Control
 	var box := built["box"] as VBoxContainer
 	pages["friends"] = page
 	root.add_child(page)
 	_back_on(page, "home")
 	box.add_child(_title("FRIENDS"))
-	box.add_child(_wrapped("Play with mates on this device. Share the room code when a club server is connected."))
-	box.add_child(_kicker("YOUR ROOM"))
-	friend_code = _label(room_code, 36, CREAM, title_font)
+	box.add_child(_wrapped("Search a username in the club. Add them, then invite them to your lobby. Or join with a code."))
+	box.add_child(_kicker("FIND A PLAYER"))
+	box.add_child(_name_add_row("friend"))
+	friend_search_box = VBoxContainer.new()
+	friend_search_box.add_theme_constant_override("separation", 8)
+	box.add_child(friend_search_box)
+	box.add_child(_kicker("YOUR FRIENDS"))
+	friend_list_box = VBoxContainer.new()
+	friend_list_box.add_theme_constant_override("separation", 8)
+	box.add_child(friend_list_box)
+	box.add_child(_gap(8))
+	box.add_child(_kicker("JOIN WITH A CODE"))
+	friend_join_edit = LineEdit.new()
+	friend_join_edit.placeholder_text = "Type their code"
+	friend_join_edit.max_length = 8
+	friend_join_edit.custom_minimum_size = Vector2(0, 52)
+	_style_edit(friend_join_edit)
+	box.add_child(friend_join_edit)
+	box.add_child(_primary("JOIN TABLE", _join_friend_code))
+	box.add_child(_row_button("Host a spare code", _host_friend_table))
+	friend_code = _label(room_code, 22, MUTED, title_font)
 	friend_code.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	friend_code_label = friend_code
 	box.add_child(friend_code)
-	box.add_child(_row_button("Copy room code", _copy_code))
-	box.add_child(_wrapped("No mates are stored on this device yet."))
 
 
 func _build_rankings() -> void:
-	var built: Dictionary = _column_page(72, 28)
+	var built: Dictionary = _column_page(122, 28)
 	var page := built["page"] as Control
 	var box := built["box"] as VBoxContainer
 	pages["rankings"] = page
 	root.add_child(page)
 	_back_on(page, "home")
-	box.add_child(_title("RANKINGS"))
-	box.add_child(_wrapped("Climb the leaderboard. This board is the record on this device."))
-	var row := _wide_card("1    FLICKER", "This device", "0W  0L")
+	box.add_child(_title("THE BOARD"))
+	box.add_child(_wrapped("The tally on this device. Matches won, solo ends cleared, the longest bowl, and the nearest you have been to the mark."))
+	var row := _wide_card("PLAYER", "Most matches won", "0 WINS")
 	rank_name = row.get_node("Heading") as Label
 	rank_record = row.get_node("Trail") as Label
 	row.disabled = true
 	box.add_child(row)
+	var solo_row := _wide_card("SOLO ENDS", "Ends you have won", "0 / 8")
+	board_solo = solo_row.get_node("Trail") as Label
+	solo_row.disabled = true
+	box.add_child(solo_row)
+	var drive_row := _wide_card("LIVE GAME", "Ranked first to 7", "UNRANKED")
+	board_drive = drive_row.get_node("Trail") as Label
+	drive_row.disabled = true
+	box.add_child(drive_row)
+	var mark_row := _wide_card("NEAREST MARK", "How close on a match rink", "MARK NOT FOUND")
+	board_mark = mark_row.get_node("Trail") as Label
+	mark_row.disabled = true
+	box.add_child(mark_row)
+	var recent_row := _wide_card("LATEST", "The last thing this device recorded", "NO ROUNDS YET")
+	board_recent = recent_row.get_node("Trail") as Label
+	recent_row.disabled = true
+	box.add_child(recent_row)
 
 
 func _build_profile() -> void:
-	var built: Dictionary = _column_page(24, 120)
+	var built: Dictionary = _column_page(24, 140, true)
 	var page := built["page"] as Control
 	var box := built["box"] as VBoxContainer
 	pages["profile"] = page
 	root.add_child(page)
 	var avatar_row := CenterContainer.new()
+	var stack := HBoxContainer.new()
+	stack.add_theme_constant_override("separation", 18)
+	stack.alignment = BoxContainer.ALIGNMENT_CENTER
 	var avatar := Panel.new()
 	avatar.custom_minimum_size = Vector2(96, 96)
-	var disc := _flat(PINK, Color("#ffd0ea"), 2, 48, 0)
+	avatar.clip_children = Control.CLIP_CHILDREN_AND_DRAW
+	profile_avatar = avatar
+	var disc := _flat(GOLD, Color("#FFE9A0"), 2, 48, 0)
 	avatar.add_theme_stylebox_override("panel", disc)
-	profile_letter = _label("F", 36, Color("#1a0a12"), bold_font)
+	profile_letter = _label("B", 36, Color("#07101C"), bold_font)
 	profile_letter.set_anchors_preset(Control.PRESET_FULL_RECT)
 	profile_letter.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	profile_letter.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	avatar.add_child(profile_letter)
-	avatar_row.add_child(avatar)
+	profile_face = TextureRect.new()
+	profile_face.set_anchors_preset(Control.PRESET_FULL_RECT)
+	profile_face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	profile_face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	profile_face.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	profile_face.visible = false
+	avatar.add_child(profile_face)
+	stack.add_child(avatar)
+	profile_bowl = TextureRect.new()
+	profile_bowl.custom_minimum_size = Vector2(96, 96)
+	profile_bowl.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	profile_bowl.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	profile_bowl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stack.add_child(profile_bowl)
+	avatar_row.add_child(stack)
 	box.add_child(avatar_row)
 	profile_name = _label("Flicker", 32, CREAM, title_font)
 	profile_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(profile_name)
-	profile_level = _label("Level 1", 16, PINK, bold_font)
+	profile_level = _label("Level 1", 16, GOLD, bold_font)
 	profile_level.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(profile_level)
 	var bar_row := CenterContainer.new()
@@ -582,7 +1256,7 @@ func _build_profile() -> void:
 	track.size = Vector2(220, 6)
 	track.color = Color(1, 1, 1, 0.14)
 	profile_xp = ColorRect.new()
-	profile_xp.color = PINK
+	profile_xp.color = GOLD
 	profile_xp.size = Vector2(8, 6)
 	track.add_child(profile_xp)
 	bar_row.add_child(track)
@@ -590,122 +1264,256 @@ func _build_profile() -> void:
 	profile_record = _label("0W  ·  0L", 22, CREAM, bold_font)
 	profile_record.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(profile_record)
+	profile_live = _label("LIVE  UNRANKED", 14, GOLD, bold_font)
+	profile_live.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(profile_live)
 	profile_rounds = _label("0 rounds", 14, MUTED, body_font)
 	profile_rounds.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(profile_rounds)
-	profile_disc = _label("Disc  ·  Club pink", 14, MUTED, body_font)
+	profile_disc = _label("Disc  ·  Match red", 14, MUTED, body_font)
 	profile_disc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(profile_disc)
+	box.add_child(_row_button("Change picture", _open_face_sheet))
 	box.add_child(_row_button("Change disc", _show.bind("customise")))
 	box.add_child(_row_button("Settings", _show.bind("settings")))
+	box.add_child(_gap(8))
+	box.add_child(_kicker("FRIENDS"))
+	box.add_child(_wrapped("Search a username. Add them. Invite them from the lobby."))
+	box.add_child(_row_button("Open friends", _open_friends.bind("profile")))
+	box.add_child(_name_add_row("profile"))
+	profile_friend_box = VBoxContainer.new()
+	profile_friend_box.add_theme_constant_override("separation", 8)
+	box.add_child(profile_friend_box)
+	box.add_child(_gap(20))
 
 
 func _build_customise() -> void:
-	var built: Dictionary = _column_page(24, 120)
+	var built: Dictionary = _column_page(24, 140, true)
 	var page := built["page"] as Control
 	var box := built["box"] as VBoxContainer
 	pages["customise"] = page
 	root.add_child(page)
-	box.add_child(_title("CUSTOMISE"))
-	box.add_child(_wrapped("Your disc colour is the centre of every button you flick on the round board."))
+	box.add_child(_title("YOUR BOWLS"))
+	box.add_child(_wrapped("A theme wraps the whole bowl. Half and half opens the other face."))
+	var tabs := HBoxContainer.new()
+	tabs.add_theme_constant_override("separation", 8)
+	box.add_child(tabs)
+	kit_bowl_tab = _button("BOWLS", 14)
+	kit_bowl_tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	kit_bowl_tab.custom_minimum_size = Vector2(0, 44)
+	kit_bowl_tab.pressed.connect(func() -> void:
+		kit_tab = "bowl"
+		_paint_kit()
+	)
+	tabs.add_child(kit_bowl_tab)
+	kit_disc_tab = _button("DISCS", 14)
+	kit_disc_tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	kit_disc_tab.custom_minimum_size = Vector2(0, 44)
+	kit_disc_tab.pressed.connect(func() -> void:
+		kit_tab = "disc"
+		_paint_kit()
+	)
+	tabs.add_child(kit_disc_tab)
+	studio = StudioScript.new()
+	studio.setup(profile)
+	studio.kit_changed.connect(_on_studio_changed)
+	box.add_child(studio)
+	studio_box = studio
+	disc_block = VBoxContainer.new()
+	disc_block.add_theme_constant_override("separation", 12)
+	disc_block.visible = false
+	box.add_child(disc_block)
+	var previews := HBoxContainer.new()
+	previews.alignment = BoxContainer.ALIGNMENT_CENTER
+	previews.add_theme_constant_override("separation", 28)
+	disc_block.add_child(previews)
+	kit_preview_bowl = TextureRect.new()
+	kit_preview_bowl.custom_minimum_size = Vector2(132, 132)
+	kit_preview_bowl.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	kit_preview_bowl.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	previews.add_child(kit_preview_bowl)
+	kit_preview_disc = TextureRect.new()
+	kit_preview_disc.custom_minimum_size = Vector2(132, 132)
+	kit_preview_disc.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	kit_preview_disc.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	previews.add_child(kit_preview_disc)
+	kit_caption = _wrapped("CLUB  ·  Match red")
+	disc_block.add_child(kit_caption)
+	disc_look_host = VBoxContainer.new()
+	disc_look_host.add_theme_constant_override("separation", 8)
+	disc_block.add_child(disc_look_host)
+	look_panel = VBoxContainer.new()
+	look_panel.add_theme_constant_override("separation", 8)
+	theme_kicker = _kicker("THEMES")
+	look_panel.add_child(theme_kicker)
+	kit_skin_row = GridContainer.new()
+	kit_skin_row.columns = 4
+	kit_skin_row.add_theme_constant_override("h_separation", 8)
+	kit_skin_row.add_theme_constant_override("v_separation", 10)
+	kit_skin_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	look_panel.add_child(kit_skin_row)
+	for item in Kit.SKINS:
+		if Kit.is_photo_skin(str(item["id"])):
+			continue
+		if str(item["id"]) == "club" or str(item["id"]) == "split":
+			continue
+		kit_skin_row.add_child(_theme_orb(str(item["id"]), str(item["name"])))
+	look_panel.add_child(_kicker("COLOUR"))
 	var grid := GridContainer.new()
-	grid.columns = 3
-	grid.add_theme_constant_override("h_separation", 14)
-	grid.add_theme_constant_override("v_separation", 14)
+	grid.columns = 8
+	grid.add_theme_constant_override("h_separation", 6)
+	grid.add_theme_constant_override("v_separation", 6)
 	grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	for i in profile.COLORS.size():
+	for i in Kit.PALETTES.size():
 		var swatch := Button.new()
 		swatch.text = ""
-		swatch.custom_minimum_size = Vector2(86, 86)
+		swatch.custom_minimum_size = Vector2(34, 34)
 		swatch.pressed.connect(_pick_swatch.bind(i))
 		swatch_buttons.append(swatch)
 		grid.add_child(swatch)
 	var center := CenterContainer.new()
 	center.add_child(grid)
-	box.add_child(center)
-	_paint_swatches()
+	look_panel.add_child(center)
+	if studio != null and studio.look_box != null:
+		studio.look_box.add_child(look_panel)
+	else:
+		box.add_child(look_panel)
+	var play_kit := _button("USE THIS BOWL", 16)
+	play_kit.custom_minimum_size = Vector2(0, 52)
+	_paint_button(play_kit, GOLD, Color("#FFE9A0"), Color("#1A1208"), 16, 12, 2)
+	play_kit.pressed.connect(func() -> void:
+		_open_setup(kind if kind != "" else "classic")
+	)
+	box.add_child(play_kit)
+	_paint_kit()
 
 
 func _build_shop() -> void:
-	var built: Dictionary = _column_page(24, 120)
+	var built: Dictionary = _column_page(24, 140, true)
 	var page := built["page"] as Control
 	var box := built["box"] as VBoxContainer
 	pages["shop"] = page
 	root.add_child(page)
 	box.add_child(_title("SHOP"))
-	box.add_child(_kicker("FLICK COINS    0"))
-	box.add_child(_shop_row("Club pink disc", "OWNED", true))
-	box.add_child(_shop_row("Ice rim", "LOCKED", false))
-	box.add_child(_shop_row("Gold centre", "LOCKED", false))
-	box.add_child(_shop_row("Lawn whites", "LOCKED", false))
+	var coins := PanelContainer.new()
+	coins.add_theme_stylebox_override("panel", _flat(PLUM, GOLD, 1, 16, 14))
+	var coin_row := HBoxContainer.new()
+	coin_row.add_theme_constant_override("separation", 10)
+	var coin_mark := _label("●", 22, GOLD, title_font)
+	coin_row.add_child(coin_mark)
+	var coin_copy := VBoxContainer.new()
+	coin_copy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	coin_copy.add_child(_label("FLICK COINS", 12, MUTED, bold_font))
+	coin_copy.add_child(_label("0", 28, CREAM, title_font))
+	coin_row.add_child(coin_copy)
+	coins.add_child(coin_row)
+	box.add_child(coins)
+	box.add_child(_wrapped("Board colours for Crock and Hole. The match-red disc is yours."))
+	box.add_child(_shop_row("Match red disc", "OWNED", true, 1))
+	box.add_child(_shop_row("Ice rim", "LOCKED", false, 8))
+	box.add_child(_shop_row("Gold centre", "LOCKED", false, 4))
+	box.add_child(_shop_row("Lawn whites", "LOCKED", false, 17))
 
 
 func _build_settings() -> void:
-	var built: Dictionary = _column_page(24, 120)
+	var built: Dictionary = _column_page(24, 140, true)
 	var page := built["page"] as Control
 	var box := built["box"] as VBoxContainer
 	pages["settings"] = page
 	root.add_child(page)
 	box.add_child(_title("SETTINGS"))
-	box.add_child(_kicker("PLAYER NAME"))
+	var name_card := PanelContainer.new()
+	name_card.add_theme_stylebox_override("panel", _flat(PLUM, GOLD, 1, 16, 14))
+	var name_col := VBoxContainer.new()
+	name_col.add_theme_constant_override("separation", 8)
+	name_col.add_child(_kicker("PLAYER NAME"))
 	name_edit = LineEdit.new()
 	name_edit.text = profile.player_name
 	name_edit.max_length = 16
 	name_edit.custom_minimum_size = Vector2(0, 52)
 	_style_edit(name_edit)
 	name_edit.text_changed.connect(_on_name_changed)
-	box.add_child(name_edit)
+	name_col.add_child(name_edit)
+	name_card.add_child(name_col)
+	box.add_child(name_card)
 	sound_button = _row_button("Sound on", _toggle_sound)
 	haptic_button = _row_button("Haptics on", _toggle_haptics)
 	box.add_child(sound_button)
 	box.add_child(haptic_button)
-	box.add_child(_kicker("HOW A ROUND WORKS"))
-	box.add_child(_wrapped("Crokinole. An empty board. Touch the disc and drag the white dots to aim, then tap to lock. Pull the disc back and release on the green line. You and the far side take turns. Eight discs each. Both colours score. 20 is only the hole. 15, 10 and 5 need the disc clear of that line. A disc on the line scores the lower ring. The ditch is nothing. Only the difference is added. First to the race wins.\n\nLong rink. Touch the jack and drag the white dots to aim, then tap to lock. Pull back and release on the green line. Black bowls four, then red bowls four, alternating. The side closest to the jack scores every bowl nearer than the other side. Play one end, four ends, first to 10, or first to 21. Forehand and backhand are the small button at the bottom right. The dots show only the start of the run. The bowl keeps that hand and will not run straight. Banks rebound unless the ditch is open."))
+	box.add_child(_kicker("YOUR BOWLS"))
+	box.add_child(_row_button("Customise bowls", _show.bind("customise")))
+	box.add_child(_row_button("Change picture", _open_face_sheet))
+	var how := PanelContainer.new()
+	how.add_theme_stylebox_override("panel", _flat(CARD, GOLD, 1, 16, 14))
+	var how_col := VBoxContainer.new()
+	how_col.add_theme_constant_override("separation", 8)
+	how_col.add_child(_kicker("HOW A ROUND WORKS"))
+	how_col.add_child(_wrapped("Drag the bowl back. The cream line is your finger. The blocks are where it will run. Let go — it leaves your hand and takes its bias as it slows.\n\nA match is four bowls each. Solo ends put three bowls around the jack. You have one bowl, and as many tries as you want, to finish closer than all of them.\n\nLive Game opens a lobby. Set the match, then search the club, invite a friend by username, or just play. Friends are usernames in the club. That works on Wi-Fi or 5G. Wins land in Records. Your username is in Gear.\n\nThis device stores matches won, live wins, ends cleared, and your nearest mark."))
+	how.add_child(how_col)
+	box.add_child(how)
 
 
 func _build_nav() -> void:
 	nav = Panel.new()
-	nav.position = Vector2(0, 868)
-	nav.size = Vector2(540, 92)
-	nav.add_theme_stylebox_override("panel", _flat(Color("#0c0a10"), Color(1, 0.3, 0.55, 0.45), 1, 0, 0))
+	nav.position = Vector2(14, 842)
+	nav.size = Vector2(512, 104)
+	nav.add_theme_stylebox_override("panel", _chrome(Color(0.05, 0.10, 0.24, 0.78), GOLD, 2, 28, 0, 1.8, Color(0, 0, 0, 0.42)))
 	root.add_child(nav)
-	var row := HBoxContainer.new()
-	row.position = Vector2(0, 8)
-	row.size = Vector2(540, 80)
-	row.add_theme_constant_override("separation", 0)
-	nav.add_child(row)
-	_nav_item(row, "home", "HOME")
-	_nav_item(row, "profile", "PROFILE")
-	_nav_item(row, "customise", "CUSTOMISE")
-	_nav_item(row, "shop", "SHOP")
-	_nav_item(row, "settings", "SETTINGS")
+	nav_glow = ColorRect.new()
+	nav_glow.position = Vector2(28, 2)
+	nav_glow.size = Vector2(456, 3)
+	nav_glow.color = GOLD_GLOW
+	nav_glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	nav.add_child(nav_glow)
+	nav_row = HBoxContainer.new()
+	nav_row.position = Vector2(8, 8)
+	nav_row.size = Vector2(496, 90)
+	nav_row.add_theme_constant_override("separation", 2)
+	nav.add_child(nav_row)
+	_nav_item(nav_row, "home", "HOME", "🏠")
+	_nav_item(nav_row, "profile", "ME", "😎")
+	_nav_item(nav_row, "customise", "BOWLS", "🎳")
+	_nav_item(nav_row, "shop", "SHOP", "🛍️")
+	_nav_item(nav_row, "settings", "GEAR", "⚙️")
 
 
-func _nav_item(row: HBoxContainer, ident: String, caption: String) -> void:
+func _nav_item(row: HBoxContainer, ident: String, caption: String, glyph: String) -> void:
 	var button := Button.new()
 	button.text = ""
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	button.custom_minimum_size = Vector2(0, 78)
-	_paint_button(button, Color(0, 0, 0, 0), Color(0, 0, 0, 0), CREAM, 8, 0)
-	var icon := Mark.new()
-	icon.kind = ident
-	icon.custom_minimum_size = Vector2(26, 26)
-	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	var label := _label(caption, 10, MUTED, bold_font)
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	button.custom_minimum_size = Vector2(0, 90)
+	_paint_button(button, Color(0, 0, 0, 0), Color(0, 0, 0, 0), CREAM, 18, 0)
 	var box := VBoxContainer.new()
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
 	box.set_anchors_preset(Control.PRESET_FULL_RECT)
-	box.add_theme_constant_override("separation", 4)
-	box.add_child(icon)
+	box.add_theme_constant_override("separation", 2)
+	var stack := Control.new()
+	stack.custom_minimum_size = Vector2(52, 52)
+	stack.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var icon := Stamp.new()
+	icon.kind = ident
+	icon.set_anchors_preset(Control.PRESET_FULL_RECT)
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stack.add_child(icon)
+	var face := _glyph(glyph, 26)
+	face.set_anchors_preset(Control.PRESET_FULL_RECT)
+	face.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	face.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	stack.add_child(face)
+	var label := _label(caption, 11, MUTED, bold_font)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_child(stack)
 	box.add_child(label)
 	button.add_child(box)
 	button.pressed.connect(_show.bind(ident))
 	row.add_child(button)
 	nav_icons.append(icon)
 	nav_captions.append(label)
+	nav_buttons.append(button)
+	nav_glyphs.append(face)
 
 
 func _build_choice_layer() -> void:
@@ -724,7 +1532,7 @@ func _build_choice_layer() -> void:
 	var panel := Panel.new()
 	panel.position = Vector2(36, 280)
 	panel.size = Vector2(468, 280)
-	panel.add_theme_stylebox_override("panel", _flat(PLUM, PINK, 2, 18, 16))
+	panel.add_theme_stylebox_override("panel", _flat(PLUM, GOLD, 2, 18, 16))
 	choice_layer.add_child(panel)
 	choice_box = VBoxContainer.new()
 	choice_box.position = Vector2(16, 16)
@@ -745,7 +1553,7 @@ func _build_online_layer() -> void:
 	var panel := Panel.new()
 	panel.position = Vector2(30, 300)
 	panel.size = Vector2(480, 300)
-	panel.add_theme_stylebox_override("panel", _flat(PLUM, PINK, 2, 18, 16))
+	panel.add_theme_stylebox_override("panel", _flat(PLUM, GOLD, 2, 18, 16))
 	online_layer.add_child(panel)
 	online_title = _label("ONLINE CASUAL", 28, CREAM, title_font)
 	online_title.position = Vector2(20, 18)
@@ -769,13 +1577,160 @@ func _build_online_layer() -> void:
 	panel.add_child(back)
 
 
+func _build_invite_layer() -> void:
+	invite_layer = Control.new()
+	invite_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	invite_layer.visible = false
+	invite_layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	root.add_child(invite_layer)
+	var dim := ColorRect.new()
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0, 0, 0, 0.72)
+	invite_layer.add_child(dim)
+	var panel := Panel.new()
+	panel.name = "Panel"
+	panel.position = Vector2(30, 280)
+	panel.size = Vector2(480, 320)
+	panel.add_theme_stylebox_override("panel", _flat(PLUM, GOLD, 2, 18, 16))
+	invite_layer.add_child(panel)
+	invite_title = _label("INVITE", 28, GOLD, title_font)
+	invite_title.position = Vector2(20, 18)
+	invite_title.size = Vector2(440, 40)
+	invite_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	panel.add_child(invite_title)
+	invite_body = _label("", 16, CREAM, body_font)
+	invite_body.position = Vector2(24, 70)
+	invite_body.size = Vector2(432, 90)
+	invite_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	invite_body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	panel.add_child(invite_body)
+	var accept := _primary("ACCEPT", _accept_invite)
+	accept.position = Vector2(20, 178)
+	accept.size = Vector2(440, 58)
+	panel.add_child(accept)
+	var decline := _row_button("Not now", _decline_invite)
+	decline.position = Vector2(20, 248)
+	decline.size = Vector2(440, 48)
+	panel.add_child(decline)
+
+
+func _build_live_layer() -> void:
+	live_layer = Control.new()
+	live_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	live_layer.visible = false
+	root.add_child(live_layer)
+	var wash := TextureRect.new()
+	wash.set_anchors_preset(Control.PRESET_FULL_RECT)
+	wash.texture = preload("res://assets/club_backdrop.png")
+	wash.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	wash.stretch_mode = TextureRect.STRETCH_SCALE
+	wash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	live_layer.add_child(wash)
+	var dim := ColorRect.new()
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0.02, 0.04, 0.10, 0.55)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	live_layer.add_child(dim)
+	live_panel = Control.new()
+	live_panel.name = "Stage"
+	live_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	live_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	live_layer.add_child(live_panel)
+	live_title = _label("LIVE GAME", 42, GOLD, title_font)
+	live_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	live_panel.add_child(live_title)
+	live_body = _label("Searching the club for a live player.\nFirst to 7  ·  30s a shot.", 16, CREAM, body_font)
+	live_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	live_body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	live_panel.add_child(live_body)
+	live_you_chip = _face_chip(Vector2(52, 52), GOLD, "F")
+	live_panel.add_child(live_you_chip)
+	live_you_letter = live_you_chip.get_node("Mark") as Label
+	live_you_photo = live_you_chip.get_node("Photo") as TextureRect
+	live_you_tag = _label("YOU", 11, GOLD, bold_font)
+	live_you_tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	live_you_tag.visible = false
+	live_panel.add_child(live_you_tag)
+	live_you_name = _label("FLICKER", 14, CREAM, title_font)
+	live_you_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	live_panel.add_child(live_you_name)
+	live_reel_frame = Panel.new()
+	var well := StyleBoxFlat.new()
+	well.bg_color = Color(0.02, 0.04, 0.10, 0.0)
+	well.set_corner_radius_all(0)
+	well.set_border_width_all(0)
+	well.shadow_size = 0
+	live_reel_frame.add_theme_stylebox_override("panel", well)
+	live_panel.add_child(live_reel_frame)
+	live_focus = Panel.new()
+	live_focus.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var focus_style := StyleBoxFlat.new()
+	focus_style.bg_color = Color(0.96, 0.78, 0.22, 0.10)
+	focus_style.border_color = GOLD
+	focus_style.set_border_width_all(2)
+	focus_style.set_corner_radius_all(26)
+	focus_style.shadow_color = Color(0.96, 0.72, 0.12, 0.45)
+	focus_style.shadow_size = 18
+	live_focus.add_theme_stylebox_override("panel", focus_style)
+	live_reel_frame.add_child(live_focus)
+	live_reel = Control.new()
+	live_reel.clip_contents = true
+	live_reel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	live_reel_frame.add_child(live_reel)
+	live_strip = Control.new()
+	live_strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	live_reel.add_child(live_strip)
+	live_fade_top = TextureRect.new()
+	live_fade_top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	live_fade_top.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	live_fade_top.stretch_mode = TextureRect.STRETCH_SCALE
+	live_fade_top.texture = _v_fade_tex(Color(0.05, 0.07, 0.14, 0.72), Color(0.05, 0.07, 0.14, 0.0))
+	live_reel_frame.add_child(live_fade_top)
+	live_fade_bot = TextureRect.new()
+	live_fade_bot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	live_fade_bot.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	live_fade_bot.stretch_mode = TextureRect.STRETCH_SCALE
+	live_fade_bot.texture = _v_fade_tex(Color(0.05, 0.07, 0.14, 0.0), Color(0.05, 0.07, 0.14, 0.78))
+	live_reel_frame.add_child(live_fade_bot)
+	live_sight_top = ColorRect.new()
+	live_sight_top.color = GOLD
+	live_sight_top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	live_reel_frame.add_child(live_sight_top)
+	live_sight_bot = ColorRect.new()
+	live_sight_bot.color = GOLD
+	live_sight_bot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	live_reel_frame.add_child(live_sight_bot)
+	live_rival_name = _label("SEARCHING", 28, CREAM, title_font)
+	live_rival_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	live_rival_name.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	live_panel.add_child(live_rival_name)
+	live_rival_tag = _label("WAITING FOR A LIVE PLAYER", 13, MUTED, bold_font)
+	live_rival_tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	live_panel.add_child(live_rival_tag)
+	live_copy_button = _button("Copy table code", 16)
+	_paint_button(live_copy_button, PLUM, GOLD, CREAM, 16, 12, 2)
+	live_copy_button.pressed.connect(_copy_live_code)
+	live_copy_button.visible = false
+	live_panel.add_child(live_copy_button)
+	live_friend_button = _button("Play a friend instead", 16)
+	_paint_button(live_friend_button, GOLD, Color("#FFE9A0"), Color("#1A1208"), 16, 12, 2)
+	live_friend_button.add_theme_color_override("font_hover_color", Color("#1A1208"))
+	live_friend_button.add_theme_color_override("font_pressed_color", Color("#1A1208"))
+	live_friend_button.pressed.connect(_open_friends.bind("lobby"))
+	live_panel.add_child(live_friend_button)
+	live_cancel_button = _button("Cancel search", 16)
+	_paint_button(live_cancel_button, Color(0.06, 0.12, 0.24, 0.88), GOLD, CREAM, 16, 12, 2)
+	live_cancel_button.pressed.connect(_cancel_live_search)
+	live_panel.add_child(live_cancel_button)
+
+
 func _build_toast() -> void:
 	toast = Panel.new()
 	toast.position = Vector2(40, 800)
 	toast.size = Vector2(460, 48)
 	toast.visible = false
 	toast.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	toast.add_theme_stylebox_override("panel", _flat(Color("#1a1020"), PINK, 1, 14, 12))
+	toast.add_theme_stylebox_override("panel", _flat(Color("#0B1528"), GOLD, 1, 14, 12))
 	root.add_child(toast)
 	toast_label = _label("", 14, CREAM, bold_font)
 	toast_label.position = Vector2(12, 8)
@@ -785,28 +1740,212 @@ func _build_toast() -> void:
 	toast.add_child(toast_label)
 
 
+func _open_kit(next_kind: String) -> void:
+	kind = next_kind
+	kit_tab = "bowl"
+	_show("customise")
+
+
 func _open_setup(next_kind: String) -> void:
 	kind = next_kind
 	_show("setup")
+
+
+func _open_lobby() -> void:
+	_tap()
+	rink = "lawn"
+	kind = "classic"
+	live_options = _lobby_options()
+	_show("lobby")
+	_ensure_live_net()
+
+
+func _lobby_options() -> Dictionary:
+	var points := 7
+	var ends := 0
+	if lobby_race == 0:
+		ends = 1
+		points = 0
+	elif lobby_race == 1:
+		ends = 4
+		points = 0
+	elif lobby_race == 3:
+		points = 10
+	elif lobby_race == 4:
+		points = 21
+	else:
+		points = 7
+	return {
+		"guide": lobby_guide,
+		"ditch": lobby_ditch,
+		"race": lobby_race,
+		"points": points,
+		"ends": ends,
+	}
+
+
+func _live_rules_line() -> String:
+	var ends := int(live_options.get("ends", 0))
+	var points := int(live_options.get("points", 7))
+	if ends > 0:
+		var end_text := "1 end" if ends == 1 else "%d ends" % ends
+		return "%s  ·  30s a shot." % end_text
+	return "First to %d  ·  30s a shot." % maxi(points, 1)
+
+
+func _sync_lobby() -> void:
+	live_options = _lobby_options()
+	if lobby_note != null:
+		lobby_note.text = "Wi-Fi or 5G. %s" % _live_rules_line()
+	_paint_chips(lobby_guide_chips, lobby_guide)
+	_paint_chips(lobby_ditch_chips, 0 if lobby_ditch else 1)
+	_paint_chips(lobby_match_chips, lobby_race)
+
+
+func _layout_lobby(view: Vector2, pad: Vector2) -> void:
+	var page := pages.get("lobby") as Control
+	if page == null or lobby_title == null:
+		return
+	var wide := view.x
+	var x := 20.0
+	var w := wide - 40.0
+	lobby_title.position = Vector2(16.0, pad.x + 88.0)
+	lobby_title.size = Vector2(wide - 32.0, 44.0)
+	lobby_sub.position = Vector2(16.0, pad.x + 130.0)
+	lobby_sub.size = Vector2(wide - 32.0, 26.0)
+	lobby_note.position = Vector2(x, pad.x + 160.0)
+	lobby_note.size = Vector2(w, 20.0)
+	var y := pad.x + 196.0
+	if lobby_guide_kicker != null:
+		lobby_guide_kicker.position = Vector2(28.0, y)
+		lobby_guide_kicker.size = Vector2(240.0, 16.0)
+	_layout_chips(lobby_guide_chips, PackedStringArray(["5 + 3", "5", "3", "NONE"]), Vector2(x, y + 20.0), w)
+	y += 84.0
+	if lobby_ditch_kicker != null:
+		lobby_ditch_kicker.position = Vector2(28.0, y)
+	_layout_chips(lobby_ditch_chips, PackedStringArray(["ON", "OFF"]), Vector2(x, y + 20.0), w)
+	y += 84.0
+	if lobby_match_kicker != null:
+		lobby_match_kicker.position = Vector2(28.0, y)
+	_layout_chips(lobby_match_chips, PackedStringArray(["1 END", "4 ENDS", "TO 7", "TO 10", "TO 21"]), Vector2(x, y + 20.0), w)
+	y += 96.0
+	if lobby_search_btn != null:
+		lobby_search_btn.position = Vector2(x, y)
+		lobby_search_btn.size = Vector2(w, 64.0)
+	y += 76.0
+	if lobby_play_btn != null:
+		lobby_play_btn.position = Vector2(x, y)
+		lobby_play_btn.size = Vector2(w, 56.0)
+	y += 68.0
+	if lobby_invite_btn != null:
+		lobby_invite_btn.position = Vector2(x, y)
+		lobby_invite_btn.size = Vector2(w, 56.0)
+
+
+func _layout_invite(view: Vector2, _pad: Vector2) -> void:
+	if invite_layer == null or not invite_layer.visible:
+		return
+	var panel := invite_layer.get_node_or_null("Panel") as Control
+	if panel == null:
+		return
+	panel.position = Vector2((view.x - panel.size.x) * 0.5, maxf(180.0, (view.y - panel.size.y) * 0.42))
+
+
+func _lobby_search() -> void:
+	live_options = _lobby_options()
+	_launch_live()
+
+
+func _lobby_play_now() -> void:
+	live_options = _lobby_options()
+	var rival: Dictionary = LiveFaces.random_rival()
+	_lock_live_rival(false, str(rival["name"]), rival, true)
 
 
 func _sync_setup() -> void:
 	if title_label == null:
 		return
 	var classic := kind == "classic"
-	title_label.text = "CLASSIC 1V1" if classic else "CLASSIC 2V2"
-	sub_label.text = "Set the rink, then choose who you bowl." if classic else "Two teams on one phone. Pass it each shot."
-	big_play.text = "PLAY VERSUS AI" if classic else "PLAY LOCAL"
-	online_box.visible = classic
+	title_label.text = "PLAY" if classic else "2 v 2"
+	sub_label.text = "Pick the table. Then bowl." if classic else "Two teams. Pass the phone each shot."
+	big_play.text = "▶  PLAY VERSUS AI" if classic else "▶  PLAY LOCAL"
+	online_box.visible = false
 	duo_note.visible = not classic
-	hint_label.text = "The original round board and scoring rules." if rink == "crokinole" else "Four bowls each. One end, four ends, first to 10, or first to 21."
-	difficulty_button.text = _difficulty_options()[difficulty]
-	race_button.text = _race_options()[race]
+	if friend_button != null:
+		friend_button.visible = classic
+	if hint_label != null:
+		hint_label.visible = false
+	if difficulty_button != null:
+		difficulty_button.text = _difficulty_options()[difficulty]
+	var match_captions := PackedStringArray(["1 END", "4 ENDS", "TO 10", "TO 21"])
+	if rink == "crokinole":
+		match_captions = PackedStringArray(["4 ROUNDS"])
+		race = 0
+	if race >= match_captions.size():
+		race = mini(1, match_captions.size() - 1)
+	if race_button != null:
+		race_button.text = _race_options()[race]
+	var lawn := rink == "lawn"
+	if customize_button != null:
+		customize_button.visible = lawn
+		customize_button.text = "CUSTOMIZE"
+		_paint_button(customize_button, BLUE_LIT, Color("#8EC4FF"), CREAM, 10, 8, 2)
+	_layout_setup_rows(lawn, classic, match_captions)
 	_paint_rinks()
 	if code_label != null:
 		code_label.text = room_code
 	if join_edit != null and join_edit.text == "":
 		join_edit.text = room_code
+
+
+func _layout_setup_rows(lawn: bool, classic: bool, match_captions: PackedStringArray) -> void:
+	var match_y := 590.0 if lawn else 426.0
+	var skill_y := 672.0 if lawn else 508.0
+	var lawn_art := lawn_card.get_node_or_null("Art") as Control if lawn_card != null else null
+	if lawn_art != null:
+		lawn_art.position = Vector2(8, 76)
+		lawn_art.size = Vector2(228, 82)
+	var crock_art := crokin_card.get_node_or_null("Art") as Control if crokin_card != null else null
+	if crock_art != null:
+		crock_art.position = Vector2(8, 76)
+		crock_art.size = Vector2(228, 122)
+	if guide_kicker != null:
+		guide_kicker.visible = lawn
+		guide_kicker.position = Vector2(28, 426)
+	if ditch_kicker != null:
+		ditch_kicker.visible = lawn
+		ditch_kicker.position = Vector2(28, 508)
+	if lawn:
+		_layout_chips(guide_chips, PackedStringArray(["5 + 3", "5", "3", "NONE"]), Vector2(20, 446))
+		_paint_chips(guide_chips, guide)
+		_layout_chips(ditch_chips, PackedStringArray(["ON", "OFF"]), Vector2(20, 528))
+		_paint_chips(ditch_chips, 0 if ditch_on else 1)
+	else:
+		for chip in guide_chips:
+			chip.visible = false
+		for chip in ditch_chips:
+			chip.visible = false
+	if match_kicker != null:
+		match_kicker.visible = true
+		match_kicker.text = "GAME" if not lawn else "MATCH"
+		match_kicker.position = Vector2(28, match_y)
+	_layout_chips(match_chips, match_captions, Vector2(20, match_y + 20.0))
+	_paint_chips(match_chips, race)
+	if skill_kicker != null:
+		skill_kicker.visible = classic
+		skill_kicker.position = Vector2(28, skill_y)
+	if classic:
+		_layout_chips(skill_chips, PackedStringArray(["EASY", "MEDIUM", "HARD"]), Vector2(20, skill_y + 20.0))
+		_paint_chips(skill_chips, difficulty)
+	else:
+		for chip in skill_chips:
+			chip.visible = false
+	if big_play != null:
+		big_play.position = Vector2(20, 770)
+	if friend_button != null:
+		friend_button.position = Vector2(20, 848)
+	if duo_note != null:
+		duo_note.position = Vector2(20, 848)
 
 
 func _paint_rinks() -> void:
@@ -815,22 +1954,24 @@ func _paint_rinks() -> void:
 
 
 func _paint_choice_card(card: Button, tag: Label, selected: bool) -> void:
-	var border := PINK if selected else Color(1, 0.28, 0.55, 0.55)
-	var width := 2 if selected else 1
+	var border := GOLD if selected else Color(0.28, 0.48, 0.88, 0.55)
+	var width := 3 if selected else 1
 	_paint_button(card, CARD, border, CREAM, 16, 12, width)
 	tag.visible = selected
+	if tag != null:
+		tag.add_theme_color_override("font_color", GOLD)
 
 
 func _difficulty_options() -> PackedStringArray:
 	if rink == "lawn":
-		return PackedStringArray(["Easy — a gentle draw", "Medium — takes the obvious shot", "Hard — ditch is open"])
+		return PackedStringArray(["Easy — can sit wide of the head", "Medium — around the head", "Hard — in the rings"])
 	return PackedStringArray(["Easy — leaves a gap", "Medium — takes the obvious shot", "Hard — guards the hole"])
 
 
 func _race_options() -> PackedStringArray:
 	if rink == "lawn":
 		return PackedStringArray(["1 end", "4 ends", "First to 10", "First to 21"])
-	return PackedStringArray(["Quick — first to 50", "Standard — first to 100", "Long — first to 150"])
+	return PackedStringArray(["Four rounds make a game"])
 
 
 func _set_difficulty(index: int) -> void:
@@ -850,7 +1991,7 @@ func _open_choices(options: PackedStringArray, current: int, pick: Callable) -> 
 	for i in options.size():
 		var option := _row_button(options[i], _pick_choice.bind(i))
 		if i == current:
-			_paint_button(option, PINK_DEEP, Color("#ff8ab6"), CREAM, 12, 12)
+			_paint_button(option, BLUE_LIT, Color("#8EC4FF"), CREAM, 12, 12)
 		choice_box.add_child(option)
 	choice_layer.visible = true
 
@@ -872,10 +2013,635 @@ func _show_online(channel: String) -> void:
 	online_layer.visible = true
 
 
+func _launch_solo() -> void:
+	_tap()
+	_emit_play({
+		"rink": "lawn",
+		"solo": true,
+		"distance": false,
+		"back": "home",
+		"opponent": "local",
+		"match_index": 0,
+		"ditch": true,
+		"goal": "solo",
+		"challenge": "",
+		"difficulty": 0,
+		"level": 0,
+		"target": 100,
+	})
+
+
+func _launch_drive() -> void:
+	_launch_live()
+
+
+func _launch_crazy() -> void:
+	_launch_live()
+
+
+func _launch_live() -> void:
+	_tap()
+	live_mode = "open"
+	live_table_code = room_code
+	live_token += 1
+	var token := live_token
+	live_found_live = false
+	live_found_name = ""
+	live_hosting = true
+	live_searching = true
+	live_reel_x = 0.0
+	live_reel_y = 0.0
+	_paint_player_face()
+	if live_layer != null:
+		live_layer.visible = true
+	if live_title != null:
+		live_title.text = "LIVE GAME"
+	if live_body != null:
+		live_body.text = "Searching the club for a live player.\n%s" % _live_rules_line()
+	if live_rival_name != null:
+		live_rival_name.text = "SEARCHING"
+		live_rival_name.modulate.a = 1.0
+	if live_rival_tag != null:
+		live_rival_tag.text = "WAITING FOR A LIVE PLAYER"
+	_paint_live_stage()
+	_ensure_live_net()
+	live_net.start_search(profile.player_name if profile != null else "Flicker", room_code)
+	_wait_for_live(token)
+
+
+func _wait_for_live(token: int) -> void:
+	await get_tree().create_timer(LIVE_SEARCH_WAIT).timeout
+	if token != live_token:
+		return
+	if live_found_live:
+		return
+	if live_mode != "open":
+		return
+	var rival: Dictionary = LiveFaces.random_rival()
+	_lock_live_rival(false, str(rival["name"]), rival, true)
+
+
+func _on_live_pulse(_code: String) -> void:
+	if not live_searching or live_body == null or live_layer == null or not live_layer.visible:
+		return
+	if live_mode == "host":
+		live_body.text = "Waiting for your friend.\n%s" % _live_rules_line()
+	elif live_mode == "join":
+		live_body.text = "Joining %s in the club.\n%s" % [live_table_code, _live_rules_line()]
+	else:
+		live_body.text = "Searching the club for a live player.\n%s" % _live_rules_line()
+
+
+func _on_live_found(hosting: bool, peer_name: String) -> void:
+	if not live_searching:
+		return
+	live_hosting = hosting
+	live_found_live = true
+	var shown := peer_name.strip_edges()
+	if shown == "" or shown == "Friend" or shown == "Opponent":
+		if live_found_name != "":
+			shown = live_found_name
+	if shown == "":
+		shown = "Live player"
+	_lock_live_rival(true, shown, {}, true)
+
+
+func _lock_live_rival(is_live: bool, rival_name: String, rival: Dictionary, start_match: bool = true) -> void:
+	live_token += 1
+	var token := live_token
+	live_searching = false
+	live_found_live = is_live
+	live_found_name = rival_name
+	if live_net != null:
+		if is_live:
+			live_net.stop_search()
+		else:
+			live_net.close_table()
+	if live_rival_name != null:
+		live_rival_name.text = rival_name.to_upper()
+		live_rival_name.modulate.a = 1.0
+	var skill: int = int(rival.get("skill", 1))
+	var fill := GOLD
+	var mark := _initial_of(rival_name)
+	if not is_live:
+		fill = LiveFaces.color_at(int(rival.get("color", 0)))
+		mark = str(rival.get("mark", mark))
+		if live_rival_tag != null:
+			live_rival_tag.text = "CLUB AI  ·  %s" % ["EASY", "MEDIUM", "HARD"][clampi(skill, 0, 2)]
+		if live_body != null:
+			live_body.text = "No live player in the club.\n%s will play you now." % rival_name
+	else:
+		if live_rival_tag != null:
+			live_rival_tag.text = "LIVE PLAYER"
+		if live_body != null:
+			live_body.text = "Matched with %s.\n%s" % [rival_name, _live_rules_line()]
+	if live_friend_button != null:
+		live_friend_button.visible = false
+	_layout_live(_view_size(), _safe_pad())
+	_show_locked_face(fill, mark)
+	if not start_match:
+		return
+	await get_tree().create_timer(0.9).timeout
+	if token != live_token:
+		return
+	_start_live_table(is_live, rival_name, skill)
+
+
+func _start_live_table(is_live: bool, rival_name: String, skill: int) -> void:
+	if live_net != null:
+		live_net.stop_search()
+	if live_layer != null:
+		live_layer.visible = false
+	live_searching = false
+	var opt := live_options
+	var ends := int(opt.get("ends", 0))
+	var points := int(opt.get("points", 7))
+	_emit_play({
+		"rink": "lawn",
+		"live": true,
+		"live_host": live_hosting,
+		"solo": false,
+		"distance": false,
+		"back": "home",
+		"opponent": "live" if is_live else "ai",
+		"rival": rival_name,
+		"match_index": 0 if ends == 1 else 1,
+		"live_points": points,
+		"live_ends": ends,
+		"ditch": bool(opt.get("ditch", true)),
+		"goal": "",
+		"challenge": "",
+		"difficulty": skill if not is_live else 1,
+		"level": 0,
+		"target": points if points > 0 else 7,
+		"guide": int(opt.get("guide", guide)),
+	})
+
+
+func _cancel_live_search() -> void:
+	live_token += 1
+	live_searching = false
+	if live_net != null:
+		live_net.close_table()
+	if live_layer != null:
+		live_layer.visible = false
+
+
+func _face_chip(size: Vector2, fill: Color, mark: String) -> Panel:
+	var chip := Panel.new()
+	chip.custom_minimum_size = size
+	chip.size = size
+	chip.clip_children = Control.CLIP_CHILDREN_AND_DRAW
+	chip.add_theme_stylebox_override("panel", _chrome(fill, Color("#FFE9A0"), 3, int(size.x * 0.5), 0, 1.4, Color(0.96, 0.72, 0.12, 0.28)))
+	var photo := TextureRect.new()
+	photo.name = "Photo"
+	photo.set_anchors_preset(Control.PRESET_FULL_RECT)
+	photo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	photo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	photo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	photo.visible = false
+	chip.add_child(photo)
+	var letter := _label(mark, 28 if size.x > 90.0 else 18, LiveFaces.ink_for(fill), title_font)
+	letter.name = "Mark"
+	letter.set_anchors_preset(Control.PRESET_FULL_RECT)
+	letter.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	letter.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	chip.add_child(letter)
+	return chip
+
+
+func _paint_live_stage() -> void:
+	var friend := live_mode == "host" or live_mode == "join"
+	if live_copy_button != null:
+		live_copy_button.visible = live_mode == "host"
+	if live_friend_button != null:
+		live_friend_button.visible = live_mode == "open"
+	if live_cancel_button != null:
+		live_cancel_button.text = "Cancel search" if live_mode == "open" else "Cancel"
+	if live_reel_frame != null:
+		live_reel_frame.visible = true
+	_layout_live(_view_size(), _safe_pad())
+	if live_mode == "open":
+		_fill_live_reel()
+
+
+func _fill_live_reel() -> void:
+	if live_strip == null or live_reel == null:
+		return
+	for child in live_strip.get_children():
+		live_strip.remove_child(child)
+		child.queue_free()
+	live_strip.position = Vector2.ZERO
+	var wide := maxf(160.0, live_reel.size.x)
+	var step := live_card_step
+	var pad_x := 18.0
+	var card_w := maxf(120.0, wide - pad_x * 2.0)
+	var y := 0.0
+	for _loop in 4:
+		for rival in LiveFaces.RIVALS:
+			var skill: int = int(rival.get("skill", 1))
+			var tag := "CLUB  ·  %s" % ["EASY", "MEDIUM", "HARD"][clampi(skill, 0, 2)]
+			var card := _live_rival_card(
+				card_w,
+				step - 16.0,
+				LiveFaces.color_at(int(rival["color"])),
+				str(rival["mark"]),
+				str(rival["name"]),
+				tag,
+				skill
+			)
+			card.position = Vector2(pad_x, y + 8.0)
+			live_strip.add_child(card)
+			y += step
+	live_strip.size = Vector2(wide, y)
+	_light_live_cards()
+
+
+func _show_locked_face(fill: Color, mark: String) -> void:
+	if live_strip == null or live_reel == null:
+		return
+	for child in live_strip.get_children():
+		live_strip.remove_child(child)
+		child.queue_free()
+	var wide := maxf(160.0, live_reel.size.x)
+	var pad_x := 18.0
+	var card_w := maxf(120.0, wide - pad_x * 2.0)
+	var tall := maxf(live_card_step - 16.0, 156.0)
+	var who := live_found_name if live_found_name != "" else "Club player"
+	var card := _live_rival_card(card_w, tall, fill, mark, who, live_rival_tag.text if live_rival_tag != null else "", 1)
+	card.position = Vector2(pad_x, maxf(0.0, (live_reel.size.y - tall) * 0.5))
+	live_strip.position = Vector2.ZERO
+	live_strip.add_child(card)
+	live_strip.size = Vector2(wide, live_reel.size.y)
+	card.modulate = Color.WHITE
+	card.scale = Vector2.ONE
+	card.pivot_offset = card.size * 0.5
+
+
+func _light_live_cards() -> void:
+	if live_strip == null or live_reel == null:
+		return
+	var center := live_reel.size.y * 0.5
+	for child in live_strip.get_children():
+		if child is Control:
+			var row := child as Control
+			var mid := row.position.y + row.size.y * 0.5 + live_strip.position.y
+			var dist := absf(mid - center)
+			var t := clampf(1.0 - dist / maxf(row.size.y * 1.05, 1.0), 0.0, 1.0)
+			row.pivot_offset = row.size * 0.5
+			row.modulate = Color(1, 1, 1, 0.28 + 0.72 * t)
+			var s := 0.90 + 0.10 * t
+			row.scale = Vector2(s, s)
+
+
+func _live_rival_card(wide: float, tall: float, fill: Color, mark: String, who: String, tag: String, skill: int = 1) -> Panel:
+	var card := Panel.new()
+	card.size = Vector2(wide, tall)
+	card.custom_minimum_size = Vector2(wide, tall)
+	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var plate := StyleBoxFlat.new()
+	plate.bg_color = Color(0.05, 0.09, 0.20, 0.82)
+	plate.border_color = Color(0.96, 0.78, 0.28, 0.22)
+	plate.set_border_width_all(1)
+	plate.set_corner_radius_all(24)
+	plate.content_margin_left = 0
+	plate.content_margin_right = 0
+	plate.shadow_color = Color(0, 0, 0, 0.35)
+	plate.shadow_size = 10
+	plate.shadow_offset = Vector2(0, 4)
+	card.add_theme_stylebox_override("panel", plate)
+	var inset := 18.0
+	var face_d := clampf(tall - 28.0, 96.0, 168.0)
+	var ring := Panel.new()
+	var ring_d := face_d + 8.0
+	ring.position = Vector2(inset, (tall - ring_d) * 0.5)
+	ring.size = Vector2(ring_d, ring_d)
+	ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ring.add_theme_stylebox_override("panel", _chrome(Color(0.08, 0.10, 0.16, 1.0), GOLD, 3, int(ring_d * 0.5), 0, 1.1, Color(0.96, 0.72, 0.12, 0.40)))
+	card.add_child(ring)
+	var portrait := TextureRect.new()
+	portrait.texture = _bowl_crest(fill)
+	portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	portrait.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	portrait.position = Vector2(inset + 4.0, (tall - face_d) * 0.5)
+	portrait.size = Vector2(face_d, face_d)
+	card.add_child(portrait)
+	var monogram := _label(mark, int(clampf(face_d * 0.40, 32.0, 56.0)), LiveFaces.ink_for(fill), title_font)
+	monogram.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	monogram.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	monogram.position = portrait.position
+	monogram.size = portrait.size
+	monogram.modulate = Color(1, 1, 1, 1.0)
+	monogram.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(monogram)
+	var copy_x := inset + ring_d + 18.0
+	var copy_w := maxf(80.0, wide - copy_x - 22.0)
+	var col := VBoxContainer.new()
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.alignment = BoxContainer.ALIGNMENT_CENTER
+	col.add_theme_constant_override("separation", 6)
+	col.position = Vector2(copy_x, 16.0)
+	col.size = Vector2(copy_w, tall - 32.0)
+	card.add_child(col)
+	var name_px := int(clampf(tall * 0.18, 24.0, 34.0))
+	var name_lab := _label(who.to_upper(), name_px, GOLD, title_font)
+	name_lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	name_lab.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	name_lab.clip_text = true
+	name_lab.add_theme_constant_override("line_spacing", -6)
+	name_lab.custom_minimum_size = Vector2(0, float(name_px))
+	name_lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(name_lab)
+	var tag_lab := _label(tag, 13, MUTED, bold_font)
+	tag_lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	tag_lab.custom_minimum_size = Vector2(0, 18.0)
+	tag_lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tag_lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(tag_lab)
+	var filled := _skill_stars(skill)
+	var stars := ""
+	for i in 5:
+		stars += "★" if i < filled else "☆"
+		if i < 4:
+			stars += " "
+	var star_lab := _label(stars, 16, GOLD, bold_font)
+	star_lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	star_lab.custom_minimum_size = Vector2(0, 20.0)
+	star_lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	star_lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(star_lab)
+	return card
+
+
+func _skill_stars(skill: int) -> int:
+	# Easy 2, medium 3, hard 5 — out of five.
+	return [2, 3, 5][clampi(skill, 0, 2)]
+
+
+func _place_live_sights(reel_w: float, reel_h: float, focus_y: float, focus_h: float) -> void:
+	_show_live_sights(true)
+	var fade_h := clampf(reel_h * 0.14, 36.0, 88.0)
+	if live_fade_top != null:
+		live_fade_top.visible = false
+	if live_fade_bot != null:
+		live_fade_bot.visible = true
+		live_fade_bot.position = Vector2(0.0, reel_h - fade_h)
+		live_fade_bot.size = Vector2(reel_w, fade_h)
+	if live_sight_top != null:
+		live_sight_top.visible = false
+	if live_sight_bot != null:
+		live_sight_bot.visible = false
+
+
+func _show_live_sights(on: bool) -> void:
+	if live_fade_top != null:
+		live_fade_top.visible = false
+	if live_fade_bot != null:
+		live_fade_bot.visible = on
+	if live_sight_top != null:
+		live_sight_top.visible = false
+	if live_sight_bot != null:
+		live_sight_bot.visible = false
+
+
+func _v_fade_tex(top: Color, bot: Color) -> Texture2D:
+	var img := Image.create(4, 48, false, Image.FORMAT_RGBA8)
+	for y in 48:
+		var t := float(y) / 47.0
+		var c := top.lerp(bot, t)
+		for x in 4:
+			img.set_pixel(x, y, c)
+	return ImageTexture.create_from_image(img)
+
+
+func _bowl_crest(fill: Color) -> Texture2D:
+	var key := fill.to_html(false)
+	if _crest_cache.has(key):
+		return _crest_cache[key]
+	var size := 160
+	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var light := Vector3(-0.38, 0.72, 0.58).normalized()
+	var spec_dir := Vector3(-0.16, 0.48, 0.86).normalized()
+	var albedo := fill.lightened(0.08)
+	var shade := fill.darkened(0.22)
+	for y in size:
+		for x in size:
+			var nx := (float(x) + 0.5) / float(size) * 2.0 - 1.0
+			var ny := (float(y) + 0.5) / float(size) * 2.0 - 1.0
+			var r2 := nx * nx + ny * ny
+			if r2 > 1.0:
+				continue
+			var nz := sqrt(maxf(0.0, 1.0 - r2))
+			var n := Vector3(nx, -ny, nz).normalized()
+			var wrap := 0.22 + 0.78 * clampf(n.dot(light), 0.0, 1.0)
+			var spec := pow(clampf(n.dot(spec_dir), 0.0, 1.0), 28.0)
+			var col := shade.lerp(albedo, wrap)
+			var band := absf(fmod((ny * 0.5 + 0.5) * 6.2, 1.0) - 0.5)
+			if band < 0.07 and absf(ny) < 0.62:
+				col = col.lerp(Color(0.95, 0.93, 0.88), 0.22)
+			col = col.lerp(Color(1.0, 0.98, 0.90), spec * 0.72)
+			var rim := pow(1.0 - nz, 2.4)
+			col = col.lerp(GOLD.lightened(0.15), rim * 0.18)
+			col.a = clampf((1.0 - r2) / 0.06, 0.0, 1.0)
+			img.set_pixel(x, y, col)
+	var tex := ImageTexture.create_from_image(img)
+	_crest_cache[key] = tex
+	return tex
+
+
+func _initial_of(value: String) -> String:
+	var trimmed := value.strip_edges()
+	if trimmed == "":
+		return "B"
+	return trimmed.substr(0, 1).to_upper()
+
+
+func _build_face_layer() -> void:
+	face_layer = Control.new()
+	face_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	face_layer.visible = false
+	root.add_child(face_layer)
+	var dim := ColorRect.new()
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0.03, 0.05, 0.12, 0.82)
+	dim.gui_input.connect(func(event: InputEvent) -> void:
+		if event is InputEventMouseButton and event.pressed:
+			face_layer.visible = false
+	)
+	face_layer.add_child(dim)
+	var panel := Panel.new()
+	panel.position = Vector2(24, 160)
+	panel.size = Vector2(492, 620)
+	panel.add_theme_stylebox_override("panel", _chrome(Color(0.07, 0.12, 0.30, 0.97), GOLD, 2, 22, 16, 1.8, Color(0.08, 0.16, 0.55, 0.42)))
+	face_layer.add_child(panel)
+	var heading := _label("CHANGE PICTURE", 28, GOLD, title_font)
+	heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	heading.position = Vector2(16, 16)
+	heading.size = Vector2(460, 36)
+	panel.add_child(heading)
+	var note := _label("Club colours, or a photo from this device.", 14, MUTED, body_font)
+	note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	note.position = Vector2(20, 56)
+	note.size = Vector2(452, 24)
+	panel.add_child(note)
+	var grid := GridContainer.new()
+	grid.columns = 4
+	grid.position = Vector2(28, 96)
+	grid.size = Vector2(436, 236)
+	grid.add_theme_constant_override("h_separation", 12)
+	grid.add_theme_constant_override("v_separation", 12)
+	panel.add_child(grid)
+	for i in LiveFaces.FACE_COLORS.size():
+		var fill: Color = LiveFaces.color_at(i)
+		var chip := Button.new()
+		chip.custom_minimum_size = Vector2(100, 100)
+		chip.text = _initial()
+		chip.add_theme_font_override("font", title_font)
+		chip.add_theme_font_size_override("font_size", 28)
+		chip.add_theme_color_override("font_color", LiveFaces.ink_for(fill))
+		_paint_button(chip, fill, GOLD, LiveFaces.ink_for(fill), 50, 0, 2)
+		chip.pressed.connect(_pick_face.bind(i))
+		grid.add_child(chip)
+	var photo_btn := _primary("USE A PHOTO", _pick_face_photo)
+	photo_btn.position = Vector2(20, 360)
+	photo_btn.size = Vector2(452, 64)
+	panel.add_child(photo_btn)
+	var back := _row_button("Back", func() -> void:
+		face_layer.visible = false
+	)
+	back.position = Vector2(20, 440)
+	back.size = Vector2(452, 56)
+	panel.add_child(back)
+
+
+func _open_face_sheet() -> void:
+	_tap()
+	if face_layer == null:
+		return
+	_paint_face_sheet()
+	face_layer.visible = true
+
+
+func _paint_face_sheet() -> void:
+	if face_layer == null:
+		return
+	var panel := face_layer.get_child(1) as Panel
+	if panel == null:
+		return
+	var grid: GridContainer = null
+	for child in panel.get_children():
+		if child is GridContainer:
+			grid = child
+			break
+	if grid == null:
+		return
+	for i in grid.get_child_count():
+		var chip := grid.get_child(i) as Button
+		if chip == null:
+			continue
+		chip.text = _initial()
+		var selected: bool = profile != null and int(profile.face_id) == i and not bool(profile.face_photo)
+		chip.add_theme_stylebox_override("normal", _flat(LiveFaces.color_at(i), GOLD if selected else Color("#FFE9A0"), 3 if selected else 2, 50, 0))
+
+
+func _pick_face(index: int) -> void:
+	if profile == null:
+		return
+	profile.face_id = clampi(index, 0, 7)
+	profile.face_photo = false
+	profile.save_profile()
+	if face_layer != null:
+		face_layer.visible = false
+	_sync_identity()
+
+
+func _pick_face_photo() -> void:
+	_pick_photo("face")
+
+
+func _paint_player_face() -> void:
+	if profile == null:
+		return
+	var fill: Color = profile.face_color()
+	var ink: Color = LiveFaces.ink_for(fill)
+	var photo: Texture2D = null
+	if profile.face_photo:
+		photo = LiveFaces.load_photo()
+	if home_avatar != null:
+		home_avatar.add_theme_stylebox_override("panel", _flat(fill, GOLD, 2, 19, 0))
+	if home_letter != null:
+		home_letter.add_theme_color_override("font_color", ink)
+		home_letter.visible = photo == null
+	if home_face != null:
+		home_face.texture = photo
+		home_face.visible = photo != null
+	if profile_avatar != null:
+		profile_avatar.add_theme_stylebox_override("panel", _flat(fill, Color("#FFE9A0"), 2, 48, 0))
+	if profile_letter != null:
+		profile_letter.add_theme_color_override("font_color", ink)
+		profile_letter.visible = photo == null
+	if profile_face != null:
+		profile_face.texture = photo
+		profile_face.visible = photo != null
+	if live_you_letter != null:
+		var chip := live_you_letter.get_parent() as Panel
+		if chip != null:
+			var rad := int(maxf(chip.size.x, 88.0) * 0.5)
+			chip.add_theme_stylebox_override("panel", _flat(fill, GOLD, 2, rad, 0))
+		live_you_letter.text = _initial()
+		live_you_letter.add_theme_color_override("font_color", ink)
+		live_you_letter.visible = photo == null
+	if live_you_photo != null:
+		live_you_photo.texture = photo
+		live_you_photo.visible = photo != null
+	if live_you_name != null:
+		live_you_name.text = profile.player_name.to_upper()
+
+
+func _tap() -> void:
+	if feel != null:
+		feel.tap()
+
+
+func _emit_play(setup: Dictionary) -> void:
+	# Paint the acknowledgement before the rink is built, so the press
+	# does not look like it missed while the green loads.
+	if starting != null:
+		starting.visible = true
+	await get_tree().process_frame
+	play_requested.emit(setup)
+
+
+func _build_starting() -> void:
+	starting = Control.new()
+	starting.set_anchors_preset(Control.PRESET_FULL_RECT)
+	starting.visible = false
+	starting.mouse_filter = Control.MOUSE_FILTER_STOP
+	root.add_child(starting)
+	var dim := ColorRect.new()
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color("#07101C")
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	starting.add_child(dim)
+	var mark := _mark_rect()
+	_place(starting, mark, Vector2(120, 280), Vector2(300, 240))
+	var brand := _label("BOWL & ROLL", 28, CREAM, title_font)
+	brand.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_place(starting, brand, Vector2(20, 530), Vector2(500, 40))
+	var label := _label("LOADING", 16, GOLD, bold_font)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_place(starting, label, Vector2(20, 578), Vector2(500, 32))
+
+
 func _launch(channel: String) -> void:
 	var setup := {
 		"channel": channel,
-		"back": "setup",
+		"back": "home",
 		"rink": rink,
 		"goal": "",
 		"challenge": "",
@@ -888,11 +2654,12 @@ func _launch(channel: String) -> void:
 		setup["match_index"] = mini(race, 3)
 		setup["opponent"] = "ai" if channel == "ai" else "local"
 		setup["difficulty"] = difficulty
-		setup["ditch"] = difficulty == 2
+		setup["ditch"] = ditch_on
+		setup["guide"] = guide
 	else:
 		setup["target"] = [50, 100, 150][mini(race, 2)]
 		setup["level"] = [0, 1, 4][mini(difficulty, 2)]
-	play_requested.emit(setup)
+	_emit_play(setup)
 
 
 func _practice(which: String) -> void:
@@ -912,7 +2679,8 @@ func _practice(which: String) -> void:
 	elif which == "jack":
 		setup["rink"] = "lawn"
 		setup["match_index"] = 0
-	play_requested.emit(setup)
+		setup["ditch"] = true
+	_emit_play(setup)
 
 
 func _challenge(ident: String) -> void:
@@ -930,7 +2698,8 @@ func _challenge(ident: String) -> void:
 	if ident == "draw":
 		setup["rink"] = "lawn"
 		setup["goal"] = "draw"
-	play_requested.emit(setup)
+		setup["ditch"] = true
+	_emit_play(setup)
 
 
 func _create_room() -> void:
@@ -945,16 +2714,371 @@ func _create_room() -> void:
 
 
 func _join_room() -> void:
-	var entered := join_edit.text.strip_edges().to_upper()
-	if entered == "" or entered == room_code:
-		_launch("room")
-		return
-	_toast("That room is not open on this device.")
+	_join_friend_code()
 
 
 func _copy_code() -> void:
 	DisplayServer.clipboard_set(room_code)
 	_toast("Copied %s" % room_code)
+
+
+func _copy_live_code() -> void:
+	var table := live_table_code if live_table_code != "" else room_code
+	DisplayServer.clipboard_set(table)
+	_toast("Copied %s" % table)
+
+
+func _go_back(page: Control, target: String) -> void:
+	if pages.get("friends") == page:
+		_show(friends_back if friends_back != "" else "home")
+		return
+	_show(target)
+
+
+func _open_friends(back: String = "home") -> void:
+	_tap()
+	friends_back = back if back != "" else "home"
+	_show("friends")
+
+
+func _ensure_live_net() -> void:
+	if live_net != null:
+		live_net.sign_in(profile.player_name if profile != null else "Flicker")
+		return
+	live_net = LiveNetScript.new()
+	live_net.name = "LiveNet"
+	add_child(live_net)
+	live_net.found_peer.connect(_on_live_found)
+	live_net.search_pulse.connect(_on_live_pulse)
+	live_net.player_found.connect(_on_player_found)
+	live_net.player_list.connect(_on_player_list)
+	live_net.player_missing.connect(_on_player_missing)
+	live_net.invite_received.connect(_on_invite_received)
+	live_net.invite_sent.connect(_on_invite_sent)
+	live_net.invite_failed.connect(_on_invite_failed)
+	live_net.name_taken.connect(_on_name_taken)
+	live_net.sign_in(profile.player_name if profile != null else "Flicker")
+
+
+func _host_friend_table() -> void:
+	if room_code == "":
+		room_code = _make_code()
+	if friend_code != null:
+		friend_code.text = room_code
+	_begin_friend_wait("host", room_code, "")
+
+
+func _join_friend_code() -> void:
+	var source := friend_join_edit if friend_join_edit != null else join_edit
+	var entered := ""
+	if source != null:
+		entered = source.text.strip_edges().to_upper()
+	if entered.length() < 4:
+		_toast("Type the code your friend sent.")
+		return
+	_begin_friend_wait("join", entered, "")
+
+
+func _challenge_friend(who: String) -> void:
+	live_options = _lobby_options()
+	_ensure_live_net()
+	live_net.invite_player(who, live_options)
+
+
+func _begin_friend_wait(kind: String, table: String, rival_hint: String) -> void:
+	_tap()
+	live_mode = kind
+	live_table_code = table
+	live_token += 1
+	live_found_live = false
+	live_found_name = rival_hint
+	live_hosting = kind == "host"
+	live_searching = true
+	live_reel_x = 0.0
+	live_reel_y = 0.0
+	_paint_player_face()
+	if live_layer != null:
+		live_layer.visible = true
+	if live_title != null:
+		live_title.text = "PLAY A FRIEND"
+	if kind == "host":
+		if live_body != null:
+			live_body.text = "Send this code to your friend.\n%s" % _live_rules_line()
+		if live_rival_name != null:
+			live_rival_name.text = table
+			live_rival_name.modulate.a = 1.0
+		if live_rival_tag != null:
+			live_rival_tag.text = "WAITING FOR THEM TO TYPE IT"
+	else:
+		if live_body != null:
+			live_body.text = "Joining %s in the club.\n%s" % [table, _live_rules_line()]
+		if live_rival_name != null:
+			live_rival_name.text = table
+			live_rival_name.modulate.a = 1.0
+		if live_rival_tag != null:
+			live_rival_tag.text = "JOINING YOUR FRIEND"
+	_paint_live_stage()
+	_ensure_live_net()
+	var me: String = profile.player_name if profile != null else "Flicker"
+	if kind == "host":
+		live_net.start_host(me, table)
+	else:
+		live_net.start_join(me, table)
+
+
+func _name_add_row(which: String) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	var edit := LineEdit.new()
+	edit.placeholder_text = "Username"
+	edit.max_length = 16
+	edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	edit.custom_minimum_size = Vector2(0, 48)
+	_style_edit(edit)
+	row.add_child(edit)
+	var add_btn := _button("SEARCH", 13)
+	add_btn.custom_minimum_size = Vector2(108, 48)
+	_paint_button(add_btn, GOLD, Color("#FFE9A0"), Color("#1A1208"), 12, 8)
+	add_btn.add_theme_color_override("font_hover_color", Color("#1A1208"))
+	add_btn.add_theme_color_override("font_pressed_color", Color("#1A1208"))
+	add_btn.pressed.connect(_search_friend_from.bind(which))
+	row.add_child(add_btn)
+	if which == "profile":
+		profile_friend_edit = edit
+	else:
+		friend_add_edit = edit
+	return row
+
+
+func _search_friend_from(which: String) -> void:
+	var edit := profile_friend_edit if which == "profile" else friend_add_edit
+	var typed := ""
+	if edit != null:
+		typed = edit.text.strip_edges()
+	if typed.length() < 2:
+		_toast("Type a username to search.")
+		return
+	_ensure_live_net()
+	live_net.find_player(typed)
+	_toast("Searching the club…")
+
+
+func _add_found_friend(who: String) -> void:
+	if profile == null:
+		return
+	var err: String = profile.add_friend(who)
+	if err != "":
+		_toast(err)
+		return
+	_paint_friends()
+	_toast("Added %s. Invite them from the lobby." % who)
+
+
+func _on_player_found(who: String, online: bool) -> void:
+	_show_search_hits([{ "name": who, "online": online }])
+
+
+func _on_player_list(matches: Array) -> void:
+	_show_search_hits(matches)
+
+
+func _on_player_missing(who: String) -> void:
+	_show_search_hits([])
+	var shown := who if who != "" else "That name"
+	_toast("%s is not in the club yet." % shown)
+
+
+func _show_search_hits(matches: Array) -> void:
+	if friend_search_box == null:
+		return
+	for child in friend_search_box.get_children():
+		friend_search_box.remove_child(child)
+		child.queue_free()
+	if matches.is_empty():
+		friend_search_box.add_child(_wrapped("Nobody in the club uses that name."))
+		return
+	for item in matches:
+		var who := ""
+		var online := false
+		if typeof(item) == TYPE_DICTIONARY:
+			who = str(item.get("name", ""))
+			online = bool(item.get("online", false))
+		else:
+			who = str(item)
+		if who == "":
+			continue
+		friend_search_box.add_child(_search_hit_row(who, online))
+
+
+func _search_hit_row(who: String, online: bool) -> Control:
+	var row := PanelContainer.new()
+	row.add_theme_stylebox_override("panel", _flat(PLUM, GOLD, 1, 14, 10))
+	var bar := HBoxContainer.new()
+	bar.add_theme_constant_override("separation", 8)
+	var name_lab := _label(who, 16, CREAM, bold_font)
+	name_lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	bar.add_child(name_lab)
+	var tag := _label("ONLINE" if online else "OFFLINE", 11, GOLD if online else MUTED, bold_font)
+	tag.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	bar.add_child(tag)
+	var already := false
+	if profile != null:
+		for existing in profile.friends:
+			if str(existing).to_upper() == who.to_upper():
+				already = true
+				break
+	if already:
+		var invite := _button("INVITE", 13)
+		invite.custom_minimum_size = Vector2(96, 44)
+		_paint_button(invite, GOLD, Color("#FFE9A0"), Color("#1A1208"), 12, 8)
+		invite.add_theme_color_override("font_hover_color", Color("#1A1208"))
+		invite.add_theme_color_override("font_pressed_color", Color("#1A1208"))
+		invite.pressed.connect(_challenge_friend.bind(who))
+		bar.add_child(invite)
+	else:
+		var add := _button("ADD", 13)
+		add.custom_minimum_size = Vector2(88, 44)
+		_paint_button(add, GOLD, Color("#FFE9A0"), Color("#1A1208"), 12, 8)
+		add.add_theme_color_override("font_hover_color", Color("#1A1208"))
+		add.add_theme_color_override("font_pressed_color", Color("#1A1208"))
+		add.pressed.connect(_add_found_friend.bind(who))
+		bar.add_child(add)
+	row.add_child(bar)
+	return row
+
+
+func _on_invite_received(from_name: String, table: String, options: Dictionary) -> void:
+	invite_from = from_name
+	invite_code = table
+	if not options.is_empty():
+		live_options = options
+	if invite_title != null:
+		invite_title.text = "INVITE"
+	if invite_body != null:
+		invite_body.text = "%s wants to bowl.\n%s" % [from_name, _live_rules_line()]
+	if invite_layer != null:
+		invite_layer.visible = true
+		_layout_invite(_view_size(), _safe_pad())
+
+
+func _accept_invite() -> void:
+	if invite_layer != null:
+		invite_layer.visible = false
+	var table := invite_code
+	var who := invite_from
+	if table == "":
+		_toast("That invite expired.")
+		return
+	_begin_friend_wait("join", table, who)
+
+
+func _decline_invite() -> void:
+	if invite_layer != null:
+		invite_layer.visible = false
+	invite_code = ""
+	invite_from = ""
+
+
+func _on_invite_sent(to_name: String, table: String, options: Dictionary) -> void:
+	if not options.is_empty():
+		live_options = options
+	live_mode = "host"
+	live_table_code = table
+	live_token += 1
+	live_found_live = false
+	live_found_name = to_name
+	live_hosting = true
+	live_searching = true
+	if live_net != null:
+		live_net.searching = true
+		live_net.hosting = true
+		live_net.mode = "host"
+		live_net.code = table
+	_paint_player_face()
+	if live_layer != null:
+		live_layer.visible = true
+	if live_title != null:
+		live_title.text = "PLAY A FRIEND"
+	if live_body != null:
+		live_body.text = "Invite sent to %s.\n%s" % [to_name, _live_rules_line()]
+	if live_rival_name != null:
+		live_rival_name.text = to_name.to_upper()
+		live_rival_name.modulate.a = 1.0
+	if live_rival_tag != null:
+		live_rival_tag.text = "WAITING FOR THEM TO ACCEPT"
+	_paint_live_stage()
+
+
+func _on_invite_failed(reason: String, player: String) -> void:
+	var who := player if player != "" else "That player"
+	if reason == "offline":
+		_toast("%s is not in the club right now." % who)
+	elif reason == "self":
+		_toast("That's your own name.")
+	else:
+		_toast("Could not invite %s." % who)
+
+
+func _on_name_taken(player: String) -> void:
+	_toast("%s is already in the club. Change your name in Gear." % player)
+
+
+func _add_friend_from(which: String) -> void:
+	_search_friend_from(which)
+
+
+func _drop_friend(who: String) -> void:
+	if profile == null:
+		return
+	profile.drop_friend(who)
+	_paint_friends()
+
+
+func _paint_friends() -> void:
+	_fill_friend_box(friend_list_box)
+	_fill_friend_box(profile_friend_box)
+	if friend_code != null and room_code != "":
+		friend_code.text = room_code
+
+
+func _fill_friend_box(box: VBoxContainer) -> void:
+	if box == null:
+		return
+	for child in box.get_children():
+		box.remove_child(child)
+		child.queue_free()
+	if profile == null or profile.friends.is_empty():
+		var empty := _wrapped("Nobody on your list yet. Search a username.")
+		box.add_child(empty)
+		return
+	for who in profile.friends:
+		box.add_child(_friend_row(str(who)))
+
+
+func _friend_row(who: String) -> Control:
+	var row := PanelContainer.new()
+	row.add_theme_stylebox_override("panel", _flat(PLUM, GOLD, 1, 14, 10))
+	var bar := HBoxContainer.new()
+	bar.add_theme_constant_override("separation", 8)
+	var name_lab := _label(who, 16, CREAM, bold_font)
+	name_lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	bar.add_child(name_lab)
+	var play := _button("INVITE", 13)
+	play.custom_minimum_size = Vector2(96, 44)
+	_paint_button(play, GOLD, Color("#FFE9A0"), Color("#1A1208"), 12, 8)
+	play.add_theme_color_override("font_hover_color", Color("#1A1208"))
+	play.add_theme_color_override("font_pressed_color", Color("#1A1208"))
+	play.pressed.connect(_challenge_friend.bind(who))
+	bar.add_child(play)
+	var drop := _button("✕", 14)
+	drop.custom_minimum_size = Vector2(44, 44)
+	_paint_button(drop, CARD, GOLD, CREAM, 12, 4)
+	drop.pressed.connect(_drop_friend.bind(who))
+	bar.add_child(drop)
+	row.add_child(bar)
+	return row
 
 
 func _toast(message: String) -> void:
@@ -984,6 +3108,8 @@ func _sync_identity() -> void:
 	home_level.text = "Level %d" % profile.level()
 	home_letter.text = initial
 	home_record.text = profile.record_text()
+	if home_tally != null:
+		home_tally.text = "ENDS %d / 8   ·   LIVE %s" % [profile.solo_cleared, profile.live_text()]
 	chip_wins.text = str(profile.wins)
 	chip_losses.text = str(profile.losses)
 	home_xp.size.x = 150.0 * profile.xp_ratio()
@@ -992,12 +3118,28 @@ func _sync_identity() -> void:
 		profile_level.text = "Level %d" % profile.level()
 		profile_letter.text = initial
 		profile_record.text = profile.record_text()
+		if profile_live != null:
+			profile_live.text = "LIVE  %s" % profile.live_text()
 		profile_rounds.text = "%d rounds on this device" % profile.rounds
 		profile_disc.text = "Disc  ·  %s" % profile.disc_name()
 		profile_xp.size.x = 220.0 * profile.xp_ratio()
+	if profile_bowl != null:
+		profile_bowl.texture = Kit.preview(profile.kit(), false)
 	if rank_name != null:
-		rank_name.text = "1    %s" % profile.player_name.to_upper()
-		rank_record.text = "%dW  %dL" % [profile.wins, profile.losses]
+		rank_name.text = profile.player_name.to_upper()
+		rank_record.text = "%d WINS" % profile.wins
+	if board_solo != null:
+		board_solo.text = "%d / 8" % profile.solo_cleared
+	if board_drive != null:
+		board_drive.text = profile.live_text()
+	if board_mark != null:
+		board_mark.text = profile.mark_text()
+	if board_recent != null:
+		board_recent.text = profile.results[0] if profile.results.size() > 0 else "NO ROUNDS YET"
+	if friend_code != null:
+		friend_code.text = room_code
+	_paint_friends()
+	_paint_player_face()
 
 
 func _sync_settings() -> void:
@@ -1016,6 +3158,8 @@ func _on_name_changed(value: String) -> void:
 	profile.player_name = trimmed.substr(0, 16)
 	profile.save_profile()
 	_sync_identity()
+	if live_net != null:
+		live_net.sign_in(profile.player_name)
 
 
 func _toggle_sound() -> void:
@@ -1033,20 +3177,181 @@ func _toggle_haptics() -> void:
 
 
 func _pick_swatch(index: int) -> void:
-	profile.disc_index = index
+	if kit_tab == "bowl":
+		profile.bowl_color = index
+		profile.set_slot(profile.bowl_slot, profile.bowl_skin, index)
+	else:
+		profile.disc_index = index
 	profile.save_profile()
-	_paint_swatches()
+	if studio != null and kit_tab == "bowl":
+		studio.refresh()
+	_paint_kit()
+	_sync_identity()
+
+
+func _pick_skin(skin_id: String) -> void:
+	if kit_tab == "bowl":
+		if studio != null and studio.has_method("apply_theme"):
+			studio.apply_theme(skin_id)
+		else:
+			profile.bowl_skin = skin_id
+			profile.set_slot(profile.bowl_slot, skin_id, profile.bowl_color)
+			profile.save_profile()
+	else:
+		if Kit.is_photo_skin(skin_id):
+			return
+		profile.disc_skin = skin_id
+		profile.save_profile()
+	_paint_kit()
+	_sync_identity()
+
+
+func _on_studio_changed() -> void:
+	_paint_kit()
+	_sync_identity()
+
+
+func _build_photo_picker() -> void:
+	if photo_picker != null:
+		return
+	photo_picker = FileDialog.new()
+	photo_picker.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	photo_picker.access = FileDialog.ACCESS_FILESYSTEM
+	photo_picker.title = "Choose a photo"
+	photo_picker.filters = PackedStringArray(["*.png,*.jpg,*.jpeg,*.webp ; Photos"])
+	photo_picker.use_native_dialog = true
+	photo_picker.size = Vector2i(720, 520)
+	photo_picker.visible = false
+	photo_picker.file_selected.connect(_on_photo_picked)
+	root.add_child(photo_picker)
+
+
+func _pick_photo(slot: String) -> void:
+	_tap()
+	photo_slot = slot
+	kit_tab = "bowl"
+	if DisplayServer.has_feature(DisplayServer.FEATURE_NATIVE_DIALOG_FILE):
+		DisplayServer.file_dialog_show(
+			"Choose a photo",
+			OS.get_system_dir(OS.SYSTEM_DIR_PICTURES),
+			"",
+			false,
+			DisplayServer.FILE_DIALOG_MODE_OPEN_FILE,
+			PackedStringArray(["*.png,*.jpg,*.jpeg,*.webp ; Photos"]),
+			_on_native_photo
+		)
+		return
+	_build_photo_picker()
+	if photo_picker != null:
+		photo_picker.popup_centered()
+
+
+func _on_native_photo(status: bool, selected_paths: PackedStringArray, _filter_index: int) -> void:
+	if not status or selected_paths.is_empty():
+		return
+	_on_photo_picked(selected_paths[0])
+
+
+func _on_photo_picked(path: String) -> void:
+	var image := Image.new()
+	if image.load(path) != OK:
+		return
+	if photo_slot == "face":
+		LiveFaces.save_photo(image)
+		if profile != null:
+			profile.face_photo = true
+			profile.save_profile()
+		if face_layer != null:
+			face_layer.visible = false
+		_sync_identity()
+		return
+	Kit.save_user_photo(photo_slot, image)
+	if photo_slot == "b":
+		profile.bowl_skin = "photo_split"
+	elif not Kit.is_photo_skin(profile.bowl_skin):
+		profile.bowl_skin = "photo_left"
+	profile.save_profile()
+	_paint_kit()
 	_sync_identity()
 
 
 func _paint_swatches() -> void:
+	_paint_kit()
+
+
+func _paint_kit() -> void:
 	if profile == null:
 		return
+	var kit: Dictionary = profile.kit()
+	if kit_preview_bowl != null:
+		kit_preview_bowl.texture = Kit.preview(kit, false)
+	if kit_preview_disc != null:
+		kit_preview_disc.texture = Kit.preview(kit, true)
+	if profile_bowl != null:
+		profile_bowl.texture = Kit.preview(kit, false)
+	var color_index: int = profile.bowl_color if kit_tab == "bowl" else profile.disc_index
+	var pal: Dictionary = Kit.palette(color_index)
+	var skin_id: String = profile.bowl_skin if kit_tab == "bowl" else profile.disc_skin
+	var look: Dictionary = Kit.skin(skin_id)
+	if kit_caption != null:
+		kit_caption.text = "%s  ·  %s" % [look["name"], pal["name"]]
+	if kit_bowl_tab != null:
+		_paint_button(kit_bowl_tab, GOLD if kit_tab == "bowl" else PLUM, Color("#FFE9A0") if kit_tab == "bowl" else Color(1, 1, 1, 0.18), Color("#1A1208") if kit_tab == "bowl" else CREAM, 14, 8, 2 if kit_tab == "bowl" else 1)
+	if kit_disc_tab != null:
+		_paint_button(kit_disc_tab, GOLD if kit_tab == "disc" else PLUM, Color("#FFE9A0") if kit_tab == "disc" else Color(1, 1, 1, 0.18), Color("#1A1208") if kit_tab == "disc" else CREAM, 14, 8, 2 if kit_tab == "disc" else 1)
+	if kit_skin_row != null:
+		for i in kit_skin_row.get_child_count():
+			var chip := kit_skin_row.get_child(i) as Button
+			if chip == null:
+				continue
+			var id := str(chip.get_meta("skin_id")) if chip.has_meta("skin_id") else ""
+			var mark := skin_id
+			if studio != null and str(studio.picked_theme) != "" and Kit.is_photo_skin(skin_id):
+				mark = str(studio.picked_theme)
+			var on: bool = id == mark
+			_paint_button(chip, GOLD if on else Color(0.07, 0.14, 0.30, 0.96), Color("#FFE9A0") if on else Color(1, 1, 1, 0.16), Color("#1A1208") if on else MUTED, 14, 6, 2 if on else 1)
+			var orb := chip.find_child("Orb", true, false)
+			if orb is TextureRect:
+				var orb_kit := {
+					"bowl_skin": id,
+					"bowl_color": color_index,
+					"disc_skin": id,
+					"disc_color": color_index,
+				}
+				(orb as TextureRect).texture = Kit.preview(orb_kit, kit_tab != "bowl")
+	var bowls := kit_tab == "bowl"
+	if studio != null:
+		studio.visible = bowls
+	if disc_block != null:
+		disc_block.visible = not bowls
+	if look_panel != null:
+		var host: Node = null
+		if bowls and studio != null:
+			host = studio.look_box
+		elif disc_look_host != null:
+			host = disc_look_host
+		if host != null and look_panel.get_parent() != host:
+			var old := look_panel.get_parent()
+			if old != null:
+				old.remove_child(look_panel)
+			host.add_child(look_panel)
+	if photo_kicker != null:
+		photo_kicker.visible = false
+	if photo_blurb != null:
+		photo_blurb.visible = false
+	if photo_a_button != null:
+		photo_a_button.visible = false
+	if photo_b_button != null:
+		photo_b_button.visible = false
+	if photo_place_row != null:
+		photo_place_row.visible = false
+	var selected: int = color_index
 	for i in swatch_buttons.size():
 		var swatch := swatch_buttons[i] as Button
-		var selected: bool = int(profile.disc_index) == i
-		var border := Color("#ffe4f4") if selected else Color(1, 1, 1, 0.18)
-		_paint_button(swatch, profile.COLORS[i], border, CREAM, 40, 0, 3 if selected else 1)
+		var border := Color("#FFE9A0") if i == selected else Color(1, 1, 1, 0.18)
+		var swatch_pal: Dictionary = Kit.palette(i)
+		var swatch_color: Color = swatch_pal["a"]
+		_paint_button(swatch, swatch_color, border, CREAM, 22, 0, 3 if i == selected else 1)
 
 
 func _paint_challenges() -> void:
@@ -1060,16 +3365,22 @@ func _paint_challenges() -> void:
 			trail.add_theme_color_override("font_color", Color("#ffe27a"))
 		else:
 			trail.text = str(rewards[str(ident)])
-			trail.add_theme_color_override("font_color", PINK)
+			trail.add_theme_color_override("font_color", GOLD)
 
 
 func _paint_nav(current: String) -> void:
 	for i in nav_icons.size():
-		var icon: Mark = nav_icons[i]
+		var icon: Stamp = nav_icons[i]
 		var caption := nav_captions[i] as Label
 		var lit := icon.kind == current
 		icon.set_lit(lit)
-		caption.add_theme_color_override("font_color", PINK if lit else Color("#8d7d88"))
+		caption.add_theme_color_override("font_color", CREAM if lit else Color("#7A9BC4"))
+		if i < nav_glyphs.size():
+			nav_glyphs[i].modulate = Color(1, 1, 1, 1.0 if lit else 0.72)
+		if i < nav_buttons.size():
+			var fill := Color(0.12, 0.32, 0.78, 0.38) if lit else Color(0, 0, 0, 0)
+			var border := GOLD if lit else Color(0, 0, 0, 0)
+			_paint_button(nav_buttons[i], fill, border, CREAM, 18, 0)
 
 
 func _initial() -> String:
@@ -1079,47 +3390,61 @@ func _initial() -> String:
 	return trimmed.substr(0, 1).to_upper()
 
 
-func _column_page(top: float, bottom: float) -> Dictionary:
+func _column_page(top: float, bottom: float, hub: bool = false) -> Dictionary:
 	var page := Control.new()
 	page.set_anchors_preset(Control.PRESET_FULL_RECT)
 	page.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var scroll := ScrollContainer.new()
 	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 	page.add_child(scroll)
+	var inner := PanelContainer.new()
+	inner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	inner.custom_minimum_size = Vector2(508, 720)
+	if hub:
+		var wash := StyleBoxTexture.new()
+		wash.texture = preload("res://assets/club_backdrop.png")
+		inner.add_theme_stylebox_override("panel", wash)
+	else:
+		inner.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+	scroll.add_child(inner)
 	var margin := MarginContainer.new()
 	margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	margin.add_theme_constant_override("margin_left", 16)
 	margin.add_theme_constant_override("margin_right", 16)
 	margin.add_theme_constant_override("margin_top", int(top))
 	margin.add_theme_constant_override("margin_bottom", int(bottom))
-	scroll.add_child(margin)
+	inner.add_child(margin)
 	var box := VBoxContainer.new()
 	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.custom_minimum_size = Vector2(508, 0)
 	box.add_theme_constant_override("separation", 10)
 	margin.add_child(box)
+	if hub:
+		hub_page_margins.append(margin)
+		hub_scrolls.append(scroll)
+		hub_scroll_inners.append(inner)
+		scroll.offset_bottom = 0.0
 	return {"page": page, "box": box}
 
 
 func _back_on(page: Control, target: String) -> void:
-	var shield := ColorRect.new()
-	shield.position = Vector2(0, 0)
-	shield.size = Vector2(540, 68)
-	shield.color = Color(0.035, 0.031, 0.051, 0.96)
-	shield.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	page.add_child(shield)
-	var button := _button("‹   Back", 15)
+	var button := _button("‹  Back", 14)
 	button.position = Vector2(16, 16)
-	button.size = Vector2(124, 40)
-	_paint_button(button, PLUM, PINK, CREAM, 18, 10)
-	button.pressed.connect(_show.bind(target))
+	button.size = Vector2(110, 40)
+	_paint_button(button, Color(0.06, 0.12, 0.24, 0.72), BLUE, CREAM, 18, 10)
+	button.pressed.connect(_go_back.bind(page, target))
 	page.add_child(button)
+	var mark := _mark_rect()
+	mark.position = Vector2(80, 2)
+	mark.size = Vector2(380, 118)
+	page.add_child(mark)
 
 
 func _code_row() -> PanelContainer:
 	var panel := PanelContainer.new()
-	panel.add_theme_stylebox_override("panel", _flat(PLUM, PINK, 1, 14, 12))
+	panel.add_theme_stylebox_override("panel", _flat(PLUM, GOLD, 1, 14, 12))
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
 	code_label = _label(room_code, 28, CREAM, title_font)
@@ -1128,36 +3453,47 @@ func _code_row() -> PanelContainer:
 	row.add_child(code_label)
 	var copy := _button("COPY", 14)
 	copy.custom_minimum_size = Vector2(96, 44)
-	_paint_button(copy, PINK_DEEP, Color("#ff8ab6"), CREAM, 12, 8)
+	_paint_button(copy, BLUE_LIT, Color("#8EC4FF"), CREAM, 12, 8)
 	copy.pressed.connect(_copy_code)
 	row.add_child(copy)
 	panel.add_child(row)
 	return panel
 
 
-func _rink_card(title: String, body: String) -> Button:
+func _rink_card(title: String, body: String, art_tex: Texture2D) -> Button:
 	var button := Button.new()
 	button.text = ""
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	button.clip_contents = true
-	button.custom_minimum_size = Vector2(150, 142)
-	var tag := _label("SELECTED", 10, PINK, bold_font)
+	button.custom_minimum_size = Vector2(150, 210)
+	var tag := _label("SELECTED", 11, GOLD, bold_font)
 	tag.name = "Tag"
-	tag.position = Vector2(12, 8)
-	tag.size = Vector2(200, 16)
+	tag.position = Vector2(14, 8)
+	tag.size = Vector2(216, 16)
+	tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	button.add_child(tag)
-	var heading := _label(title, 15, CREAM, bold_font)
-	heading.position = Vector2(12, 28)
-	heading.size = Vector2(210, 24)
+	var heading := _label(title, 20, CREAM, title_font)
+	heading.position = Vector2(14, 26)
+	heading.size = Vector2(216, 28)
 	heading.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	button.add_child(heading)
-	var detail := _label(body, 12, MUTED, body_font)
-	detail.position = Vector2(12, 54)
-	detail.size = Vector2(210, 76)
+	var detail := _label(body, 13, MUTED, body_font)
+	detail.position = Vector2(14, 52)
+	detail.size = Vector2(216, 22)
 	detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	detail.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	button.add_child(detail)
+	var art := TextureRect.new()
+	art.name = "Art"
+	art.texture = art_tex
+	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	art.position = Vector2(8, 76)
+	art.size = Vector2(228, 122)
+	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	art.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	button.add_child(art)
 	return button
 
 
@@ -1166,8 +3502,8 @@ func _wide_card(title: String, body: String, trailing: String) -> Button:
 	button.text = ""
 	button.custom_minimum_size = Vector2(0, 86)
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_paint_button(button, CARD, Color(1, 0.55, 0.72, 0.85), CREAM, 16, 14)
-	var heading := _label(title, 16, CREAM, bold_font)
+	_paint_button(button, CARD, GOLD, CREAM, 16, 14)
+	var heading := _label(title, 16, GOLD, bold_font)
 	heading.name = "Heading"
 	heading.position = Vector2(14, 12)
 	heading.size = Vector2(320, 24)
@@ -1177,7 +3513,7 @@ func _wide_card(title: String, body: String, trailing: String) -> Button:
 	detail.size = Vector2(330, 36)
 	detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	button.add_child(detail)
-	var trail := _label(trailing, 13, PINK, bold_font)
+	var trail := _label(trailing, 13, GOLD, bold_font)
 	trail.name = "Trail"
 	trail.anchor_left = 1.0
 	trail.anchor_right = 1.0
@@ -1190,27 +3526,159 @@ func _wide_card(title: String, body: String, trailing: String) -> Button:
 	return button
 
 
-func _shop_row(title: String, trailing: String, owned: bool) -> Button:
-	var button := _wide_card(title, "Round-board colour", trailing)
+func _shop_row(title: String, trailing: String, owned: bool, pal_index: int = 1) -> Button:
+	var button := Button.new()
+	button.text = ""
+	button.custom_minimum_size = Vector2(0, 96)
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_paint_button(button, CARD, GOLD, CREAM, 16, 12, 2)
+	var row := HBoxContainer.new()
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_theme_constant_override("separation", 14)
+	row.set_anchors_preset(Control.PRESET_FULL_RECT)
+	row.offset_left = 12
+	row.offset_right = -12
+	row.offset_top = 10
+	row.offset_bottom = -10
+	var orb := TextureRect.new()
+	orb.custom_minimum_size = Vector2(64, 64)
+	orb.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	orb.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	orb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	orb.texture = Kit.preview({
+		"bowl_skin": "both",
+		"bowl_color": pal_index,
+		"disc_skin": "both",
+		"disc_color": pal_index,
+	}, true)
+	row.add_child(orb)
+	var copy := VBoxContainer.new()
+	copy.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	copy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	copy.alignment = BoxContainer.ALIGNMENT_CENTER
+	var heading := _label(title, 16, GOLD, bold_font)
+	heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	copy.add_child(heading)
+	copy.add_child(_label("Round-board colour", 13, MUTED, body_font))
+	row.add_child(copy)
+	var badge := _label(trailing, 13, GOLD, bold_font)
+	badge.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row.add_child(badge)
+	button.add_child(row)
 	button.pressed.connect(func() -> void:
 		if owned:
-			_toast("Club pink is the disc you own.")
+			_toast("Match red is the disc you own.")
 		else:
 			_toast("Locked. Flick coins are not on this build.")
 	)
 	if not owned:
-		button.modulate = Color(1, 1, 1, 0.78)
+		button.modulate = Color(1, 1, 1, 0.82)
+	return button
+
+
+func _theme_orb(skin_id: String, caption: String) -> Button:
+	var button := Button.new()
+	button.text = ""
+	button.custom_minimum_size = Vector2(0, 78)
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.focus_mode = Control.FOCUS_NONE
+	button.action_mode = BaseButton.ACTION_MODE_BUTTON_PRESS
+	button.set_meta("skin_id", skin_id)
+	button.pressed.connect(_pick_skin.bind(skin_id))
+	var col := VBoxContainer.new()
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.alignment = BoxContainer.ALIGNMENT_CENTER
+	col.add_theme_constant_override("separation", 4)
+	col.set_anchors_preset(Control.PRESET_FULL_RECT)
+	col.offset_left = 4
+	col.offset_right = -4
+	col.offset_top = 6
+	col.offset_bottom = -6
+	var orb := TextureRect.new()
+	orb.name = "Orb"
+	orb.custom_minimum_size = Vector2(46, 46)
+	orb.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	orb.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	orb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	orb.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	col.add_child(orb)
+	var label := _label(caption, 10, MUTED, bold_font)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	col.add_child(label)
+	button.add_child(col)
 	return button
 
 
 func _title(text: String) -> Label:
-	var label := _label(text, 40, CREAM, title_font)
+	var label := _label(text, 40, GOLD, title_font)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	return label
 
 
 func _kicker(text: String) -> Label:
-	return _label(text, 12, PINK, bold_font)
+	return _label(text, 12, CREAM, bold_font)
+
+
+func _glyph(text: String, size: int) -> Label:
+	var label := Label.new()
+	label.text = text
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if emoji_font != null:
+		label.add_theme_font_override("font", emoji_font)
+	label.add_theme_font_size_override("font_size", size)
+	label.add_theme_color_override("font_color", CREAM)
+	return label
+
+
+func _chip_row(page: Control, pos: Vector2, captions: PackedStringArray, pick: Callable) -> Array:
+	var chips: Array = []
+	var gap := 12.0
+	var wide := (500.0 - gap * float(captions.size() - 1)) / float(captions.size())
+	for i in captions.size():
+		var button := _button(captions[i], 13)
+		_place(page, button, Vector2(pos.x + float(i) * (wide + gap), pos.y), Vector2(wide, 48))
+		var idx := i
+		button.pressed.connect(func() -> void:
+			_tap()
+			pick.call(idx)
+		)
+		chips.append(button)
+	return chips
+
+
+func _paint_chips(chips: Array, current: int) -> void:
+	for i in chips.size():
+		if not chips[i].visible:
+			continue
+		var on := i == current
+		var fill := BLUE_LIT if on else Color(0.07, 0.14, 0.30, 0.96)
+		var border := Color("#8EC4FF") if on else Color(0.28, 0.48, 0.88, 0.45)
+		_paint_button(chips[i], fill, border, CREAM, 14, 4, 2 if on else 1)
+
+
+func _layout_chips(chips: Array, captions: PackedStringArray, pos: Vector2, total_w: float = 500.0) -> void:
+	var gap := 12.0
+	var count := captions.size()
+	if count <= 0:
+		return
+	var wide := (total_w - gap * float(count - 1)) / float(count)
+	for i in chips.size():
+		var chip: Button = chips[i]
+		if i < count:
+			chip.visible = true
+			chip.text = captions[i]
+			chip.clip_text = true
+			chip.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+			# Min size first: a leftover 500px min from "4 ROUNDS" would
+			# clamp size and stack 1 END under 4 ENDS.
+			chip.custom_minimum_size = Vector2(wide, 48)
+			chip.size = Vector2(wide, 48)
+			chip.position = Vector2(pos.x + float(i) * (wide + gap), pos.y)
+		else:
+			chip.visible = false
+			chip.custom_minimum_size = Vector2(0, 48)
+			chip.size = Vector2(0, 48)
 
 
 func _wrapped(text: String) -> Label:
@@ -1229,7 +3697,8 @@ func _row_button(text: String, on_press: Callable) -> Button:
 	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	button.custom_minimum_size = Vector2(0, 60)
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_paint_button(button, Color(0.08, 0.07, 0.16, 0.88), Color("#873EFF"), CREAM, 16, 18, 2)
+	_paint_button(button, PLUM, GOLD, CREAM, 16, 18, 2)
+	button.pressed.connect(_tap)
 	_chevron(button)
 	if on_press.is_valid():
 		button.pressed.connect(on_press)
@@ -1240,14 +3709,16 @@ func _primary(text: String, on_press: Callable) -> Button:
 	var button := _button(text, 18)
 	button.custom_minimum_size = Vector2(0, 68)
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_paint_button(button, Color("#873EFF"), Color("#C4AEFF"), Color("#F7F4FF"), 16, 12, 0)
-	_chevron(button)
+	_paint_button(button, GOLD, Color("#FFE9A0"), Color("#1A1208"), 18, 12, 2)
+	button.add_theme_color_override("font_hover_color", Color("#1A1208"))
+	button.add_theme_color_override("font_pressed_color", Color("#1A1208"))
+	button.pressed.connect(_tap)
 	button.pressed.connect(on_press)
 	return button
 
 
 func _chevron(button: Button) -> void:
-	var mark := _label("›", 22, PINK, bold_font)
+	var mark := _label("›", 22, GOLD, bold_font)
 	mark.anchor_left = 1.0
 	mark.anchor_right = 1.0
 	mark.offset_left = -36.0
@@ -1265,6 +3736,9 @@ func _button(text: String, font_size: int) -> Button:
 	button.add_theme_font_override("font", bold_font)
 	button.add_theme_font_size_override("font_size", font_size)
 	button.focus_mode = Control.FOCUS_NONE
+	# Fire on the press. Waiting for release made a small finger move
+	# cancel the tap, so it felt like the button clicked off.
+	button.action_mode = BaseButton.ACTION_MODE_BUTTON_PRESS
 	return button
 
 
@@ -1288,7 +3762,7 @@ func _gap(height: float) -> Control:
 func _chip(page: Control, pos: Vector2) -> Label:
 	var panel := Panel.new()
 	_place(page, panel, pos, Vector2(38, 38))
-	panel.add_theme_stylebox_override("panel", _flat(PLUM, PINK, 1, 10, 0))
+	panel.add_theme_stylebox_override("panel", _flat(PLUM, GOLD, 1, 10, 0))
 	var label := _label("0", 16, CREAM, bold_font)
 	label.set_anchors_preset(Control.PRESET_FULL_RECT)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1303,8 +3777,55 @@ func _mark_rect() -> TextureRect:
 	mark.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	mark.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	mark.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	mark.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	return mark
+
+
+func _bowl_portrait() -> Texture2D:
+	if bowl_tex != null:
+		return bowl_tex
+	var src: Image = null
+	var packed: Texture2D = load("res://assets/bowls/textures/bowl_color_1.jpg")
+	if packed != null:
+		src = packed.get_image()
+		if src != null and src.is_compressed():
+			src.decompress()
+	var size := 256
+	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var light := Vector3(-0.32, 0.78, 0.54).normalized()
+	var spec_dir := Vector3(-0.12, 0.62, 0.78).normalized()
+	for y in size:
+		for x in size:
+			var nx := (float(x) + 0.5) / float(size) * 2.0 - 1.0
+			var ny := (float(y) + 0.5) / float(size) * 2.0 - 1.0
+			var sy := ny * 1.06
+			var r2 := nx * nx + sy * sy
+			if r2 > 1.0:
+				continue
+			var nz := sqrt(maxf(0.0, 1.0 - r2))
+			var n := Vector3(nx, -sy, nz).normalized()
+			var wrap := 0.16 + 0.84 * clampf(n.dot(light), 0.0, 1.0)
+			var spec := pow(clampf(n.dot(spec_dir), 0.0, 1.0), 32.0)
+			var u := 0.5 + atan2(n.x, n.z) / TAU
+			var v := 0.5 - asin(clampf(n.y, -1.0, 1.0)) / PI
+			var col := Color("#1A3A88")
+			if src != null and not src.is_empty():
+				var px := Vector2i(
+					posmod(int(u * float(src.get_width())), src.get_width()),
+					posmod(int(v * float(src.get_height())), src.get_height())
+				)
+				col = src.get_pixelv(px)
+			col = Color(col.r * wrap, col.g * wrap, col.b * wrap, 1.0)
+			col = col.lerp(Color(0.95, 0.97, 1.0), spec * 0.58)
+			var ring := absf(fmod(v * 7.0, 1.0) - 0.5)
+			if ring < 0.055 and absf(n.y) < 0.62:
+				col = col.lerp(Color(0.92, 0.94, 0.98), 0.28)
+			var a := clampf((1.0 - r2) / 0.07, 0.0, 1.0)
+			col.a = a
+			img.set_pixel(x, y, col)
+	bowl_tex = ImageTexture.create_from_image(img)
+	return bowl_tex
 
 
 func _place(parent: Control, node: Control, pos: Vector2, box: Vector2) -> void:
@@ -1317,7 +3838,7 @@ func _place(parent: Control, node: Control, pos: Vector2, box: Vector2) -> void:
 func _paint_button(button: Button, fill: Color, border: Color, font_color: Color, radius: int, side: int, width: int = 1) -> void:
 	button.add_theme_stylebox_override("normal", _flat(fill, border, width, radius, side))
 	button.add_theme_stylebox_override("hover", _flat(fill.lightened(0.12), border, width, radius, side))
-	button.add_theme_stylebox_override("pressed", _flat(fill.darkened(0.08), Color("#C4AEFF"), width, radius, side))
+	button.add_theme_stylebox_override("pressed", _flat(fill.darkened(0.08), GOLD, width, radius, side))
 	button.add_theme_stylebox_override("disabled", _flat(fill, border, width, radius, side))
 	button.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	button.add_theme_color_override("font_color", font_color)
@@ -1327,6 +3848,10 @@ func _paint_button(button: Button, fill: Color, border: Color, font_color: Color
 
 
 func _flat(fill: Color, border: Color, width: int, radius: int, side: int) -> StyleBoxFlat:
+	return _chrome(fill, border, width, radius, side, 1.7, Color(0, 0, 0, 0.48))
+
+
+func _chrome(fill: Color, border: Color, width: int, radius: int, side: int, lift: float, shade: Color) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = fill
 	style.border_color = border
@@ -1336,11 +3861,11 @@ func _flat(fill: Color, border: Color, width: int, radius: int, side: int) -> St
 	style.content_margin_right = side
 	style.content_margin_top = 6
 	style.content_margin_bottom = 6
-	if radius >= 12 and fill.a > 0.5:
-		style.shadow_color = Color(0.0, 0.0, 0.0, 0.45)
-		style.shadow_size = 7
-		style.shadow_offset = Vector2(0, 3)
-		style.anti_aliasing = true
+	style.anti_aliasing = true
+	if fill.a > 0.4 and lift > 0.0:
+		style.shadow_color = shade
+		style.shadow_size = int(round(8.0 * lift))
+		style.shadow_offset = Vector2(0, 3.0 * lift)
 	return style
 
 
@@ -1349,13 +3874,13 @@ func _style_edit(edit: LineEdit) -> void:
 	edit.add_theme_font_size_override("font_size", 18)
 	edit.add_theme_color_override("font_color", CREAM)
 	edit.add_theme_color_override("font_placeholder_color", Color("#8d7d88"))
-	edit.add_theme_color_override("caret_color", PINK)
-	var box := _flat(PLUM, PINK, 1, 14, 14)
+	edit.add_theme_color_override("caret_color", GOLD)
+	var box := _flat(PLUM, GOLD, 1, 14, 14)
 	edit.add_theme_stylebox_override("normal", box)
-	edit.add_theme_stylebox_override("focus", _flat(PLUM, Color("#ffd0ea"), 2, 14, 14))
+	edit.add_theme_stylebox_override("focus", _flat(PLUM, GOLD, 2, 14, 14))
 
 
-class Mark extends Control:
+class Stamp extends Control:
 	var kind := "home"
 	var lit := false
 
@@ -1364,30 +3889,142 @@ class Mark extends Control:
 		queue_redraw()
 
 	func _draw() -> void:
-		var color := Color("#ff3d8a") if lit else Color("#8d7d88")
 		var box := size
 		if box.x < 2.0:
-			box = Vector2(26, 26)
+			box = Vector2(52, 52)
 		var mid := box * 0.5
-		if kind == "home":
-			draw_colored_polygon(PackedVector2Array([
-				Vector2(mid.x, 3),
-				Vector2(box.x - 2, mid.y + 1),
-				Vector2(box.x - 6, mid.y + 1),
-				Vector2(box.x - 6, box.y - 3),
-				Vector2(6, box.y - 3),
-				Vector2(6, mid.y + 1),
-				Vector2(2, mid.y + 1),
-			]), color)
-		elif kind == "profile":
-			draw_arc(Vector2(mid.x, 8), 4.2, 0, TAU, 16, color, 1.7, true)
-			draw_arc(Vector2(mid.x, 24), 8, PI + 0.4, TAU - 0.4, 16, color, 1.7, true)
-		elif kind == "customise":
-			draw_arc(mid, 8, 0, TAU, 24, color, 1.7, true)
-			draw_circle(mid, 2.4, color)
-		elif kind == "shop":
-			draw_rect(Rect2(6, 10, box.x - 12, box.y - 14), color, false, 1.7)
-			draw_arc(Vector2(mid.x, 10), 4, PI, TAU, 12, color, 1.7, true)
-		else:
-			draw_arc(mid, 7, 0, TAU, 20, color, 1.7, true)
-			draw_circle(mid, 2.2, color)
+		var r := minf(mid.x, mid.y) - 1.0
+		var accent := Color("#F5C84B")
+		var cream := Color("#F4F7FF")
+		var grass := Color("#2E9A4A")
+		var gold := Color("#F5C84B")
+		var ink := Color("#07101C")
+		var navy := Color("#163A88")
+		draw_circle(mid, r, Color(navy.r, navy.g, navy.b, 0.95 if lit else 0.55))
+		draw_circle(mid, r * 0.86, Color(0.04, 0.10, 0.22, 0.92 if lit else 0.72))
+		draw_circle(mid + Vector2(-r * 0.22, -r * 0.28), r * 0.38, Color(1, 1, 1, 0.08))
+		if lit:
+			var ring := clampf(r * 0.07, 2.2, 3.4)
+			draw_arc(mid, r - ring * 0.45, 0.0, TAU, 64, gold, ring, true)
+		match kind:
+			"home":
+				_house(mid, r * 0.62, cream)
+			"profile":
+				_face(mid, r * 0.58, cream, accent)
+			"customise":
+				_bowl(mid, r * 0.58, cream, accent, ink)
+			"shop":
+				_bag(mid, r * 0.58, cream, gold)
+			"settings":
+				_gear(mid, r * 0.52, cream)
+				draw_circle(mid, r * 0.18, ink)
+				draw_circle(mid, r * 0.08, gold)
+			"green", "lawn":
+				_rink(mid, r * 0.7, grass, cream, Color("#E12A32"))
+			"crazy":
+				_crazy_stamp(mid, r * 0.7, grass, cream, gold)
+			"solo":
+				_target(mid, r * 0.62, cream, navy, gold)
+			"practice":
+				_jack(mid, r * 0.42, cream, gold)
+			"board":
+				_cup(mid, r * 0.62, gold, cream)
+			"crokin":
+				_board(mid, r * 0.68, cream, navy, gold)
+			_:
+				draw_circle(mid, r * 0.28, cream)
+
+	func _house(mid: Vector2, span: float, color: Color) -> void:
+		draw_colored_polygon(PackedVector2Array([
+			Vector2(mid.x, mid.y - span),
+			Vector2(mid.x + span, mid.y - span * 0.18),
+			Vector2(mid.x - span, mid.y - span * 0.18),
+		]), color)
+		draw_rect(Rect2(mid.x - span * 0.62, mid.y - span * 0.18, span * 1.24, span * 0.92), color, true)
+		draw_rect(Rect2(mid.x - span * 0.14, mid.y + span * 0.08, span * 0.28, span * 0.66), Color("#1A0610"), true)
+
+	func _face(mid: Vector2, span: float, color: Color, pink: Color) -> void:
+		draw_circle(Vector2(mid.x, mid.y - span * 0.38), span * 0.42, color)
+		draw_colored_polygon(PackedVector2Array([
+			Vector2(mid.x, mid.y - span * 0.05),
+			Vector2(mid.x + span * 0.82, mid.y + span * 0.92),
+			Vector2(mid.x - span * 0.82, mid.y + span * 0.92),
+		]), color)
+		draw_circle(Vector2(mid.x, mid.y + span * 0.55), span * 0.16, pink)
+
+	func _bowl(mid: Vector2, span: float, cream: Color, pink: Color, ink: Color) -> void:
+		draw_circle(mid, span, cream)
+		draw_circle(mid, span * 0.72, ink)
+		draw_circle(mid, span * 0.28, pink)
+		draw_arc(mid, span * 0.88, -0.7, 1.1, 12, Color(1, 1, 1, 0.55), 2.4, true)
+
+	func _bag(mid: Vector2, span: float, cream: Color, gold: Color) -> void:
+		draw_colored_polygon(PackedVector2Array([
+			Vector2(mid.x - span * 0.72, mid.y - span * 0.12),
+			Vector2(mid.x + span * 0.72, mid.y - span * 0.12),
+			Vector2(mid.x + span * 0.58, mid.y + span * 0.92),
+			Vector2(mid.x - span * 0.58, mid.y + span * 0.92),
+		]), cream)
+		draw_arc(Vector2(mid.x, mid.y - span * 0.12), span * 0.42, PI, TAU, 14, cream, 3.0, true)
+		draw_circle(mid + Vector2(0, span * 0.28), span * 0.16, gold)
+
+	func _crazy_stamp(mid: Vector2, span: float, grass: Color, cream: Color, gold: Color) -> void:
+		draw_rect(Rect2(mid.x - span * 0.82, mid.y - span * 0.92, span * 1.64, span * 1.84), Color("#163C22"), true)
+		draw_rect(Rect2(mid.x - span * 0.58, mid.y - span * 0.86, span * 1.16, span * 1.68), grass, true)
+		draw_circle(Vector2(mid.x + span * 0.12, mid.y - span * 0.28), span * 0.22, Color("#0A1208"))
+		draw_circle(Vector2(mid.x + span * 0.12, mid.y - span * 0.28), span * 0.1, Color("#07101C"))
+		draw_line(Vector2(mid.x + span * 0.12, mid.y - span * 0.48), Vector2(mid.x + span * 0.12, mid.y - span * 0.92), gold, 2.0, true)
+		draw_colored_polygon(PackedVector2Array([
+			Vector2(mid.x + span * 0.12, mid.y - span * 0.92),
+			Vector2(mid.x + span * 0.58, mid.y - span * 0.78),
+			Vector2(mid.x + span * 0.12, mid.y - span * 0.64),
+		]), Color("#E12A32"))
+		draw_circle(Vector2(mid.x - span * 0.22, mid.y + span * 0.42), span * 0.2, cream)
+
+	func _rink(mid: Vector2, span: float, grass: Color, cream: Color, pink: Color) -> void:
+		draw_rect(Rect2(mid.x - span * 0.72, mid.y - span * 0.92, span * 1.44, span * 1.84), Color("#163C22"), true)
+		draw_rect(Rect2(mid.x - span * 0.28, mid.y - span * 0.88, span * 0.56, span * 1.72), grass, true)
+		draw_rect(Rect2(mid.x - span * 0.22, mid.y - span * 0.78, span * 0.44, span * 1.52), Color("#1F6B34"), true)
+		draw_circle(Vector2(mid.x, mid.y - span * 0.48), span * 0.14, cream)
+		draw_circle(Vector2(mid.x - span * 0.08, mid.y + span * 0.18), span * 0.24, pink)
+		draw_circle(Vector2(mid.x + span * 0.16, mid.y + span * 0.42), span * 0.22, Color("#2A6AD4"))
+		draw_arc(Vector2(mid.x - span * 0.08, mid.y + span * 0.18), span * 0.24, -0.6, 1.2, 10, Color(1, 1, 1, 0.45), 1.8, true)
+
+	func _target(mid: Vector2, span: float, cream: Color, pink: Color, gold: Color) -> void:
+		draw_circle(mid, span, cream)
+		draw_circle(mid, span * 0.72, pink)
+		draw_circle(mid, span * 0.46, cream)
+		draw_circle(mid, span * 0.22, gold)
+
+	func _jack(mid: Vector2, span: float, cream: Color, gold: Color) -> void:
+		draw_circle(mid, span, cream)
+		draw_circle(mid, span * 0.62, gold)
+		draw_arc(mid + Vector2(-span * 0.15, -span * 0.55), span * 1.15, -0.2, 1.4, 10, Color("#FF8A3A"), 3.2, true)
+		draw_arc(mid + Vector2(span * 0.2, -span * 0.7), span * 1.05, 1.8, 3.2, 10, Color("#FF5C2A"), 2.6, true)
+
+	func _cup(mid: Vector2, span: float, gold: Color, cream: Color) -> void:
+		draw_colored_polygon(PackedVector2Array([
+			Vector2(mid.x - span * 0.55, mid.y - span * 0.55),
+			Vector2(mid.x + span * 0.55, mid.y - span * 0.55),
+			Vector2(mid.x + span * 0.28, mid.y + span * 0.22),
+			Vector2(mid.x - span * 0.28, mid.y + span * 0.22),
+		]), gold)
+		draw_rect(Rect2(mid.x - span * 0.12, mid.y + span * 0.18, span * 0.24, span * 0.38), gold, true)
+		draw_rect(Rect2(mid.x - span * 0.38, mid.y + span * 0.52, span * 0.76, span * 0.16), cream, true)
+		draw_arc(Vector2(mid.x - span * 0.55, mid.y - span * 0.22), span * 0.32, PI * 0.45, PI * 1.45, 10, gold, 2.6, true)
+		draw_arc(Vector2(mid.x + span * 0.55, mid.y - span * 0.22), span * 0.32, -PI * 0.45, PI * 0.55, 10, gold, 2.6, true)
+
+	func _board(mid: Vector2, span: float, cream: Color, pink: Color, gold: Color) -> void:
+		draw_circle(mid, span, Color("#7A3A18"))
+		draw_circle(mid, span * 0.78, Color("#C4783A"))
+		draw_circle(mid, span * 0.52, cream)
+		draw_circle(mid, span * 0.28, pink)
+		draw_circle(mid, span * 0.12, gold)
+
+	func _gear(mid: Vector2, radius: float, color: Color) -> void:
+		var pts := PackedVector2Array()
+		for i in 16:
+			var ang := float(i) * TAU / 16.0 - PI * 0.5
+			var r := radius if i % 2 == 0 else radius * 0.62
+			pts.append(mid + Vector2(cos(ang), sin(ang)) * r)
+		draw_colored_polygon(pts, color)

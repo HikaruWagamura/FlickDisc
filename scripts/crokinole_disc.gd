@@ -55,6 +55,25 @@ func guide_points() -> PackedVector3Array:
 	return _guide_world
 
 
+func cue_points(_power: float) -> PackedVector3Array:
+	# Straight flick from the rest spot on the board, along the aim line
+	# toward the hole. Pull only changes colour.
+	var dir := Vector3(aim_direction.x, 0.0, aim_direction.z)
+	if dir.length() < 0.001:
+		dir = Vector3(0.0, 0.0, -1.0)
+	dir = dir.normalized()
+	var origin := global_position
+	if active_puck != null:
+		origin = active_puck.global_position
+	var start := Vector3(origin.x, 0.0, origin.z)
+	var length := 0.58
+	var out := PackedVector3Array()
+	for step in 16:
+		var t := float(step) / 15.0
+		out.append(start + dir * (length * t))
+	return out
+
+
 func show_aim_line(aim: Vector3, showing: bool) -> void:
 	if active_puck == null or shot_in_progress or not showing:
 		if is_aiming:
@@ -70,6 +89,24 @@ func show_aim_line(aim: Vector3, showing: bool) -> void:
 	is_aiming = true
 	global_position = active_puck.global_position
 	_rebuild_guide()
+
+
+func preview_take(aim: Vector3, power: float) -> void:
+	if active_puck == null or shot_in_progress:
+		if is_aiming:
+			is_aiming = false
+			power_ratio = 0.0
+			_clear_guide()
+		return
+	var direction := aim
+	if direction.length() < 0.001:
+		direction = Vector3(0.0, 0.0, -1.0)
+	aim_direction = direction.normalized()
+	power_ratio = clampf(power, 0.0, 1.0)
+	is_aiming = power_ratio > 0.02
+	global_position = active_puck.global_position
+	# Five straight heads come from aim_cue. Keep the old dotted guide off.
+	_clear_guide()
 
 
 func set_bias(value: float) -> void:
@@ -141,7 +178,7 @@ func _launch() -> void:
 	active_puck.velocity.y = 0.0
 	active_puck.moving = true
 	active_puck.played = true
-	active_puck.shot_bias = bias_ratio
+	active_puck.shot_bias = 0.0
 	active_puck.stop_timer = 0.0
 	shot_in_progress = true
 	shot_started.emit()
@@ -253,13 +290,7 @@ func _rebuild_guide() -> void:
 		direction = Vector3(0.0, 0.0, -1.0)
 	direction = direction.normalized()
 	var limit := Metrics.DITCH_OUTER - Metrics.DISC_RADIUS
-	for step_index in range(1, steps + 1):
-		var progress := float(step_index) / float(steps)
-		direction = direction.rotated(Vector3.UP, -bias_ratio * 0.07 * (1.0 - progress))
-		direction.y = 0.0
-		if direction.length() < 0.001:
-			break
-		direction = direction.normalized()
+	for _step_index in range(1, steps + 1):
 		var next_point := point + direction * (length / float(steps))
 		var flat := Vector2(global_position.x + next_point.x, global_position.z + next_point.z)
 		if flat.length() > limit or _blocked(flat):

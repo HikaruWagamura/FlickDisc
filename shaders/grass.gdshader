@@ -1,11 +1,14 @@
 shader_type spatial;
-render_mode cull_back, diffuse_burley, specular_schlick_ggx;
+render_mode cull_back, diffuse_burley, specular_schlick_ggx, shadows_disabled;
 
 uniform vec3 stripe_a : source_color = vec3(0.486, 0.690, 0.251);
 uniform vec3 stripe_b : source_color = vec3(0.345, 0.545, 0.176);
 uniform float stripe_width = 0.48;
 uniform float half_width = 2.9;
 uniform float depth_fade = 0.16;
+uniform sampler2D grass_tex : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform float grass_tex_scale = 2.4;
+uniform bool use_grass_tex = false;
 
 varying vec3 world_position;
 
@@ -34,13 +37,17 @@ void fragment() {
 	vec3 color = mix(stripe_b, stripe_a, stripe);
 	float patch = value_noise(world_position.xz * 0.33);
 	float grain = value_noise(world_position.xz * 5.5);
-	color *= 0.94 + patch * 0.08 + grain * 0.03;
+	color *= 0.97 + patch * 0.06 + grain * 0.02;
 	float edge = smoothstep(half_width - 0.7, half_width - 0.02, abs(world_position.x));
-	color = mix(color, color * vec3(0.80, 0.88, 0.74), edge * 0.65);
+	color = mix(color, color * vec3(0.72, 0.95, 0.55), edge * 0.35);
 	float depth = clamp((-world_position.z) / 40.0, 0.0, 1.0);
-	color = mix(color, color * vec3(0.84, 0.92, 0.80), depth * depth_fade);
+	color = mix(color, color * vec3(0.86, 1.0, 0.82), depth * depth_fade);
+	if (use_grass_tex) {
+		vec2 tile = vec2(world_position.x, world_position.z) / max(grass_tex_scale, 0.05);
+		color = texture(grass_tex, tile).rgb * 0.62;
+	}
 	ALBEDO = color;
-	ROUGHNESS = 0.92;
-	SPECULAR = 0.06;
+	ROUGHNESS = 0.78;
+	SPECULAR = 0.12;
 	METALLIC = 0.0;
 }

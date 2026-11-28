@@ -1,31 +1,55 @@
 class_name RinkView
 extends Node3D
 
-## Long lawn-bowls rink. The playing surface is 68 m by 11 m.
+## Long lawn-bowls rink. The playing surface is 68 m by 12 m.
 ## Banks rebound unless ditch mode is on. Then a narrow ditch at each side
 ## and at the far end can take a bowl, and two spare jacks sit on the back bank.
 
-const LENGTH := 68.0
-const HALF_WIDTH := 5.5
 const DITCH_W := 0.88
+## Crystal Mark 2 m mark, plus extra grass so a knock toward the
+## ditch has room before it falls in. Law 9.2 / 56.5 use this T.
+const TEE_FROM_DITCH := 8.0
 const SHORT_MIN := 14.0
 const SHORT_MAX := 28.0
 const LONG_MIN := 44.0
 const NEAR_Z := 0.0
-const FAR_Z := -LENGTH
 const DISC_Z := -1.65
 const SURFACE_Y := 0.0
+## A match rink is 68 m by 12 m. The long green stretches both.
+var LENGTH := 68.0
+var HALF_WIDTH := 6.0
+var FAR_Z := -68.0
+
+
+func prepare_span(next_length: float, next_half: float) -> void:
+	LENGTH = next_length
+	HALF_WIDTH = next_half
+	FAR_Z = -next_length
+
+
+func tee_z() -> float:
+	return FAR_Z + TEE_FROM_DITCH
 
 var head: Node3D
 var _camera: Camera3D
-var _home_position := Vector3(0.0, 9.2, 10.8)
-var _home_look := Vector3(0.0, 0.28, -18.0)
-var _home_fov := 49.0
-var _zoom_position := Vector3(0.0, 9.2, 10.8)
-var _zoom_look := Vector3(0.0, 0.28, -18.0)
-var _zoom_fov := 34.0
-var _zoom_weight := 0.0
-var _zoom_goal := 0.0
+var pose_lock := false
+## Chase rides behind the running bowl. Behind stays on the mat and looks up the green.
+var chase := true
+var overview := false
+var _overview_look := Vector3(0.0, 0.0, -22.0)
+var _overview_pan := Vector2.ZERO
+var _aiming := false
+var _shot_pos := Vector3(0.0, 0.0, -4.0)
+var _shot_vel := Vector3.ZERO
+var _shot_live := false
+var _mat := Vector3(0.0, 0.0, -4.05)
+var _head := Vector3(0.0, 0.0, -22.0)
+var _head_hold := false
+var _head_gap := 0.0
+var _cam_pos := Vector3(0.0, 0.62, -1.95)
+var _cam_look := Vector3(0.0, 0.15, -20.0)
+var _cam_fov := 42.0
+var _cam_ready := false
 var _rebound_frame: Node3D
 var _ditch_frame: Node3D
 var _spare_dots: Array[MeshInstance3D] = []
@@ -41,10 +65,12 @@ var _flower_mats: Array[StandardMaterial3D] = []
 var _stem_mat: StandardMaterial3D
 var _white_line: StandardMaterial3D
 var _gold: StandardMaterial3D
+var _lawn_tex: Texture2D
 
 
 func _ready() -> void:
 	_grass_shader = load("res://shaders/grass.gdshader")
+	_lawn_tex = load("res://assets/grass/lawn_cut.jpg")
 	_wood_shader = load("res://shaders/wood.gdshader")
 	_path_shader = load("res://shaders/path.gdshader")
 	_prepare_materials()
@@ -56,6 +82,26 @@ func _ready() -> void:
 	_build_surrounds()
 	_build_clubhouse()
 	_build_head()
+
+
+var _mark: Node3D
+
+
+func place_mark(at: Vector3) -> void:
+	if _mark == null:
+		_mark = Node3D.new()
+		_mark.name = "MysteryMark"
+		add_child(_mark)
+		var cloth := _lit(Color(0.82, 0.16, 0.18), 0.48)
+		_cylinder(_mark, Vector3(0.0, 0.85, 0.0), 0.035, 1.7, _gold, Vector3.ZERO, 8, false)
+		_box(_mark, Vector3(0.32, 1.55, 0.0), Vector3(0.58, 0.32, 0.03), cloth, Vector3.ZERO, false)
+		_cylinder(_mark, Vector3(0.0, 0.02, 0.0), 0.62, 0.025, _gold, Vector3.ZERO, 18, false)
+	_mark.position = Vector3(at.x, 0.0, at.z)
+	_mark.visible = true
+
+
+func has_mark() -> bool:
+	return _mark != null and _mark.visible
 
 
 func place_head(jack_xz: Vector2) -> void:
@@ -78,10 +124,10 @@ func _prepare_materials() -> void:
 	_trunk_mat = _lit(Color(0.40, 0.26, 0.14), 0.86)
 	_stem_mat = _lit(Color(0.22, 0.48, 0.20), 0.8)
 	var greens := [
-		Color(0.17, 0.42, 0.20),
-		Color(0.12, 0.34, 0.16),
-		Color(0.22, 0.48, 0.22),
-		Color(0.10, 0.30, 0.14),
+		Color(0.20, 0.72, 0.28),
+		Color(0.12, 0.55, 0.22),
+		Color(0.32, 0.82, 0.30),
+		Color(0.16, 0.62, 0.24),
 	]
 	for green in greens:
 		_leaf_mats.append(_lit(green, 0.9))
@@ -114,13 +160,21 @@ func _build_environment() -> void:
 	sky_mat.sun_curve = 0.07
 	sky.sky_material = sky_mat
 	env.sky = sky
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_energy = 0.42
+	# A fixed fill, not the sky. Sky ambient darkens when the lens looks
+	# down at the head, and that dim stayed into the next end.
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = Color(0.82, 0.90, 0.98)
+	env.ambient_light_energy = 0.62
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	env.glow_enabled = true
+	env.glow_intensity = 0.06
+	env.glow_strength = 0.22
+	env.glow_bloom = 0.0
+	env.glow_hdr_threshold = 1.45
 	env.fog_enabled = true
 	env.fog_mode = Environment.FOG_MODE_EXPONENTIAL
-	env.fog_density = 0.0026
+	env.fog_density = 0.00048 if LENGTH > 200.0 else 0.0026
 	env.fog_light_color = Color(0.76, 0.86, 0.95)
 	env.fog_aerial_perspective = 0.28
 	env.fog_sun_scatter = 0.12
@@ -154,21 +208,21 @@ func _build_lights() -> void:
 	var sun := DirectionalLight3D.new()
 	sun.name = "Sun"
 	sun.light_color = Color(1.0, 0.96, 0.88)
-	sun.light_energy = 1.08
+	sun.light_energy = 1.22
 	sun.shadow_enabled = true
-	sun.shadow_bias = 0.04
-	sun.shadow_normal_bias = 1.4
-	sun.shadow_blur = 1.15
-	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
-	sun.directional_shadow_max_distance = 150.0
-	sun.directional_shadow_blend_splits = true
-	sun.look_at_from_position(Vector3.ZERO, Vector3(0.42, -1.05, 0.48), Vector3.UP)
+	sun.shadow_opacity = 0.28
+	sun.shadow_bias = 0.02
+	sun.shadow_normal_bias = 0.8
+	sun.shadow_blur = 1.2
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
+	sun.directional_shadow_max_distance = 18.0
+	sun.look_at_from_position(Vector3.ZERO, Vector3(0.28, -1.2, -0.18), Vector3.UP)
 	add_child(sun)
 
 	var fill := DirectionalLight3D.new()
 	fill.name = "Fill"
 	fill.light_color = Color(0.70, 0.80, 1.0)
-	fill.light_energy = 0.32
+	fill.light_energy = 0.48
 	fill.shadow_enabled = false
 	fill.look_at_from_position(Vector3.ZERO, Vector3(-0.35, -0.9, -0.25), Vector3.UP)
 	add_child(fill)
@@ -179,33 +233,121 @@ func _build_camera() -> void:
 	camera.name = "GameCamera"
 	camera.fov = 42.0
 	camera.near = 0.08
-	camera.far = 240.0
+	camera.far = 1800.0 if LENGTH > 200.0 else 240.0
 	# Close to the mat so the bowl reads as a puck you can take hold of.
 	# The head camera below is unchanged.
-	camera.position = Vector3(0.0, 1.05, -1.2)
-	camera.look_at_from_position(camera.position, Vector3(0.0, 0.02, -8.5), Vector3.UP)
+	camera.fov = 48.0
+	camera.position = _cam_pos
+	camera.look_at_from_position(camera.position, _cam_look, Vector3.UP)
 	camera.current = true
 	add_child(camera)
 	_camera = camera
-	_home_position = camera.position
-	_home_look = Vector3(0.0, 0.02, -8.5)
-	_home_fov = camera.fov
-	_zoom_position = _home_position
-	_zoom_look = _home_look
+
+
+func note_delivery(pos: Vector3, vel: Vector3, live: bool, mat: Vector3, head_at: Vector3, aiming: bool = false) -> void:
+	_shot_pos = pos
+	_shot_vel = vel
+	_shot_live = live
+	_mat = mat
+	_aiming = aiming
+	if not _head_hold:
+		_head = head_at
 
 
 func _process(delta: float) -> void:
-	if _camera == null:
+	if _camera == null or pose_lock:
 		return
-	var previous := _zoom_weight
-	_zoom_weight = move_toward(_zoom_weight, _zoom_goal, delta * 0.85)
-	if absf(_zoom_weight - previous) < 0.0001:
-		return
-	var blend := _zoom_weight * _zoom_weight * (3.0 - 2.0 * _zoom_weight)
-	_camera.position = _home_position.lerp(_zoom_position, blend)
-	_camera.fov = lerpf(_home_fov, _zoom_fov, blend)
-	var look_at := _home_look.lerp(_zoom_look, blend)
-	_camera.look_at(look_at, Vector3.UP)
+	var goal_pos := Vector3.ZERO
+	var goal_look := Vector3.ZERO
+	var goal_fov := 48.0
+	var response := 5.0
+	if overview:
+		var look := _overview_look + Vector3(_overview_pan.x, 0.0, _overview_pan.y)
+		goal_pos = look + Vector3(0.0, 24.5, 16.8)
+		goal_look = look + Vector3(0.0, 0.04, 0.0)
+		goal_fov = 48.0
+		response = 3.4
+	elif _head_hold:
+		goal_look = _head + Vector3(0.0, 0.18, 0.0)
+		if _head_gap > 12.0:
+			var lift := clampf(_head_gap * 0.22, 4.0, 36.0)
+			var back := clampf(_head_gap * 0.28, 6.0, 42.0)
+			goal_pos = _head + Vector3(0.0, lift, back)
+			goal_fov = clampf(30.0 + _head_gap * 0.035, 34.0, 58.0)
+		else:
+			goal_pos = _head + Vector3(0.35, 3.5, 5.2)
+			goal_fov = 36.0
+		response = 2.7
+	elif _aiming and not _shot_live:
+		# Stay on the centre line while the bowl draws back. Following the
+		# stone's tiny sideways hold made the whole green jitter on aim.
+		goal_pos = Vector3(0.0, 0.96, _shot_pos.z + 2.55)
+		goal_look = Vector3(0.0, 0.08, _shot_pos.z - 12.5)
+		goal_fov = 42.0
+		response = 3.4
+	elif _shot_live and chase:
+		# Ride behind the running bowl. Stay on its line, not the rink
+		# centre, so a drawing stone does not slide off the frame.
+		var long_green := LENGTH > 200.0
+		var side := clampf(absf(_shot_pos.x) / (8.0 if long_green else 2.8), 0.0, 1.0)
+		var sunk := clampf(-_shot_pos.y / 0.16, 0.0, 1.0)
+		var x_cap := HALF_WIDTH * 0.72 if long_green else HALF_WIDTH - 1.15
+		var cam_x := clampf(_shot_pos.x, -x_cap, x_cap)
+		if long_green:
+			var run := clampf((_mat.z - _shot_pos.z) / 28.0, 0.0, 1.0)
+			var lift := maxf(maxf(side, sunk), run)
+			var trail := lerpf(2.8, 12.0, lift)
+			var height := lerpf(1.15, 7.0, lift)
+			var ahead := lerpf(8.0, 6.0, lift)
+			goal_pos = Vector3(cam_x, height, _shot_pos.z + trail)
+			goal_look = Vector3(cam_x, 0.12, _shot_pos.z - ahead)
+			response = 3.6
+		else:
+			goal_pos = Vector3(cam_x, 1.08, _shot_pos.z + 2.65)
+			goal_look = Vector3(cam_x, 0.14, _shot_pos.z - 4.8)
+			var to_head := _shot_pos.distance_to(_head)
+			if to_head < 10.0:
+				var ease := 1.0 - clampf(to_head / 10.0, 0.0, 1.0)
+				goal_pos.y = lerpf(1.08, 1.55, ease)
+				goal_pos.z = _shot_pos.z + lerpf(2.65, 3.6, ease)
+				goal_look.z = _shot_pos.z - lerpf(4.8, 3.4, ease)
+			response = 5.8
+		goal_fov = 42.0
+	elif _shot_live:
+		# Stay behind the mat and watch the bowl run away down the line.
+		goal_pos = Vector3(0.0, 0.62, _mat.z + 2.1)
+		goal_look = Vector3(_shot_pos.x * 0.35, 0.15, _shot_pos.z)
+		goal_fov = 42.0
+		response = 5.0
+	else:
+		var idle_look := 36.0 if LENGTH > 200.0 else 18.0
+		goal_pos = Vector3(0.0, 0.62, _mat.z + 2.1)
+		goal_look = Vector3(_mat.x * 0.12, 0.15, _mat.z - idle_look)
+		goal_fov = 42.0
+		response = 8.0
+	goal_pos.y = maxf(goal_pos.y, 0.42)
+	goal_look.y = maxf(goal_look.y, 0.12)
+	var x_limit := HALF_WIDTH * 0.7 if LENGTH > 200.0 else 4.2
+	goal_pos.x = clampf(goal_pos.x, -x_limit, x_limit)
+	var gap := _cam_pos.distance_to(goal_pos)
+	# Catch a lagging chase without whipping the lens at release.
+	if _shot_live and chase and gap > 10.0:
+		response = 4.6
+	if not _cam_ready:
+		_cam_pos = goal_pos
+		_cam_look = goal_look
+		_cam_fov = goal_fov
+		_cam_ready = true
+	var blend := 1.0 - exp(-response * delta)
+	_cam_pos = _cam_pos.lerp(goal_pos, blend)
+	_cam_look = _cam_look.lerp(goal_look, blend)
+	_cam_fov = lerpf(_cam_fov, goal_fov, blend)
+	_cam_pos.y = maxf(_cam_pos.y, 0.42)
+	_camera.position = _cam_pos
+	_camera.fov = _cam_fov
+	var toward := _cam_look - _cam_pos
+	if toward.length() > 0.5 and absf(toward.normalized().dot(Vector3.UP)) < 0.96:
+		_camera.look_at(_cam_look, Vector3.UP)
 
 
 func view_camera() -> Camera3D:
@@ -213,34 +355,74 @@ func view_camera() -> Camera3D:
 
 
 func focus_head(at: Vector3) -> void:
-	# Wide enough to show a bowl that has taken its hand a few metres
-	# off the jack, with the jack still in the middle.
-	_zoom_look = at + Vector3(0.0, 0.2, 0.0)
-	_zoom_position = at + Vector3(0.0, 14.0, 18.0)
-	_zoom_fov = 42.0
-	_zoom_goal = 1.0
+	# Rise off the chase so the head, the jack, and the bowl that just finished are in one frame.
+	_head = at
+	_head_gap = 0.0
+	_head_hold = true
+
+
+func focus_pair(a: Vector3, b: Vector3) -> void:
+	_head = (a + b) * 0.5
+	_head_gap = a.distance_to(b)
+	_head_hold = true
 
 
 func release_head() -> void:
-	_zoom_goal = 0.0
+	_head_hold = false
+	_head_gap = 0.0
+
+
+func enter_overview(head_at: Vector3) -> void:
+	overview = true
+	_head_hold = false
+	_overview_look = Vector3(head_at.x, 0.0, head_at.z)
+	_overview_pan = Vector2.ZERO
+
+
+func pan_overview(delta_xz: Vector2) -> void:
+	_overview_pan.x = clampf(_overview_pan.x + delta_xz.x, -8.5, 8.5)
+	_overview_pan.y = clampf(_overview_pan.y + delta_xz.y, -11.0, 11.0)
+
+
+func exit_overview() -> void:
+	overview = false
+	_overview_pan = Vector2.ZERO
+
+
+func reset_view() -> void:
+	# New end, same light as the first. Do not ease back from the head
+	# shot — that high look made the green read as a dark shadow.
+	_head_hold = false
+	_head_gap = 0.0
+	_shot_live = false
+	_aiming = false
+	_cam_ready = false
+	overview = false
+	_overview_pan = Vector2.ZERO
 
 
 func _build_grounds() -> void:
 	var outfield := _grass_material(
-		Color(0.22, 0.40, 0.16),
-		Color(0.16, 0.32, 0.12),
+		Color(0.34, 0.78, 0.22),
+		Color(0.20, 0.58, 0.16),
 		1.35,
 		40.0,
-		0.05
+		0.05,
+		true,
+		1.6
 	)
-	var ground := MeshInstance3D.new()
-	var plane := PlaneMesh.new()
-	plane.size = Vector2(100.0, 160.0)
-	ground.mesh = plane
-	ground.position = Vector3(0.0, -0.04, -48.0)
-	ground.material_override = outfield
-	ground.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(ground)
+	# The ditch has to stay open. One big plane used to cover the trench, so a
+	# bowl that fell in disappeared under the grass.
+	var outer := HALF_WIDTH + DITCH_W
+	var world_half := maxf(50.0, HALF_WIDTH + 36.0)
+	var side_span := world_half - outer
+	var side_x := (world_half + outer) * 0.5
+	var depth := LENGTH + 80.0
+	var mid_z := -LENGTH * 0.5
+	_outfield_quad(outfield, Vector3(-side_x, -0.04, mid_z), Vector2(side_span, depth))
+	_outfield_quad(outfield, Vector3(side_x, -0.04, mid_z), Vector2(side_span, depth))
+	_outfield_quad(outfield, Vector3(0.0, -0.04, FAR_Z - 36.0), Vector2(outer * 2.0, 48.0))
+	_outfield_quad(outfield, Vector3(0.0, -0.04, 16.0), Vector2(outer * 2.0, 20.0))
 
 	_hill(Vector3(-18.0, -4.5, -96.0), 16.0, Color(0.45, 0.58, 0.62))
 	_hill(Vector3(2.0, -6.0, -104.0), 18.0, Color(0.40, 0.55, 0.50))
@@ -251,15 +433,20 @@ func _build_playing_surface() -> void:
 	var surface := MeshInstance3D.new()
 	surface.name = "PlayingGreen"
 	var plane := PlaneMesh.new()
-	plane.size = Vector2(HALF_WIDTH * 2.0, LENGTH)
+	# Extra green behind the mat. The delivery camera looks down at the bowl,
+	# and the near edge used to read as a dark strip under it.
+	var near_extra := 8.0
+	plane.size = Vector2(HALF_WIDTH * 2.0, LENGTH + near_extra)
 	surface.mesh = plane
-	surface.position = Vector3(0.0, SURFACE_Y, -LENGTH * 0.5)
+	surface.position = Vector3(0.0, SURFACE_Y, -LENGTH * 0.5 + near_extra * 0.5)
 	surface.material_override = _grass_material(
-		Color(0.26, 0.44, 0.15),
-		Color(0.16, 0.32, 0.11),
+		Color(0.40, 0.82, 0.20),
+		Color(0.16, 0.60, 0.16),
 		0.46,
 		HALF_WIDTH,
-		0.1
+		0.1,
+		true,
+		0.85
 	)
 	surface.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(surface)
@@ -295,12 +482,15 @@ func _build_ditch_option() -> void:
 	_ditch_frame.name = "DitchOption"
 	_ditch_frame.visible = false
 	add_child(_ditch_frame)
-	var ditch_mat := _lit(Color(0.18, 0.13, 0.08), 0.98)
+	var ditch_mat := _lit(Color(0.14, 0.10, 0.07), 0.98)
 	var side_len := LENGTH + DITCH_W
 	var side_z := -LENGTH * 0.5 - DITCH_W * 0.35
-	_box(_ditch_frame, Vector3(HALF_WIDTH + DITCH_W * 0.5, -0.16, side_z), Vector3(DITCH_W, 0.08, side_len), ditch_mat, Vector3.ZERO, false)
-	_box(_ditch_frame, Vector3(-HALF_WIDTH - DITCH_W * 0.5, -0.16, side_z), Vector3(DITCH_W, 0.08, side_len), ditch_mat, Vector3.ZERO, false)
-	_box(_ditch_frame, Vector3(0.0, -0.16, FAR_Z - DITCH_W * 0.5), Vector3(HALF_WIDTH * 2.0 + DITCH_W * 2.0, 0.08, DITCH_W), ditch_mat, Vector3.ZERO, false)
+	# The floor sits below the green so a bowl that crosses the line is visibly down.
+	var floor_y := -0.42
+	var floor_h := 0.36
+	_box(_ditch_frame, Vector3(HALF_WIDTH + DITCH_W * 0.5, floor_y, side_z), Vector3(DITCH_W, floor_h, side_len), ditch_mat, Vector3.ZERO, false)
+	_box(_ditch_frame, Vector3(-HALF_WIDTH - DITCH_W * 0.5, floor_y, side_z), Vector3(DITCH_W, floor_h, side_len), ditch_mat, Vector3.ZERO, false)
+	_box(_ditch_frame, Vector3(0.0, floor_y, FAR_Z - DITCH_W * 0.5), Vector3(HALF_WIDTH * 2.0 + DITCH_W * 2.0, floor_h, DITCH_W), ditch_mat, Vector3.ZERO, false)
 	var rail_h := 0.15
 	var rail_w := 0.22
 	var y := rail_h * 0.5
@@ -370,9 +560,26 @@ func _markings() -> void:
 	_box(self, Vector3(0.0, y, FAR_Z + 0.55), Vector3(HALF_WIDTH * 2.0 - 0.45, line_h, 0.045), _white_line, Vector3.ZERO, false)
 	# Dashed center line. Gaps keep the stripe from turning into a solid wall.
 	var dash_z := -6.2
+	var dash_step := 8.0 if LENGTH > 120.0 else 1.18
+	var dash_len := 2.4 if LENGTH > 120.0 else 0.58
 	while dash_z > FAR_Z + 1.2:
-		_box(self, Vector3(0.0, y, dash_z), Vector3(0.04, line_h, 0.58), _white_line, Vector3.ZERO, false)
-		dash_z -= 1.18
+		_box(self, Vector3(0.0, y, dash_z), Vector3(0.04, line_h, dash_len), _white_line, Vector3.ZERO, false)
+		dash_z -= dash_step
+	if LENGTH > 120.0:
+		var post := 100.0
+		while post < LENGTH - 30.0:
+			var post_z := -post
+			_cylinder(self, Vector3(HALF_WIDTH - 1.1, 0.55, post_z), 0.07, 1.1, _white_line, Vector3.ZERO, 8, false)
+			_sphere(self, Vector3(HALF_WIDTH - 1.1, 1.15, post_z), 0.09, _gold, 8, false)
+			var tag := _label("%d m" % int(post), 0.7)
+			tag.position = Vector3(HALF_WIDTH - 1.1, 1.7, post_z)
+			tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+			add_child(tag)
+			post += 100.0
+	# 2-metre T on the centre line. Short, long, and dead jacks sit here.
+	var tee := tee_z()
+	_box(self, Vector3(0.0, y, tee), Vector3(1.2, line_h, 0.08), _white_line, Vector3.ZERO, false)
+	_box(self, Vector3(0.0, y, tee + 0.42), Vector3(0.08, line_h, 0.84), _white_line, Vector3.ZERO, false)
 	# Corner pegs.
 	for corner in [Vector2(HALF_WIDTH - 0.08, -0.35), Vector2(-HALF_WIDTH + 0.08, -0.35), Vector2(HALF_WIDTH - 0.08, FAR_Z + 0.35), Vector2(-HALF_WIDTH + 0.08, FAR_Z + 0.35)]:
 		_cylinder(self, Vector3(corner.x, 0.22, corner.y), 0.035, 0.44, _white_line, Vector3.ZERO, 8, false)
@@ -395,8 +602,10 @@ func _build_surrounds() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 4041
 	var tree_x := HALF_WIDTH + DITCH_W + 1.85
-	for i in 16:
-		var z := -4.2 - float(i) * 3.9
+	var tree_count := 22 if LENGTH > 120.0 else 16
+	var tree_gap := (LENGTH - 10.0) / float(tree_count) if LENGTH > 120.0 else 3.9
+	for i in tree_count:
+		var z := -4.2 - float(i) * tree_gap
 		var scale_a := rng.randf_range(0.86, 1.16)
 		var scale_b := rng.randf_range(0.86, 1.16)
 		_tree(self, Vector3(tree_x, 0.0, z), scale_a, rng)
@@ -411,16 +620,19 @@ func _build_surrounds() -> void:
 		_flowers(self, Vector3(-path_x - 0.28, 0.0, z - 0.2), rng)
 
 	# Outer row fills the upper corners once the green narrows.
-	for i in 6:
-		var z := -14.0 - float(i) * 5.2
-		_tree(self, Vector3(9.4, 0.0, z), rng.randf_range(1.05, 1.35), rng)
-		_tree(self, Vector3(-9.6, 0.0, z + 1.6), rng.randf_range(1.05, 1.35), rng)
+	if HALF_WIDTH < 8.0:
+		for i in 6:
+			var z := -14.0 - float(i) * 5.2
+			_tree(self, Vector3(9.4, 0.0, z), rng.randf_range(1.05, 1.35), rng)
+			_tree(self, Vector3(-9.6, 0.0, z + 1.6), rng.randf_range(1.05, 1.35), rng)
 
 	var banner_x := HALF_WIDTH + DITCH_W + 0.35
-	_banner(self, Vector3(banner_x, 0.0, -LENGTH * 0.36), "PLAY\nSLIDE\nCOMPETE", Color(0.11, 0.32, 0.58))
-	_banner(self, Vector3(-banner_x, 0.0, -LENGTH * 0.36), "PLAY\nSLIDE\nCOMPETE", Color(0.11, 0.32, 0.58))
-	_banner(self, Vector3(banner_x, 0.0, -LENGTH * 0.58), "DISC\nQUEST", Color(0.08, 0.24, 0.46))
-	_banner(self, Vector3(-banner_x, 0.0, -LENGTH * 0.58), "DISC\nQUEST", Color(0.08, 0.24, 0.46))
+	var near_banner := "THE LONG\nGREEN" if LENGTH > 200.0 else "FLICK\nDISC"
+	var far_banner := "FIND THE\nMARK" if LENGTH > 200.0 else "DRAW\nTHE LINE"
+	_banner(self, Vector3(banner_x, 0.0, -LENGTH * 0.18), near_banner, Color(0.10, 0.32, 0.18))
+	_banner(self, Vector3(-banner_x, 0.0, -LENGTH * 0.18), near_banner, Color(0.10, 0.32, 0.18))
+	_banner(self, Vector3(banner_x, 0.0, -LENGTH * 0.36), far_banner, Color(0.11, 0.32, 0.58))
+	_banner(self, Vector3(-banner_x, 0.0, -LENGTH * 0.36), far_banner, Color(0.11, 0.32, 0.58))
 
 	_flowers(self, Vector3(1.35, 0.0, FAR_Z - 1.3), rng)
 	_flowers(self, Vector3(-1.35, 0.0, FAR_Z - 1.5), rng)
@@ -478,7 +690,7 @@ func _build_clubhouse() -> void:
 
 	var plaque := _lit(Color(0.10, 0.22, 0.38), 0.45, 0.1)
 	_box(club, Vector3(0.0, 3.15, front_z + 0.02), Vector3(4.4, 0.62, 0.08), plaque, Vector3.ZERO, false)
-	var sign := _label("RIVERSIDE DISC CLUB", 0.42)
+	var sign := _label("BOWL & ROLL", 0.34)
 	sign.position = Vector3(0.0, 3.15, front_z + 0.1)
 	club.add_child(sign)
 
@@ -513,8 +725,7 @@ func _build_head() -> void:
 	_ring(head, 1.32, 1.16, white)
 	_ring(head, 1.02, 0.84, blue)
 	_ring(head, 0.70, 0.48, red)
-	# The gold ring marks where the jack was delivered. The jack itself is a
-	# live bowl and can be knocked off this mark.
+	# The rings sit on the live jack, so a knock moves the head with it.
 	_ring(head, 0.34, 0.29, _gold)
 
 
@@ -579,6 +790,17 @@ func _pot(parent: Node3D, pos: Vector3) -> void:
 	_sphere(parent, pos + Vector3(0.0, 0.5, 0.0), 0.32, _leaf_mats[0], 8)
 
 
+func _outfield_quad(mat: Material, pos: Vector3, size: Vector2) -> void:
+	var ground := MeshInstance3D.new()
+	var plane := PlaneMesh.new()
+	plane.size = size
+	ground.mesh = plane
+	ground.position = pos
+	ground.material_override = mat
+	ground.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(ground)
+
+
 func _hill(pos: Vector3, radius: float, color: Color) -> void:
 	_sphere(self, pos, radius, _lit(color, 1.0), 12, false)
 
@@ -599,7 +821,7 @@ func _label(text: String, height_m: float) -> Label3D:
 	return label
 
 
-func _grass_material(stripe_a: Color, stripe_b: Color, stripe_width: float, half_width: float, depth_fade: float) -> ShaderMaterial:
+func _grass_material(stripe_a: Color, stripe_b: Color, stripe_width: float, half_width: float, depth_fade: float, cut: bool = false, cut_scale: float = 1.15) -> ShaderMaterial:
 	var mat := ShaderMaterial.new()
 	mat.shader = _grass_shader
 	mat.set_shader_parameter("stripe_a", stripe_a)
@@ -607,6 +829,10 @@ func _grass_material(stripe_a: Color, stripe_b: Color, stripe_width: float, half
 	mat.set_shader_parameter("stripe_width", stripe_width)
 	mat.set_shader_parameter("half_width", half_width)
 	mat.set_shader_parameter("depth_fade", depth_fade)
+	if cut and _lawn_tex != null:
+		mat.set_shader_parameter("grass_tex", _lawn_tex)
+		mat.set_shader_parameter("grass_tex_scale", cut_scale)
+		mat.set_shader_parameter("use_grass_tex", true)
 	return mat
 
 
@@ -622,7 +848,7 @@ func _lit(color: Color, roughness: float, metallic: float = 0.0, emission: Color
 	return mat
 
 
-func _box(parent: Node3D, pos: Vector3, size: Vector3, mat: Material, rot: Vector3 = Vector3.ZERO, shadows: bool = true) -> MeshInstance3D:
+func _box(parent: Node3D, pos: Vector3, size: Vector3, mat: Material, rot: Vector3 = Vector3.ZERO, shadows: bool = false) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	var mesh := BoxMesh.new()
 	mesh.size = size
@@ -636,7 +862,7 @@ func _box(parent: Node3D, pos: Vector3, size: Vector3, mat: Material, rot: Vecto
 	return mi
 
 
-func _cylinder(parent: Node3D, pos: Vector3, radius: float, height: float, mat: Material, rot: Vector3 = Vector3.ZERO, segments: int = 16, shadows: bool = true) -> MeshInstance3D:
+func _cylinder(parent: Node3D, pos: Vector3, radius: float, height: float, mat: Material, rot: Vector3 = Vector3.ZERO, segments: int = 16, shadows: bool = false) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	var mesh := CylinderMesh.new()
 	mesh.top_radius = radius
@@ -653,7 +879,7 @@ func _cylinder(parent: Node3D, pos: Vector3, radius: float, height: float, mat: 
 	return mi
 
 
-func _sphere(parent: Node3D, pos: Vector3, radius: float, mat: Material, segments: int = 12, shadows: bool = true) -> MeshInstance3D:
+func _sphere(parent: Node3D, pos: Vector3, radius: float, mat: Material, segments: int = 12, shadows: bool = false) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	var mesh := SphereMesh.new()
 	mesh.radius = radius
