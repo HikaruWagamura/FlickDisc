@@ -1,9 +1,11 @@
 class_name Feel
 extends Node
 
-## Short synthesized cues. No imported audio files, so the phone and the
-## browser build both have the same release, roll, hit, and settle sounds.
+## Short synthesized cues, plus Scott's voice when files sit in
+## res://assets/audio/commentary. Missing clips fall back to the synth.
 ## Haptics use the device vibrator and, on the web, navigator.vibrate.
+
+const CommentaryScript := preload("res://scripts/commentary.gd")
 
 var roll_amount := 0.0
 var _unlocked := false
@@ -15,6 +17,7 @@ var _roll_low := 0.0
 var _roll_phase := 0.0
 var _streams := {}
 var _last_aim_bucket := -1
+var voice
 
 
 func _ready() -> void:
@@ -40,6 +43,9 @@ func _ready() -> void:
 	_streams["clap"] = _make_clap()
 	_streams["sparkle"] = _make_sparkle()
 	_streams["cheer"] = _make_cheer()
+	voice = CommentaryScript.new()
+	voice.name = "Commentary"
+	add_child(voice)
 
 
 func _process(_delta: float) -> void:
@@ -115,6 +121,9 @@ func contact(speed: float, hit_jack: bool, hit_bank: bool) -> void:
 
 func toucher() -> void:
 	unlock()
+	if line("toucher"):
+		_vibrate_pattern(16, 36, 22)
+		return
 	_play("clap", 1.0, -11.0)
 	_play("sparkle", 1.08, -10.0)
 	_vibrate_pattern(16, 36, 22)
@@ -122,6 +131,14 @@ func toucher() -> void:
 
 func praise(level: int) -> void:
 	unlock()
+	var keys: PackedStringArray = ["amazing", "great_shot", "fantastic", "magnificent", "incredible"]
+	var key: String = keys[clampi(level, 0, keys.size() - 1)]
+	if line(key):
+		if level >= 3:
+			_vibrate_pattern(18, 48, 26)
+		else:
+			_vibrate(18)
+		return
 	if level >= 3:
 		_play("cheer", 1.0, -8.0)
 		_play("sparkle", 1.12, -12.0)
@@ -132,6 +149,13 @@ func praise(level: int) -> void:
 	else:
 		_play("sparkle", 1.0, -11.0)
 		_vibrate(12)
+
+
+func line(key: String) -> bool:
+	if not _allows_sound() or voice == null:
+		return false
+	unlock()
+	return voice.say(key)
 
 
 func mark_found(miss_m: float) -> void:

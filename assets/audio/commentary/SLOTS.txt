@@ -1,0 +1,25 @@
+Record one clip per name, 16-bit WAV or OGG, a second or two each.
+Put the files in this folder. Extra takes: incredible_2.ogg, down_1_2.ogg.
+
+Shot praise (plays with the popup)
+  toucher
+  amazing
+  great_shot
+  fantastic
+  magnificent
+  incredible
+
+Score (plays when the end is decided)
+  down_1
+  down_2
+  down_3
+  up_1
+  up_2
+  up_3
+  tied_end
+  you_win_end
+  they_win_end
+  you_win_match
+  they_win_match
+  last_end
+  match_point

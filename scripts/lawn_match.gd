@@ -798,6 +798,71 @@ func _cheer_rest(distance: float, ditched: bool) -> bool:
 	return true
 
 
+func _call_score_voice(shots: int, holder: int) -> void:
+	if feel == null:
+		return
+	feel.line(_score_voice_key(shots, holder))
+
+
+func _you_side() -> int:
+	if live_play and opponent == "live" and not live_host:
+		return 1
+	return 0
+
+
+func _your_points() -> int:
+	return you_points if _you_side() == 0 else them_points
+
+
+func _their_points() -> int:
+	return them_points if _you_side() == 0 else you_points
+
+
+func _points_needed() -> int:
+	if live_play and live_ends <= 0:
+		return maxi(live_points, 1)
+	var fmt: Dictionary = MATCHES[match_index]
+	return int(fmt.get("points", 0))
+
+
+func _score_voice_key(_shots: int, _holder: int) -> String:
+	if match_complete:
+		return "you_win_match" if _live_you_won() else "they_win_match"
+	if _shots <= 0:
+		return "tied_end"
+	var gap := _your_points() - _their_points()
+	if gap <= -3:
+		return "down_3"
+	if gap == -2:
+		return "down_2"
+	if gap == -1:
+		return "down_1"
+	if gap >= 3:
+		return "up_3"
+	if gap == 2:
+		return "up_2"
+	if gap == 1:
+		return "up_1"
+	var target := _points_needed()
+	if target > 0:
+		var your_need := target - _your_points()
+		var their_need := target - _their_points()
+		if your_need == 1 or their_need == 1:
+			return "match_point"
+	var ends_left := 0
+	if live_play and live_ends > 0:
+		ends_left = live_ends - end_number
+	else:
+		var ends_target := int(MATCHES[match_index].get("ends", 0))
+		if ends_target > 0:
+			ends_left = ends_target - end_number
+	if ends_left == 1:
+		return "last_end"
+	if _holder == _you_side():
+		return "you_win_end"
+	return "they_win_end"
+
+
 func _praise_level(distance: float) -> int:
 	# Painted head: gold 0.34, pink 0.70, blue 1.02, white 1.32.
 	if distance < 0.34:
@@ -1042,6 +1107,7 @@ func _finish_shot(token: int) -> void:
 		disc.visible = false
 		_place_rack()
 		feel.settled(0.2 if shots > 0 else 9.0)
+		_call_score_voice(shots, holder)
 		var holder_name := "TIED" if shots <= 0 else _side_name(holder)
 		ui.show_end_summary(end_number, holder_name, shots, closest, _score_line(), match_complete)
 		_open_end_reveal()
@@ -1348,6 +1414,9 @@ func _apply_live_skip() -> void:
 		match_decided.emit(_live_you_won())
 	disc.visible = false
 	_place_rack()
+	if feel != null:
+		feel.settled(0.2 if shots > 0 else 9.0)
+	_call_score_voice(shots, holder)
 	var holder_name := "TIED" if shots <= 0 else _side_name(holder)
 	ui.show_end_summary(end_number, holder_name, shots, float(count.get("closest", -1.0)), _score_line(), match_complete)
 	_open_end_reveal()
