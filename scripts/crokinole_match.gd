@@ -121,14 +121,14 @@ func _setup_view() -> void:
 
 	camera = Camera3D.new()
 	camera.name = "Camera3D"
-	camera.fov = 50.0
+	camera.fov = 44.0
 	camera.near = 0.04
 	camera.far = 24.0
 	camera.current = true
 	add_child(camera)
-	# Sit behind the shooting disc with room under it to pull back.
-	camera.position = Vector3(0.0, 1.88, 2.58)
-	camera.look_at(Vector3(0.0, 0.02, 0.10), Vector3.UP)
+	# Behind the south quadrant, looking down the shot line to the hole.
+	camera.position = Vector3(0.0, 1.58, 2.18)
+	camera.look_at(Vector3(0.0, 0.02, 0.22), Vector3.UP)
 
 	var key := DirectionalLight3D.new()
 	key.rotation_degrees = Vector3(-52.0, -28.0, 0.0)
@@ -364,7 +364,7 @@ func _wire_shot() -> void:
 	add_child(shot)
 	gesture = shot
 	gesture.direct = true
-	gesture.direct_runup = 0.34
+	gesture.direct_runup = 0.16
 	fan = preload("res://scripts/shot_fan.gd").new()
 	fan.name = "ShotFan"
 	ui.add_child(fan)
@@ -372,7 +372,9 @@ func _wire_shot() -> void:
 	cue.name = "AimCue"
 	cue.set_heads(5)
 	cue.set_style(0)
-	cue.set_path_start(0.06)
+	# Start in front of the disc so the five bars sit on the shot line,
+	# not inside the button or back in the ditch.
+	cue.set_path_start(0.22)
 	# Five chevrons, table-sized. Lawn bars are metres; the round board
 	# is not, so keep the same 5-bar design at a locked board scale.
 	cue.set_size_scale(0.26)
@@ -443,11 +445,9 @@ func _rest_pos() -> Vector3:
 	return Vector3(at.x, 0.02, at.y)
 
 
-func _pull_flat(power: float) -> Vector2:
-	var at := _rest_flat()
-	if at.length() < 0.001:
-		return at + Vector2(0.0, power * PULL_BACK)
-	return at + at.normalized() * power * PULL_BACK
+func _pull_flat(_power: float) -> Vector2:
+	# Power is colour on the five bars. The disc stays on the start arc.
+	return _rest_flat()
 
 
 func _aim_from(needle: float) -> Vector3:
@@ -527,8 +527,10 @@ func _sync_direct() -> void:
 	var power: float = gesture.direct_power if pulling else 0.0
 	if live:
 		if pulling:
-			var hold: Vector3 = gesture.direct_hold
-			active_puck.set_flat(Vector2(hold.x, hold.z))
+			# Stay on the start arc in the middle of the south quadrant.
+			# Pull only aims and colours the five bars; it must not drag
+			# the disc into the ditch.
+			active_puck.set_flat(_rest_flat())
 			active_puck.rotation.y = 0.0
 			disc.global_position = active_puck.global_position
 			disc.preview_take(gesture.direct_aim, maxf(power, 0.12))
@@ -988,14 +990,16 @@ func _crokshot() -> void:
 		gesture.anchor = active_puck.global_position
 		gesture.direct_aim = Vector3(0.0, 0.0, -1.0)
 		gesture.direct_power = 0.92
-		gesture.direct_hold = active_puck.global_position + Vector3(0.0, 0.0, 0.30)
+		gesture.direct_hold = active_puck.global_position
 		gesture._raw_aim = Vector3(0.0, 0.0, -1.0)
 		gesture._raw_power = 0.92
-		gesture._raw_hold = gesture.direct_hold
+		gesture._raw_hold = active_puck.global_position
 		gesture.phase = "pull"
+	_snap_disc()
 	disc.preview_take(Vector3(0.0, 0.0, -1.0), 0.92)
 	if cue != null:
 		cue.set_heads(5)
+		cue.set_path_start(0.22)
 		cue.present(disc.cue_points(0.92), 0.92)
 	ui.show_power(0.92)
 	ui.show_aiming(0.92)

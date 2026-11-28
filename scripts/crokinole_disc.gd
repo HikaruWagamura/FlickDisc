@@ -56,14 +56,17 @@ func guide_points() -> PackedVector3Array:
 
 
 func cue_points(_power: float) -> PackedVector3Array:
-	# Crokinole is a straight flick. Five heads on one line. Pull only
-	# changes colour; the bars stay the same size.
+	# Straight flick from the rest spot on the board, along the aim line
+	# toward the hole. Pull only changes colour.
 	var dir := Vector3(aim_direction.x, 0.0, aim_direction.z)
 	if dir.length() < 0.001:
 		dir = Vector3(0.0, 0.0, -1.0)
 	dir = dir.normalized()
-	var start := Vector3(global_position.x, 0.0, global_position.z)
-	var length := 0.52
+	var origin := global_position
+	if active_puck != null:
+		origin = active_puck.global_position
+	var start := Vector3(origin.x, 0.0, origin.z)
+	var length := 0.58
 	var out := PackedVector3Array()
 	for step in 16:
 		var t := float(step) / 15.0
