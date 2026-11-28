@@ -154,8 +154,17 @@ func _play(setup: Dictionary) -> void:
 		ui.leave_requested.connect(_leave)
 
 
+func _fill_android_phone() -> void:
+	# 20:9 phone (1080x2400). Stretch expand must fill this, not 540x960.
+	DisplayServer.window_set_size(Vector2i(1080, 2400))
+
+
 func _menutest() -> void:
+	_fill_android_phone()
 	await get_tree().process_frame
+	await get_tree().process_frame
+	if menu != null and menu.has_method("_layout_shell"):
+		menu._layout_shell()
 	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
 	_dump_menu("menu_splash")
@@ -163,7 +172,7 @@ func _menutest() -> void:
 	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
 	_dump_menu("menu_home")
-	DisplayServer.window_set_size(Vector2i(540, 1170))
+	_fill_android_phone()
 	await get_tree().process_frame
 	await get_tree().process_frame
 	if menu.has_method("_layout_shell"):
@@ -190,7 +199,7 @@ func _menutest() -> void:
 			menu.live_layer.visible = false
 			if menu.live_net != null:
 				menu.live_net.stop_search()
-	DisplayServer.window_set_size(Vector2i(540, 960))
+	_fill_android_phone()
 	await get_tree().process_frame
 	if menu.has_method("_layout_shell"):
 		menu._layout_shell()

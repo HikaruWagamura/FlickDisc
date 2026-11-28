@@ -976,6 +976,7 @@ func _on_next_level_requested() -> void:
 
 
 func _crokshot() -> void:
+	DisplayServer.window_set_size(Vector2i(1080, 2400))
 	await get_tree().process_frame
 	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
