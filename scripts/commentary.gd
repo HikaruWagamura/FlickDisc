@@ -1,8 +1,9 @@
 class_name Commentary
 extends Node
 
-## Scott's voice, dropped in as WAV or OGG. Missing files stay silent and
-## the synthesized clap / chime still covers the shot.
+## Scott's voice. Name the file the words he said, e.g. "Great shot.ogg"
+## or "Down by one.wav". Extra takes: "Incredible 2.ogg". Missing clips
+## stay silent and the synth clap / chime still covers the shot.
 
 const FOLDER := "res://assets/audio/commentary"
 const KEYS := [
@@ -11,9 +12,55 @@ const KEYS := [
 	"tied_end", "you_win_end", "they_win_end", "you_win_match", "they_win_match",
 	"last_end", "match_point",
 ]
+const ALIASES := {
+	"toucher": "toucher",
+	"toucha": "toucher",
+	"amazing": "amazing",
+	"great shot": "great_shot",
+	"fantastic": "fantastic",
+	"magnificent": "magnificent",
+	"incredible": "incredible",
+	"down by one": "down_1",
+	"down by 1": "down_1",
+	"down one": "down_1",
+	"youre down by one": "down_1",
+	"youre down by 1": "down_1",
+	"down by two": "down_2",
+	"down by 2": "down_2",
+	"down two": "down_2",
+	"youre down by two": "down_2",
+	"down by three": "down_3",
+	"down by 3": "down_3",
+	"youre down by three": "down_3",
+	"up by one": "up_1",
+	"up by 1": "up_1",
+	"up one": "up_1",
+	"youre up by one": "up_1",
+	"up by two": "up_2",
+	"up by 2": "up_2",
+	"youre up by two": "up_2",
+	"up by three": "up_3",
+	"up by 3": "up_3",
+	"tied end": "tied_end",
+	"its a tie": "tied_end",
+	"tie": "tied_end",
+	"you win the end": "you_win_end",
+	"you take the end": "you_win_end",
+	"they win the end": "they_win_end",
+	"you win": "you_win_match",
+	"you win the match": "you_win_match",
+	"they win": "they_win_match",
+	"they win the match": "they_win_match",
+	"last end": "last_end",
+	"final end": "last_end",
+	"match point": "match_point",
+}
+const MIN_GAP := 3.6
 
 var _clips := {}
 var _player: AudioStreamPlayer
+var _last_key := ""
+var _last_at := -99.0
 
 
 func _ready() -> void:
@@ -28,9 +75,21 @@ func has_line(key: String) -> bool:
 	return _clips.has(key) and not _clips[key].is_empty()
 
 
-func say(key: String) -> bool:
+func is_talking() -> bool:
+	return _player != null and _player.playing
+
+
+func say(key: String, force: bool = false) -> bool:
 	if not has_line(key):
 		return false
+	var now := Time.get_ticks_msec() * 0.001
+	if not force:
+		if is_talking():
+			return false
+		if now - _last_at < MIN_GAP:
+			return false
+		if key == _last_key and now - _last_at < 12.0:
+			return false
 	var takes: Array = _clips[key]
 	var clip: AudioStream = takes[randi() % takes.size()]
 	if clip == null:
@@ -39,6 +98,8 @@ func say(key: String) -> bool:
 	_player.stream = clip
 	_player.pitch_scale = 1.0
 	_player.play()
+	_last_key = key
+	_last_at = now
 	return true
 
 
@@ -73,13 +134,35 @@ func _try_add(file_name: String) -> void:
 
 
 func _key_for(stem: String) -> String:
-	if KEYS.has(stem):
-		return stem
-	var under := stem.rfind("_")
-	if under <= 0:
-		return ""
-	var tail := stem.substr(under + 1)
-	var prefix := stem.substr(0, under)
-	if tail.is_valid_int() and KEYS.has(prefix):
-		return prefix
+	var folded := _fold(stem)
+	if ALIASES.has(folded):
+		return str(ALIASES[folded])
+	var underscored := folded.replace(" ", "_")
+	if KEYS.has(underscored):
+		return underscored
+	var parts := folded.split(" ")
+	if parts.size() >= 2 and str(parts[parts.size() - 1]).is_valid_int():
+		var base := " ".join(parts.slice(0, parts.size() - 1))
+		if ALIASES.has(base):
+			return str(ALIASES[base])
+		var u := base.replace(" ", "_")
+		if KEYS.has(u):
+			return u
 	return ""
+
+
+func _fold(text: String) -> String:
+	var s := text.to_lower().replace("'", "").replace("’", "")
+	var words: PackedStringArray = PackedStringArray()
+	var word := ""
+	for i in s.length():
+		var code := s.unicode_at(i)
+		var alnum := (code >= 97 and code <= 122) or (code >= 48 and code <= 57)
+		if alnum:
+			word += String.chr(code)
+		elif word != "":
+			words.append(word)
+			word = ""
+	if word != "":
+		words.append(word)
+	return " ".join(words)

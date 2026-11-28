@@ -77,6 +77,8 @@ var _compare_aim := Vector3(0.10, 0.0, -1.0)
 var _overview_held := false
 var _overview_last := Vector2.ZERO
 var _shout_toucher := false
+var _tension_said := false
+var _last_score_announced := ""
 var distance_play := false
 var solo_play := false
 var solo_index := 0
@@ -347,6 +349,7 @@ func _begin_ready() -> void:
 		ui.show_hand(hand_sign < 0.0, _bowl_name(bias_index))
 	ui.show_place_line(delivering_jack)
 	_arm_live_clock()
+	_maybe_tension_voice()
 
 
 func _on_place_at(spot: Vector3) -> void:
@@ -589,6 +592,7 @@ func _begin_end() -> void:
 	_apply_guide(cue_kind)
 	ui.show_match(_match_label())
 	ui.show_jack_prompt(end_number, _match_label(), _score_line())
+	_tension_said = false
 	_begin_ready()
 
 
@@ -777,11 +781,14 @@ func _leave_overview() -> void:
 		ui.show_in_motion(_side_name(_side()), _bowl_name(bias_index), hand_sign < 0.0, _score_line())
 
 
-func _cheer_rest(distance: float, ditched: bool) -> bool:
+func _cheer_rest(distance: float, ditched: bool, yours: bool) -> bool:
 	if delivering_jack or ditched or _shout_toucher:
 		return _shout_toucher
 	var level := _praise_level(distance)
 	if level < 0:
+		return false
+	# Opponent bowls only get the big lines so it does not talk all match.
+	if not yours and level < 2:
 		return false
 	var lines := [
 		["AMAZING!", Color(1.0, 0.92, 0.58)],
@@ -801,7 +808,70 @@ func _cheer_rest(distance: float, ditched: bool) -> bool:
 func _call_score_voice(shots: int, holder: int) -> void:
 	if feel == null:
 		return
-	feel.line(_score_voice_key(shots, holder))
+	var key := _score_voice_key(shots, holder)
+	if feel.line(key, true):
+		_last_score_announced = key
+
+
+func _bowls_you_sent() -> int:
+	var sent := 0
+	var mine := _you_side()
+	for i in throw_index:
+		if i % 2 == mine:
+			sent += 1
+	return sent
+
+
+func _is_last_end_now() -> bool:
+	if live_play and live_ends > 0:
+		return end_number >= live_ends
+	var ends_target := int(MATCHES[match_index].get("ends", 0))
+	return ends_target > 0 and end_number >= ends_target
+
+
+func _is_match_point_now() -> bool:
+	var target := _points_needed()
+	if target <= 0:
+		return false
+	return (_points_needed() - _your_points()) == 1 or (_points_needed() - _their_points()) == 1
+
+
+func _tension_key() -> String:
+	if _is_last_end_now() and not match_complete:
+		return "last_end"
+	if _is_match_point_now() and not match_complete:
+		return "match_point"
+	var gap := _your_points() - _their_points()
+	if gap <= -3:
+		return "down_3"
+	if gap == -2:
+		return "down_2"
+	if gap == -1:
+		return "down_1"
+	if gap >= 3:
+		return "up_3"
+	if gap == 2:
+		return "up_2"
+	if gap == 1:
+		return "up_1"
+	return ""
+
+
+func _maybe_tension_voice() -> void:
+	if delivering_jack or _tension_said or match_complete:
+		return
+	if _computer_turn() or _waiting_live():
+		return
+	if _side() != _you_side():
+		return
+	if _bowls_you_sent() > 0:
+		return
+	var key := _tension_key()
+	if key == "" or key == _last_score_announced:
+		return
+	if feel != null and feel.line(key):
+		_tension_said = true
+		_last_score_announced = key
 
 
 func _you_side() -> int:
@@ -1075,7 +1145,8 @@ func _finish_shot(token: int) -> void:
 	ui.set_power_ratio(0.0)
 	if throws_left > 0:
 		rink.focus_head(jack_pos)
-		if not _cheer_rest(disc_distance, bowl_ditched):
+		var just_mine := ((throw_index - 1) % 2) == _you_side()
+		if not _cheer_rest(disc_distance, bowl_ditched, just_mine):
 			feel.settled(closest if closest >= 0.0 else 9.0)
 		ui.show_throw_result(disc_distance, closest, _side_name(_side()), jack_moved, bowl_ditched, respotted, spares, _score_line())
 		if gesture != null:
@@ -1093,6 +1164,8 @@ func _finish_shot(token: int) -> void:
 		_begin_ready()
 		return
 	else:
+		var just_mine := ((throw_index - 1) % 2) == _you_side()
+		var cheered := _cheer_rest(disc_distance, bowl_ditched, just_mine)
 		var count := _count_end()
 		var shots: int = count["shots"]
 		var holder: int = count["side"]
@@ -1107,12 +1180,16 @@ func _finish_shot(token: int) -> void:
 		disc.visible = false
 		_place_rack()
 		feel.settled(0.2 if shots > 0 else 9.0)
-		_call_score_voice(shots, holder)
 		var holder_name := "TIED" if shots <= 0 else _side_name(holder)
 		ui.show_end_summary(end_number, holder_name, shots, closest, _score_line(), match_complete)
 		_open_end_reveal()
 		if gesture != null:
 			gesture.busy()
+		if cheered:
+			await get_tree().create_timer(1.2).timeout
+			if token != shot_token or not is_inside_tree():
+				return
+		_call_score_voice(shots, holder)
 
 
 func _finish_jack(rest_pos: Vector3) -> void:

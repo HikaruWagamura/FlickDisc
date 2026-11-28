@@ -121,7 +121,7 @@ func contact(speed: float, hit_jack: bool, hit_bank: bool) -> void:
 
 func toucher() -> void:
 	unlock()
-	if line("toucher"):
+	if line("toucher", true):
 		_vibrate_pattern(16, 36, 22)
 		return
 	_play("clap", 1.0, -11.0)
@@ -151,11 +151,11 @@ func praise(level: int) -> void:
 		_vibrate(12)
 
 
-func line(key: String) -> bool:
+func line(key: String, force: bool = false) -> bool:
 	if not _allows_sound() or voice == null:
 		return false
 	unlock()
-	return voice.say(key)
+	return voice.say(key, force)
 
 
 func mark_found(miss_m: float) -> void:
