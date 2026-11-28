@@ -1,9 +1,19 @@
 class_name Feel
 extends Node
 
-## Short synthesized cues. No imported audio files, so the phone and the
-## browser build both have the same release, roll, hit, and settle sounds.
+## Short synthesized cues, plus Scott's voice when files sit in
+## res://assets/audio/commentary. Missing clips fall back to the synth.
 ## Haptics use the device vibrator and, on the web, navigator.vibrate.
+
+const CommentaryScript := preload("res://scripts/commentary.gd")
+const CrowdScript := preload("res://scripts/crowd.gd")
+const PRAISE_POOL := {
+	0: ["not_bad", "good", "okay"],
+	1: ["good", "great", "nice"],
+	2: ["great", "good", "fantastic"],
+	3: ["amazing", "wow", "excellent"],
+	4: ["outstanding", "perfect", "my_god", "incredible"],
+}
 
 var roll_amount := 0.0
 var _unlocked := false
@@ -11,8 +21,12 @@ var _players: Array[AudioStreamPlayer] = []
 var _next_player := 0
 var _roll: AudioStreamPlayer
 var _roll_state := 0.0
+var _roll_low := 0.0
+var _roll_phase := 0.0
 var _streams := {}
 var _last_aim_bucket := -1
+var voice
+var crowd
 
 
 func _ready() -> void:
@@ -24,9 +38,9 @@ func _ready() -> void:
 	_roll = AudioStreamPlayer.new()
 	var generator := AudioStreamGenerator.new()
 	generator.mix_rate = 22050
-	generator.buffer_length = 0.2
+	generator.buffer_length = 0.25
 	_roll.stream = generator
-	_roll.volume_db = -16.0
+	_roll.volume_db = -28.0
 	add_child(_roll)
 	_streams["release"] = _make_whoosh()
 	_streams["hit"] = _make_hit(210.0, 0.09, 36.0)
@@ -35,6 +49,15 @@ func _ready() -> void:
 	_streams["tick"] = _make_hit(1480.0, 0.035, 70.0)
 	_streams["settle"] = _make_hit(240.0, 0.14, 12.0)
 	_streams["chime"] = _make_chime()
+	_streams["clap"] = _make_clap()
+	_streams["sparkle"] = _make_sparkle()
+	_streams["cheer"] = _make_cheer()
+	voice = CommentaryScript.new()
+	voice.name = "Commentary"
+	add_child(voice)
+	crowd = CrowdScript.new()
+	crowd.name = "Crowd"
+	add_child(crowd)
 
 
 func _process(_delta: float) -> void:
@@ -47,8 +70,12 @@ func _process(_delta: float) -> void:
 	var target := roll_amount
 	while frames > 0:
 		var noise := randf() * 2.0 - 1.0
-		_roll_state = lerpf(_roll_state, noise, 0.18)
-		var sample := _roll_state * target
+		# Brown rumble, then a slow low-pass so the green is a hush, not grit.
+		_roll_state = clampf(_roll_state + noise * 0.018, -1.0, 1.0)
+		_roll_low = lerpf(_roll_low, _roll_state, 0.045)
+		_roll_phase += TAU * lerpf(36.0, 78.0, target) / 22050.0
+		var grain := _roll_low * 0.62 + sin(_roll_phase) * _roll_low * 0.16
+		var sample := grain * target * 0.28
 		playback.push_frame(Vector2(sample, sample))
 		frames -= 1
 
@@ -61,7 +88,8 @@ func unlock() -> void:
 
 
 func set_roll(speed_ratio: float) -> void:
-	roll_amount = clampf(speed_ratio, 0.0, 1.0) * 0.55
+	var ratio := clampf(speed_ratio, 0.0, 1.0)
+	roll_amount = pow(ratio, 1.45) * 0.28
 
 
 func tap() -> void:
@@ -93,14 +121,141 @@ func contact(speed: float, hit_jack: bool, hit_bank: bool) -> void:
 	unlock()
 	var amount := clampf(speed / 12.0, 0.25, 1.0)
 	if hit_jack:
-		_play("jack", lerpf(1.25, 0.82, amount), -3.0)
-		_vibrate(int(round(lerpf(18.0, 46.0, amount))))
+		toucher()
+		return
 	elif hit_bank:
-		_play("bank", lerpf(1.2, 0.8, amount), -8.0)
+		_play("bank", lerpf(1.2, 0.8, amount), -12.0)
 		_vibrate(int(round(lerpf(10.0, 22.0, amount))))
 	else:
-		_play("hit", lerpf(1.35, 0.78, amount), -5.0)
+		_play("hit", lerpf(1.35, 0.78, amount), -9.0)
 		_vibrate(int(round(lerpf(14.0, 34.0, amount))))
+		if crowd != null:
+			if speed > 3.6:
+				crowd.play("clap")
+			elif speed > 1.4:
+				crowd.play("polite")
+
+
+func toucher() -> String:
+	unlock()
+	crowd_toucher()
+	if line("toucher", true):
+		_vibrate_pattern(16, 36, 22)
+		return _last_line()
+	_play("clap", 1.0, -11.0)
+	_play("sparkle", 1.08, -10.0)
+	_vibrate_pattern(16, 36, 22)
+	return ""
+
+
+func praise(level: int, skippable: bool = false) -> String:
+	unlock()
+	crowd_for(level)
+	# Quiet bowls still get a crowd, but not a line every time.
+	if skippable and level <= 1 and randf() < 0.38:
+		return ""
+	var said := _say_from(_pool_for(level))
+	if said != "":
+		if level >= 3:
+			_vibrate_pattern(18, 48, 26)
+		else:
+			_vibrate(18)
+		return said
+	if level >= 3:
+		_play("cheer", 1.0, -8.0)
+		_play("sparkle", 1.12, -12.0)
+		_vibrate_pattern(18, 48, 26)
+	elif level >= 1:
+		_play("chime", 1.04, -9.0)
+		_vibrate(18)
+	else:
+		_play("sparkle", 1.0, -11.0)
+		_vibrate(12)
+	return ""
+
+
+func crowd_for(level: int) -> String:
+	if not _allows_sound() or crowd == null:
+		return ""
+	unlock()
+	var kind := "clap"
+	match clampi(level, -1, 4):
+		-1:
+			kind = "ooh"
+		0:
+			kind = "polite"
+		1:
+			kind = "clap" if randf() > 0.28 else "polite"
+		2:
+			kind = "cheer" if randf() > 0.32 else "clap"
+		3:
+			kind = "roar" if randf() > 0.42 else "cheer"
+		4:
+			kind = "roar"
+	if crowd.play(kind, true):
+		return kind
+	return ""
+
+
+func crowd_toucher() -> String:
+	if not _allows_sound() or crowd == null:
+		return ""
+	unlock()
+	crowd.play("gasp", true)
+	crowd.play("cheer", true)
+	return "gasp"
+
+
+func crowd_score(key: String) -> String:
+	if not _allows_sound() or crowd == null:
+		return ""
+	unlock()
+	var kind := "polite"
+	match key:
+		"you_win_match", "you_win", "you_win_end", "winner":
+			kind = "roar"
+		"they_win_match", "they_win_end", "tied_end":
+			kind = "ooh"
+		"showtime", "last_end", "match_point":
+			kind = "cheer"
+	if crowd.play(kind, true):
+		return kind
+	return ""
+
+
+func _pool_for(level: int) -> Array:
+	var clamped := clampi(level, 0, 4)
+	if PRAISE_POOL.has(clamped):
+		return PRAISE_POOL[clamped]
+	return ["great"]
+
+
+func _say_from(keys: Array) -> String:
+	if keys.is_empty():
+		return ""
+	var order: Array = keys.duplicate()
+	for i in range(order.size() - 1, 0, -1):
+		var j := randi() % (i + 1)
+		var tmp: String = str(order[i])
+		order[i] = order[j]
+		order[j] = tmp
+	for key in order:
+		if line(key):
+			return _last_line()
+	return ""
+
+
+func _last_line() -> String:
+	if voice != null:
+		return voice.last_said()
+	return ""
+
+
+func line(key: String, force: bool = false) -> bool:
+	if not _allows_sound() or voice == null:
+		return false
+	unlock()
+	return voice.say(key, force)
 
 
 func mark_found(miss_m: float) -> void:
@@ -190,7 +345,7 @@ func _make_whoosh() -> AudioStreamWAV:
 		var freq := lerpf(480.0, 140.0, t / 0.22)
 		phase += TAU * freq / float(rate)
 		var noise := randf() * 2.0 - 1.0
-		samples[i] = (sin(phase) * 0.35 + noise * 0.65) * env
+		samples[i] = (sin(phase) * 0.62 + noise * 0.28) * env * 0.72
 	return _wav(samples, rate)
 
 
@@ -241,6 +396,64 @@ func _make_chime() -> AudioStreamWAV:
 			phases[n] += TAU * freqs[n] / float(rate)
 			sample += sin(phases[n]) * env
 		samples[i] = sample * 0.42
+	return _wav(samples, rate)
+
+
+func _make_clap() -> AudioStreamWAV:
+	var rate := 22050
+	var count := int(rate * 0.34)
+	var samples := PackedFloat32Array()
+	samples.resize(count)
+	var bursts := [0.0, 0.042, 0.086, 0.15, 0.21]
+	for i in count:
+		var t := float(i) / float(rate)
+		var env := 0.0
+		for n in bursts.size():
+			var start := float(bursts[n])
+			if t >= start:
+				var fall := exp(-(t - start) * 42.0)
+				var amp := 1.0 if n < 3 else 0.62
+				env = maxf(env, fall * amp)
+		var noise := randf() * 2.0 - 1.0
+		samples[i] = noise * env * 0.48
+	return _wav(samples, rate)
+
+
+func _make_sparkle() -> AudioStreamWAV:
+	var rate := 22050
+	var count := int(rate * 0.28)
+	var samples := PackedFloat32Array()
+	samples.resize(count)
+	var phases := [0.0, 0.0, 0.0]
+	var freqs := [988.0, 1480.0, 1976.0]
+	for i in count:
+		var t := float(i) / float(rate)
+		var sample := 0.0
+		for n in 3:
+			var start := float(n) * 0.045
+			var env := 0.0 if t < start else exp(-(t - start) * 9.0)
+			phases[n] += TAU * freqs[n] / float(rate)
+			sample += sin(phases[n]) * env
+		samples[i] = sample * 0.28
+	return _wav(samples, rate)
+
+
+func _make_cheer() -> AudioStreamWAV:
+	var rate := 22050
+	var count := int(rate * 0.55)
+	var samples := PackedFloat32Array()
+	samples.resize(count)
+	var phases := [0.0, 0.0, 0.0, 0.0]
+	var freqs := [523.25, 659.25, 783.99, 1046.5]
+	for i in count:
+		var t := float(i) / float(rate)
+		var sample := 0.0
+		for n in 4:
+			var start := float(n) * 0.055
+			var env := 0.0 if t < start else exp(-(t - start) * 5.2)
+			phases[n] += TAU * freqs[n] / float(rate)
+			sample += sin(phases[n]) * env
+		samples[i] = sample * 0.34
 	return _wav(samples, rate)
 
 

@@ -39,7 +39,7 @@ func _apply_host() -> void:
 	if OS.get_cmdline_user_args().has("--crokshot") or OS.get_cmdline_user_args().has("--crokrules"):
 		_play({"rink": "crokinole", "back": "home", "level": 0})
 		return
-	if OS.get_cmdline_user_args().has("--graphtest") or OS.get_cmdline_user_args().has("--cuetest") or OS.get_cmdline_user_args().has("--pulltest"):
+	if OS.get_cmdline_user_args().has("--graphtest") or OS.get_cmdline_user_args().has("--cuetest") or OS.get_cmdline_user_args().has("--pulltest") or OS.get_cmdline_user_args().has("--campreview") or OS.get_cmdline_user_args().has("--endreveal") or OS.get_cmdline_user_args().has("--callouttest"):
 		_play({"rink": "lawn", "ditch": true, "back": "home", "match_index": 1, "opponent": "local"})
 		return
 	if OS.get_cmdline_user_args().has("--livetest"):

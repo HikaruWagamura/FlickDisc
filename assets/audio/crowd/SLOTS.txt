@@ -1,0 +1,11 @@
+Drop replacement crowd files here. Name them the kind of reaction.
+
+  polite.wav / polite_2.wav   light golf clap, just outside the head
+  clap.wav / clap_2.wav       white ring
+  cheer.wav / cheer_2.wav     blue ring, a good shot
+  roar.wav / roar_2.wav       gold, pink, toucher, you take the end
+  gasp.wav                    on the jack
+  ooh.wav / ooh_2.wav         near miss
+
+Extra takes: Cheer 2.wav. Also accepted: Applause.wav, Crowd roar.wav,
+Heavy cheer.wav, Oooh.wav. A zip of real crowd beds can replace these.

@@ -68,6 +68,7 @@ var travel := Vector3.ZERO
 var _spin: Node3D
 var _shadow: MeshInstance3D
 var _pip: Node3D
+var scoring := false
 var _score_ring: MeshInstance3D
 var _rim_mat: StandardMaterial3D
 var _body_mat: StandardMaterial3D
@@ -502,8 +503,23 @@ func set_hand(hand: float) -> void:
 
 
 func set_scoring(on: bool) -> void:
+	scoring = on
 	if _score_ring != null:
 		_score_ring.visible = on
+		if not on:
+			_score_ring.scale = Vector3.ONE
+	set_process(on and not is_jack)
+
+
+func _process(_delta: float) -> void:
+	if _score_ring == null or not scoring:
+		return
+	var wave := 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.008)
+	_score_ring.scale = Vector3.ONE * (1.0 + 0.28 * wave)
+	var mat := _score_ring.material_override as StandardMaterial3D
+	if mat != null:
+		mat.emission_energy_multiplier = 0.55 + 1.35 * wave
+		mat.albedo_color.a = 0.55 + 0.45 * wave
 
 
 func _build_disc(index: int, hand: float) -> void:
@@ -522,18 +538,20 @@ func _build_disc(index: int, hand: float) -> void:
 	_bowl_sit = sit_from_holder(_pip)
 	set_hand(hand)
 	_score_ring = MeshInstance3D.new()
-	_score_ring.mesh = _annulus(0.22, 0.34, 32)
-	_score_ring.position = Vector3(0.0, 0.045, 0.0)
-	var ring_mat := _flat(Color(0.98, 0.84, 0.32))
+	_score_ring.mesh = _annulus(0.28, 0.52, 32)
+	_score_ring.position = Vector3(0.0, 0.05, 0.0)
+	var ring_mat := _flat(Color(1.0, 0.88, 0.28))
 	ring_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	ring_mat.albedo_color.a = 0.95
 	ring_mat.emission_enabled = true
-	ring_mat.emission = Color(1.0, 0.82, 0.28)
-	ring_mat.emission_energy_multiplier = 0.55
+	ring_mat.emission = Color(1.0, 0.86, 0.22)
+	ring_mat.emission_energy_multiplier = 1.1
+	ring_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_score_ring.material_override = ring_mat
 	_score_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_score_ring.visible = false
 	add_child(_score_ring)
+	set_process(false)
 
 
 func _build_jack() -> void:

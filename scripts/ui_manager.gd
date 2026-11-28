@@ -5,6 +5,7 @@ const BowlScript := preload("res://scripts/bowl.gd")
 const BiasChipScript := preload("res://scripts/bias_chip.gd")
 const HandSwitchScript := preload("res://scripts/hand_switch.gd")
 const HUD_FONT := preload("res://assets/fonts/Inter-Bold.ttf")
+const SHOUT_FONT := preload("res://assets/fonts/Anton-Regular.ttf")
 
 signal reset_requested
 signal next_level_requested
@@ -55,6 +56,12 @@ var current_bias := 0.0
 var menu_button: Button
 var cue_button: Button
 var pause_layer: Control
+var callout: Control
+var callout_title: Label
+var callout_detail: Label
+var callout_stars: Array = []
+var _star_homes: Array = []
+var _callout_tween: Tween
 var _power_home := Vector2(502.0, 108.0)
 var _power_paint := -1.0
 var _power_cap_box: StyleBoxFlat
@@ -99,6 +106,7 @@ func _ready() -> void:
 	camera_button.pressed.connect(func() -> void: camera_requested.emit())
 	show_camera_mode(true)
 	_build_summary()
+	_build_callout()
 
 	status_label = _make_label(Vector2(18.0, 126.0), Vector2(504.0, 22.0), 14, Color(0.95, 0.99, 0.96))
 	score_label = _make_label(Vector2(18.0, 150.0), Vector2(504.0, 20.0), 13, Color(0.78, 0.92, 0.86))
@@ -356,7 +364,7 @@ func show_drive_result(travelled: float, miss: float, left: int, in_ditch: bool)
 
 
 func show_drive_done(longest: float, best_miss: float) -> void:
-	summary.visible = true
+	_open_summary()
 	summary_title.text = "THE LONG GREEN"
 	summary_shots.text = "%d m" % int(round(longest))
 	summary_detail.text = "LONGEST BOWL\nNEAREST MARK  %.1f m" % best_miss
@@ -397,7 +405,7 @@ func show_crazy_water(hole: Dictionary, strokes: int, to_par: int) -> void:
 
 
 func show_crazy_holed(hole: Dictionary, strokes: int, to_par: int) -> void:
-	summary.visible = true
+	_open_summary()
 	summary_title.text = "HOLE %d" % int(hole["number"])
 	summary_shots.text = _crazy_hole_word(strokes, int(hole["par"]))
 	summary_detail.text = "%s\n%d STROKES  •  PAR %d" % [str(hole["name"]).to_upper(), strokes, int(hole["par"])]
@@ -410,7 +418,7 @@ func show_crazy_holed(hole: Dictionary, strokes: int, to_par: int) -> void:
 
 
 func show_crazy_done(strokes: int, par: int, card: Array) -> void:
-	summary.visible = true
+	_open_summary()
 	summary_title.text = "CRAZY BOWLS"
 	var vs := strokes - par
 	summary_shots.text = _crazy_par_line(vs)
@@ -464,7 +472,7 @@ func show_solo_prompt(end_number: int, end_count: int, end_name: String, blurb: 
 
 
 func show_solo_result(won: bool, end_name: String, miss: float, in_ditch: bool) -> void:
-	summary.visible = true
+	_open_summary()
 	summary_title.text = end_name
 	if in_ditch:
 		summary_shots.text = "DITCH"
@@ -501,6 +509,52 @@ func show_contact(hit_jack: bool) -> void:
 	status_label.text = "JACK STRUCK" if hit_jack else "BOWLS MEET"
 
 
+func show_shout(title: String, detail: String = "", tint: Color = Color(1.0, 0.86, 0.32)) -> void:
+	if callout == null or callout_title == null:
+		return
+	callout.visible = true
+	callout.modulate = Color(1, 1, 1, 1)
+	callout.scale = Vector2(0.72, 0.72)
+	callout_title.text = title
+	callout_title.add_theme_color_override("font_color", tint)
+	callout_title.add_theme_color_override("font_outline_color", Color(0.10, 0.04, 0.02, 0.92))
+	if callout_detail != null:
+		callout_detail.text = detail
+		callout_detail.visible = detail != ""
+	for i in callout_stars.size():
+		var star = callout_stars[i]
+		if star is Label:
+			star.modulate = Color(tint.r, tint.g, tint.b, 1.0)
+			star.scale = Vector2(0.35, 0.35)
+			star.position = Vector2(228.0, 64.0)
+	if _callout_tween != null:
+		_callout_tween.kill()
+	_callout_tween = create_tween()
+	_callout_tween.set_parallel(true)
+	_callout_tween.tween_property(callout, "scale", Vector2(1.08, 1.08), 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	for i in callout_stars.size():
+		var star = callout_stars[i]
+		if star is Control and i < _star_homes.size():
+			var home: Vector2 = _star_homes[i]
+			_callout_tween.tween_property(star, "position", home, 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+			_callout_tween.tween_property(star, "scale", Vector2.ONE, 0.22)
+	_callout_tween.set_parallel(false)
+	_callout_tween.tween_property(callout, "scale", Vector2.ONE, 0.10)
+	_callout_tween.tween_interval(1.15)
+	_callout_tween.tween_property(callout, "modulate:a", 0.0, 0.32)
+	_callout_tween.tween_callback(func() -> void: callout.visible = false)
+
+
+func hide_shout() -> void:
+	if _callout_tween != null:
+		_callout_tween.kill()
+		_callout_tween = null
+	if callout != null:
+		callout.visible = false
+		callout.modulate = Color(1, 1, 1, 1)
+		callout.scale = Vector2.ONE
+
+
 func show_throw_result(disc_distance: float, closest: float, next_side: String, jack_moved: bool, in_ditch: bool, respotted: bool, spares: int, score_line: String) -> void:
 	throws_label.text = score_line
 	if in_ditch:
@@ -519,7 +573,7 @@ func show_throw_result(disc_distance: float, closest: float, next_side: String, 
 
 
 func show_end_summary(end_number: int, side_name: String, shots: int, closest: float, score_line: String, match_over: bool) -> void:
-	summary.visible = true
+	_open_summary()
 	if match_over:
 		summary_title.text = "MATCH"
 	else:
@@ -527,16 +581,14 @@ func show_end_summary(end_number: int, side_name: String, shots: int, closest: f
 	if shots <= 0:
 		summary_shots.text = "TIED END"
 	elif shots == 1:
-		summary_shots.text = "%s  1" % side_name
+		summary_shots.text = "%s   1" % side_name
 	else:
-		summary_shots.text = "%s  %d" % [side_name, shots]
+		summary_shots.text = "%s   %d" % [side_name, shots]
 	var nearest := "NO BOWL ON THE GREEN"
 	if closest >= 0.0:
 		nearest = "CLOSEST  %.2f m" % closest
-	summary_detail.text = "%s\n%s" % [nearest, score_line]
+	summary_detail.text = "%s\nDRAG TO LOOK AROUND" % nearest
 	throws_label.text = score_line
-	status_label.text = "MATCH COMPLETE" if match_over else "END COMPLETE"
-	score_label.text = score_line
 	next_button.text = "NEW MATCH" if match_over else "NEXT END"
 	next_button.visible = true
 	reset_button.visible = true
@@ -546,6 +598,21 @@ func show_end_summary(end_number: int, side_name: String, shots: int, closest: f
 func hide_summary() -> void:
 	if summary != null:
 		summary.visible = false
+	_show_hud_lines(true)
+	hide_shout()
+
+
+func _open_summary() -> void:
+	if summary != null:
+		summary.visible = true
+	_show_hud_lines(false)
+
+
+func _show_hud_lines(on: bool) -> void:
+	if status_label != null:
+		status_label.visible = on
+	if score_label != null:
+		score_label.visible = on
 
 
 func show_hand(forehand: bool, bowl_name: String) -> void:
@@ -764,7 +831,30 @@ func _layout_hud() -> void:
 		hand_switch.position = Vector2(446.0, tall - 108.0 - bottom)
 		hand_switch.size = Vector2(86.0, 92.0)
 	if next_button != null:
-		next_button.position = Vector2(150.0, tall - 72.0 - bottom)
+		next_button.set_anchor(SIDE_LEFT, 0.5)
+		next_button.set_anchor(SIDE_RIGHT, 0.5)
+		next_button.set_anchor(SIDE_TOP, 1.0)
+		next_button.set_anchor(SIDE_BOTTOM, 1.0)
+		next_button.offset_left = -120.0
+		next_button.offset_right = 120.0
+		next_button.offset_top = -72.0 - bottom
+		next_button.offset_bottom = -24.0 - bottom
+	if callout != null:
+		callout.position = Vector2(28.0, 188.0 + top)
+		callout.size = Vector2(484.0, 168.0)
+		callout.pivot_offset = Vector2(242.0, 84.0)
+	if summary != null:
+		summary.position = Vector2(32.0, 92.0 + top)
+		summary.size = Vector2(476.0, 198.0)
+		if summary_title != null:
+			summary_title.position = Vector2(18.0, 12.0)
+			summary_title.size = Vector2(440.0, 28.0)
+		if summary_shots != null:
+			summary_shots.position = Vector2(18.0, 42.0)
+			summary_shots.size = Vector2(440.0, 72.0)
+		if summary_detail != null:
+			summary_detail.position = Vector2(18.0, 122.0)
+			summary_detail.size = Vector2(440.0, 62.0)
 
 
 func _build_aim_dial() -> void:
@@ -897,33 +987,104 @@ func _pause_button(caption: String, pos: Vector2, box: Vector2, hot: bool) -> Bu
 	return button
 
 
+func _build_callout() -> void:
+	callout = Control.new()
+	callout.position = Vector2(28.0, 188.0)
+	callout.size = Vector2(484.0, 168.0)
+	callout.pivot_offset = Vector2(242.0, 84.0)
+	callout.visible = false
+	callout.z_index = 28
+	callout.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(callout)
+	var glow := Panel.new()
+	glow.position = Vector2(42.0, 28.0)
+	glow.size = Vector2(400.0, 112.0)
+	glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var glow_style := StyleBoxFlat.new()
+	glow_style.bg_color = Color(0.10, 0.08, 0.03, 0.9)
+	glow_style.border_color = Color(1.0, 0.9, 0.42, 1.0)
+	glow_style.set_border_width_all(3)
+	glow_style.set_corner_radius_all(22)
+	glow_style.shadow_color = Color(1.0, 0.78, 0.2, 0.62)
+	glow_style.shadow_size = 20
+	glow.add_theme_stylebox_override("panel", glow_style)
+	callout.add_child(glow)
+	callout_title = Label.new()
+	callout_title.position = Vector2(24.0, 34.0)
+	callout_title.size = Vector2(436.0, 64.0)
+	callout_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	callout_title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	callout_title.add_theme_font_override("font", SHOUT_FONT)
+	callout_title.add_theme_font_size_override("font_size", 40)
+	callout_title.add_theme_color_override("font_color", Color(1.0, 0.9, 0.38))
+	callout_title.add_theme_color_override("font_outline_color", Color(0.12, 0.05, 0.02, 0.92))
+	callout_title.add_theme_constant_override("outline_size", 10)
+	callout_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	callout.add_child(callout_title)
+	callout_detail = Label.new()
+	callout_detail.position = Vector2(24.0, 96.0)
+	callout_detail.size = Vector2(436.0, 28.0)
+	callout_detail.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	callout_detail.add_theme_font_override("font", HUD_FONT)
+	callout_detail.add_theme_font_size_override("font_size", 15)
+	callout_detail.add_theme_color_override("font_color", Color(1.0, 0.96, 0.82, 0.95))
+	callout_detail.add_theme_color_override("font_outline_color", Color(0.08, 0.04, 0.02, 0.8))
+	callout_detail.add_theme_constant_override("outline_size", 4)
+	callout_detail.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	callout.add_child(callout_detail)
+	var spots := [
+		Vector2(36.0, 18.0), Vector2(448.0, 22.0), Vector2(58.0, 132.0),
+		Vector2(430.0, 128.0), Vector2(242.0, 8.0), Vector2(16.0, 78.0), Vector2(468.0, 76.0)
+	]
+	for at in spots:
+		var star := Label.new()
+		star.text = "✦"
+		star.position = at
+		star.size = Vector2(28.0, 28.0)
+		star.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		star.add_theme_font_override("font", HUD_FONT)
+		star.add_theme_font_size_override("font_size", 18)
+		star.add_theme_color_override("font_color", Color(1.0, 0.88, 0.38))
+		star.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		callout.add_child(star)
+		callout_stars.append(star)
+		_star_homes.append(at)
+
+
 func _build_summary() -> void:
 	summary = Panel.new()
-	summary.position = Vector2(70.0, 122.0)
-	summary.size = Vector2(400.0, 156.0)
+	summary.position = Vector2(32.0, 108.0)
+	summary.size = Vector2(476.0, 198.0)
 	summary.visible = false
-	summary.mouse_filter = Control.MOUSE_FILTER_STOP
+	summary.z_index = 24
+	summary.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.04, 0.09, 0.12, 0.9)
-	style.border_color = Color(0.9, 0.76, 0.38)
-	style.set_border_width_all(2)
-	style.set_corner_radius_all(14)
-	style.content_margin_left = 16.0
-	style.content_margin_right = 16.0
+	style.bg_color = Color(0.06, 0.09, 0.14, 0.98)
+	style.border_color = Color(1.0, 0.88, 0.38)
+	style.set_border_width_all(3)
+	style.set_corner_radius_all(18)
+	style.shadow_color = Color(1.0, 0.78, 0.18, 0.42)
+	style.shadow_size = 14
+	style.content_margin_left = 18.0
+	style.content_margin_right = 18.0
 	summary.add_theme_stylebox_override("panel", style)
 	add_child(summary)
-	summary_title = _panel_label(Vector2(16.0, 10.0), Vector2(368.0, 24.0), 14, Color(0.78, 0.9, 0.84))
+	summary_title = _panel_label(Vector2(18.0, 12.0), Vector2(440.0, 28.0), 16, Color(1.0, 0.94, 0.72))
 	summary_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	summary_shots = _panel_label(Vector2(16.0, 36.0), Vector2(368.0, 54.0), 40, Color(0.98, 0.9, 0.55))
+	summary_shots = _panel_label(Vector2(18.0, 42.0), Vector2(440.0, 72.0), 48, Color(1.0, 0.93, 0.46))
 	summary_shots.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	summary_detail = _panel_label(Vector2(16.0, 96.0), Vector2(368.0, 48.0), 14, Color(0.9, 0.96, 0.93))
+	summary_shots.add_theme_color_override("font_outline_color", Color(0.12, 0.06, 0.02, 0.9))
+	summary_shots.add_theme_constant_override("outline_size", 8)
+	summary_detail = _panel_label(Vector2(18.0, 122.0), Vector2(440.0, 62.0), 15, Color(0.96, 0.98, 0.9))
 	summary_detail.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	summary_detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
 
 func _panel_label(label_position: Vector2, label_size: Vector2, font_size: int, color: Color) -> Label:
 	var label := Label.new()
 	label.position = label_position
 	label.size = label_size
+	label.add_theme_font_override("font", HUD_FONT)
 	label.add_theme_font_size_override("font_size", font_size)
 	label.add_theme_color_override("font_color", color)
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
