@@ -1,15 +1,22 @@
 extends Node
 
-## Find a ranked table on the same Wi-Fi, then open an ENet seat.
-## Open search still matches the first other phone it hears.
-## Play a Friend hosts or joins one exact table code.
+## Worldwide club at bowl-roll-club.fly.dev. Names, invites, codes, and shot relay.
 
 signal found_peer(hosting: bool, peer_name: String)
 signal search_pulse(code: String)
+signal club_shot(px: float, hx: float, hz: float, ax: float, az: float, power: float, bias: int, hand: float, jack: bool)
+signal club_skip
+signal club_peer_left
+signal signed_in(player: String)
+signal name_taken(player: String)
+signal player_found(player: String, online: bool)
+signal player_list(matches: Array)
+signal player_missing(player: String)
+signal invite_received(from_name: String, table: String, options: Dictionary)
+signal invite_sent(to_name: String, table: String, options: Dictionary)
+signal invite_failed(reason: String, player: String)
 
-const MAGIC := "BROLIVE1"
-const DISCOVER := 27171
-const GAME := 27172
+const CLUB_URL := "wss://bowl-roll-club.fly.dev/ws"
 const ALPHABET := "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
 var code := ""
@@ -18,9 +25,41 @@ var searching := false
 var hosting := false
 var mode := "open"
 var peer_name := ""
-var _udp: PacketPeerUDP
-var _peer: ENetMultiplayerPeer
-var _tick := 0.0
+var matched := false
+var signed := false
+var _ws: WebSocketPeer
+var _hello := false
+var _join_retry := 0.0
+var _pulse := 0.0
+var _retry := 0.0
+var _want := false
+var _pending_find := ""
+var _pending_to := ""
+var _pending_opt := {}
+
+
+func sign_in(display_name: String) -> void:
+	player_name = display_name if display_name != "" else "Flicker"
+	_want = true
+	if _ws != null and _ws.get_ready_state() == WebSocketPeer.STATE_OPEN:
+		_send({"type": "hello", "name": player_name})
+		return
+	_open()
+
+
+func find_player(display_name: String) -> void:
+	_pending_find = display_name
+	_want = true
+	_ensure()
+	_flush_pending()
+
+
+func invite_player(to_name: String, options: Dictionary) -> void:
+	_pending_to = to_name
+	_pending_opt = options
+	_want = true
+	_ensure()
+	_flush_pending()
 
 
 func start_search(display_name: String, room: String) -> void:
@@ -37,19 +76,40 @@ func start_join(display_name: String, room: String) -> void:
 
 func stop_search() -> void:
 	searching = false
-	set_process(false)
-	if _udp != null:
-		_udp.close()
-		_udp = null
 
 
 func close_table() -> void:
-	stop_search()
-	if _peer != null:
-		_peer.close()
-		_peer = null
-	if multiplayer.multiplayer_peer != null:
-		multiplayer.multiplayer_peer = null
+	searching = false
+	matched = false
+	peer_name = ""
+	if _ws != null and _ws.get_ready_state() == WebSocketPeer.STATE_OPEN:
+		_send({"type": "leave"})
+
+
+func has_table() -> bool:
+	return matched and _ws != null and _ws.get_ready_state() == WebSocketPeer.STATE_OPEN
+
+
+func send_shot(px: float, hx: float, hz: float, ax: float, az: float, power: float, bias: int, hand: float, jack: bool) -> void:
+	_send({
+		"type": "relay",
+		"payload": {
+			"kind": "shot",
+			"px": px,
+			"hx": hx,
+			"hz": hz,
+			"ax": ax,
+			"az": az,
+			"power": power,
+			"bias": bias,
+			"hand": hand,
+			"jack": jack,
+		},
+	})
+
+
+func send_skip() -> void:
+	_send({"type": "relay", "payload": {"kind": "skip"}})
 
 
 static func friend_room(a: String, b: String) -> String:
@@ -86,136 +146,187 @@ func _begin(display_name: String, room: String, next_mode: String, as_host: bool
 	searching = true
 	hosting = as_host
 	peer_name = ""
-	_tick = 0.0
-	_udp = PacketPeerUDP.new()
-	var bind_err := _udp.bind(DISCOVER)
-	if bind_err != OK:
-		_udp.close()
-		_udp = PacketPeerUDP.new()
-		_udp.bind(DISCOVER)
-	_udp.set_broadcast_enabled(true)
-	if as_host:
-		_peer = ENetMultiplayerPeer.new()
-		var err := _peer.create_server(GAME, 1)
-		if err != OK:
-			hosting = false
-			_peer = null
-		else:
-			multiplayer.multiplayer_peer = _peer
-			_wire_peer()
-	set_process(true)
+	matched = false
+	_join_retry = 0.0
+	_pulse = 0.0
+	_want = true
+	_ensure()
+	if _ws != null and _ws.get_ready_state() == WebSocketPeer.STATE_OPEN:
+		_greet()
 	search_pulse.emit(code)
 
 
-func _wire_peer() -> void:
-	if not multiplayer.peer_connected.is_connected(_on_peer_connected):
-		multiplayer.peer_connected.connect(_on_peer_connected)
-	if not multiplayer.connected_to_server.is_connected(_on_connected):
-		multiplayer.connected_to_server.connect(_on_connected)
+func _open() -> void:
+	if _ws != null:
+		var state := _ws.get_ready_state()
+		if state == WebSocketPeer.STATE_CONNECTING or state == WebSocketPeer.STATE_OPEN:
+			return
+	_ws = WebSocketPeer.new()
+	_hello = false
+	var err := _ws.connect_to_url(CLUB_URL)
+	if err != OK:
+		_ws = null
+		_retry = 1.6
+		set_process(true)
+		return
+	set_process(true)
+
+
+func _ensure() -> void:
+	if _ws == null or _ws.get_ready_state() == WebSocketPeer.STATE_CLOSED:
+		_open()
 
 
 func _process(delta: float) -> void:
-	if not searching:
+	if _ws == null:
+		if _want:
+			_retry -= delta
+			if _retry <= 0.0:
+				_retry = 2.4
+				_open()
 		return
-	_tick += delta
-	if _tick >= 0.55:
-		_tick = 0.0
-		_broadcast()
-		search_pulse.emit(code)
-	_listen()
-
-
-func _broadcast() -> void:
-	if _udp == null:
-		return
-	var kind := "OPEN"
-	if mode == "host":
-		kind = "HOST"
-	elif mode == "join":
-		kind = "LOOK"
-	var payload := "%s|%s|%s|%s" % [MAGIC, kind, code, player_name]
-	_udp.set_dest_address("255.255.255.255", DISCOVER)
-	_udp.put_packet(payload.to_utf8_buffer())
-
-
-func _listen() -> void:
-	if _udp == null:
-		return
-	while _udp.get_available_packet_count() > 0:
-		var raw := _udp.get_packet()
-		var ip := _udp.get_packet_ip()
-		if _is_self(ip):
-			continue
-		var text := raw.get_string_from_utf8()
-		var bits := text.split("|")
-		if bits.size() < 3 or bits[0] != MAGIC:
-			continue
-		var kind := "OPEN"
-		var their_code := ""
-		var their_name := ""
-		if bits.size() >= 4:
-			kind = str(bits[1]).to_upper()
-			their_code = str(bits[2]).to_upper()
-			their_name = str(bits[3])
+	_ws.poll()
+	var state := _ws.get_ready_state()
+	if state == WebSocketPeer.STATE_OPEN:
+		if not _hello:
+			_hello = true
+			_send({"type": "hello", "name": player_name})
+			if searching:
+				_greet()
+			_flush_pending()
+		while _ws.get_available_packet_count() > 0:
+			_read_packet()
+		if searching:
+			_pulse += delta
+			if _pulse >= 0.8:
+				_pulse = 0.0
+				search_pulse.emit(code)
+				if mode == "join" and not matched:
+					_greet()
+	elif state == WebSocketPeer.STATE_CLOSED:
+		var was_matched := matched
+		_ws = null
+		_hello = false
+		signed = false
+		if was_matched:
+			matched = false
+			club_peer_left.emit()
+		if _want:
+			_retry = 1.2
 		else:
-			their_code = str(bits[1]).to_upper()
-			their_name = str(bits[2])
-		_hear(ip, kind, their_code, their_name)
+			set_process(false)
 
 
-func _hear(ip: String, kind: String, their_code: String, their_name: String) -> void:
-	if not searching:
+func _flush_pending() -> void:
+	if _ws == null or _ws.get_ready_state() != WebSocketPeer.STATE_OPEN:
 		return
-	if mode == "join":
-		if kind == "HOST" and their_code == code:
-			_join(ip, their_name)
-		return
+	if _pending_find != "":
+		_send({"type": "find", "name": _pending_find})
+		_pending_find = ""
+	if _pending_to != "":
+		_send({"type": "invite", "to": _pending_to, "options": _pending_opt})
+		_pending_to = ""
+		_pending_opt = {}
+
+
+func _greet() -> void:
 	if mode == "host":
-		if kind == "LOOK" and their_code == code and their_name != "":
-			peer_name = their_name
-		if kind == "HOST" and their_code == code and their_name.to_upper() < player_name.to_upper():
-			_join(ip, their_name)
-		return
-	if kind == "OPEN" or kind == "HOST":
-		if their_code < code:
-			_join(ip, their_name)
-		elif their_code > code and their_name != "":
-			peer_name = their_name
+		_send({"type": "host", "code": code, "name": player_name})
+	elif mode == "join":
+		_send({"type": "join", "code": code, "name": player_name})
+	else:
+		_send({"type": "search", "name": player_name})
 
 
-func _join(ip: String, other_name: String) -> void:
-	if not searching or ip == "":
+func _send(msg: Dictionary) -> void:
+	if _ws == null or _ws.get_ready_state() != WebSocketPeer.STATE_OPEN:
 		return
+	_ws.send_text(JSON.stringify(msg))
+
+
+func _read_packet() -> void:
+	var text := _ws.get_packet().get_string_from_utf8()
+	var parsed: Variant = JSON.parse_string(text)
+	if typeof(parsed) != TYPE_DICTIONARY:
+		return
+	var msg: Dictionary = parsed
+	var kind := str(msg.get("type", ""))
+	if kind == "hello_ok":
+		signed = true
+		player_name = str(msg.get("name", player_name))
+		signed_in.emit(player_name)
+	elif kind == "name_taken":
+		signed = false
+		name_taken.emit(str(msg.get("name", player_name)))
+	elif kind == "hosted":
+		code = str(msg.get("code", code))
+		search_pulse.emit(code)
+	elif kind == "searching":
+		search_pulse.emit(code)
+	elif kind == "matched":
+		_on_matched(msg)
+	elif kind == "relay":
+		_on_relay(msg)
+	elif kind == "peer_left":
+		club_peer_left.emit()
+	elif kind == "found":
+		player_found.emit(str(msg.get("name", "")), bool(msg.get("online", false)))
+	elif kind == "found_list":
+		var raw: Variant = msg.get("matches", [])
+		var matches: Array = raw if typeof(raw) == TYPE_ARRAY else []
+		player_list.emit(matches)
+	elif kind == "not_found":
+		player_missing.emit(str(msg.get("name", "")))
+	elif kind == "invite":
+		invite_received.emit(str(msg.get("from", "Friend")), str(msg.get("code", "")), _as_dict(msg.get("options", {})))
+	elif kind == "invite_sent":
+		code = str(msg.get("code", code))
+		invite_sent.emit(str(msg.get("to", "")), code, _as_dict(msg.get("options", {})))
+	elif kind == "invite_failed":
+		invite_failed.emit(str(msg.get("error", "offline")), str(msg.get("name", "")))
+	elif kind == "error":
+		var err := str(msg.get("error", ""))
+		if err == "no_table" and mode == "join" and searching:
+			return
+		if err == "offline":
+			invite_failed.emit("offline", "")
+
+
+func _on_matched(msg: Dictionary) -> void:
+	var role := str(msg.get("role", ""))
+	code = str(msg.get("code", code))
+	peer_name = str(msg.get("peer", "Friend"))
+	hosting = role == "host"
+	matched = true
 	searching = false
-	hosting = false
-	peer_name = other_name
-	if _peer != null:
-		_peer.close()
-		_peer = null
-	_peer = ENetMultiplayerPeer.new()
-	var err := _peer.create_client(ip, GAME)
-	if err != OK:
-		searching = true
+	found_peer.emit(hosting, peer_name if peer_name != "" else "Friend")
+
+
+func _as_dict(value: Variant) -> Dictionary:
+	if typeof(value) == TYPE_DICTIONARY:
+		return value
+	return {}
+
+
+func _on_relay(msg: Dictionary) -> void:
+	var payload: Variant = msg.get("payload", {})
+	if typeof(payload) != TYPE_DICTIONARY:
 		return
-	multiplayer.multiplayer_peer = _peer
-	_wire_peer()
-
-
-func _on_peer_connected(_id: int) -> void:
-	if not searching:
+	var body: Dictionary = payload
+	var kind := str(body.get("kind", ""))
+	if kind == "skip":
+		club_skip.emit()
 		return
-	searching = false
-	found_peer.emit(true, peer_name if peer_name != "" else "Friend")
-
-
-func _on_connected() -> void:
-	found_peer.emit(false, peer_name if peer_name != "" else "Friend")
-
-
-func _is_self(ip: String) -> bool:
-	if ip == "" or ip == "127.0.0.1" or ip == "0.0.0.0":
-		return true
-	for local in IP.get_local_addresses():
-		if str(local) == ip:
-			return true
-	return false
+	if kind != "shot":
+		return
+	club_shot.emit(
+		float(body.get("px", 0.0)),
+		float(body.get("hx", 0.0)),
+		float(body.get("hz", 0.0)),
+		float(body.get("ax", 0.0)),
+		float(body.get("az", 0.0)),
+		float(body.get("power", 0.0)),
+		int(body.get("bias", 0)),
+		float(body.get("hand", -1.0)),
+		bool(body.get("jack", false))
+	)

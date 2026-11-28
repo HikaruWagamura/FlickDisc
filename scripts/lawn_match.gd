@@ -49,10 +49,12 @@ var opponent := "local"
 var live_play := false
 var live_host := true
 var live_rival := ""
+var live_net
 var shot_clock := 30.0
 var clock_live := false
 const LIVE_CLOCK := 30.0
-const LIVE_POINTS := 7
+var live_points := 7
+var live_ends := 0
 var difficulty := 1
 var fast_play := false
 var _ai_token := 0
@@ -152,6 +154,7 @@ func _ready() -> void:
 	ui.cue_cycle_requested.connect(_on_cue_cycle_requested)
 	ui.overview_requested.connect(_on_overview_requested)
 	_wire_shot()
+	_wire_live_club()
 	_lock_portrait_on_device()
 	if _wants_bowltest():
 		fast_play = true
@@ -241,6 +244,23 @@ func _lock_portrait_on_device() -> void:
 func _input(event: InputEvent) -> void:
 	if feel != null and (event is InputEventMouseButton or event is InputEventScreenTouch):
 		feel.unlock()
+
+
+func _wire_live_club() -> void:
+	if live_net == null or opponent != "live":
+		return
+	if live_net.has_signal("club_shot") and not live_net.club_shot.is_connected(_on_club_shot):
+		live_net.club_shot.connect(_on_club_shot)
+	if live_net.has_signal("club_skip") and not live_net.club_skip.is_connected(_on_club_skip):
+		live_net.club_skip.connect(_on_club_skip)
+
+
+func _on_club_shot(px: float, hx: float, hz: float, ax: float, az: float, power: float, bias: int, hand: float, jack: bool) -> void:
+	_rpc_live_shot(px, hx, hz, ax, az, power, bias, hand, jack)
+
+
+func _on_club_skip() -> void:
+	_apply_live_skip()
 
 
 func _wire_shot() -> void:
@@ -581,14 +601,18 @@ func _place_rack() -> void:
 
 func _match_label() -> String:
 	if live_play:
-		return "TO 7"
+		if live_ends > 0:
+			return "1 END" if live_ends == 1 else "%d ENDS" % live_ends
+		return "TO %d" % maxi(live_points, 1)
 	return str(MATCHES[match_index]["label"])
 
 
 func _is_match_over() -> bool:
 	if live_play:
-		var lead := maxi(you_points, them_points)
-		return lead >= LIVE_POINTS and you_points != them_points
+		if live_ends > 0:
+			return end_number >= live_ends
+		var live_lead := maxi(you_points, them_points)
+		return live_lead >= maxi(live_points, 1) and you_points != them_points
 	var fmt: Dictionary = MATCHES[match_index]
 	var ends_target := int(fmt["ends"])
 	var points_target := int(fmt["points"])
@@ -1112,8 +1136,11 @@ func _commit_fire(px: float, hold: Vector3, aim: Vector3, power: float, bias: in
 		hand_sign = hand
 		disc.configure_bowl(bias, hand)
 	disc.fire_taken(aim, power)
-	if send and opponent == "live" and multiplayer.multiplayer_peer != null and multiplayer.get_peers().size() > 0:
-		_rpc_live_shot.rpc(px, hold.x, hold.z, aim.x, aim.z, power, bias, hand, jack)
+	if send and opponent == "live":
+		if live_net != null and live_net.has_method("has_table") and live_net.has_table():
+			live_net.send_shot(px, hold.x, hold.z, aim.x, aim.z, power, bias, hand, jack)
+		elif multiplayer.multiplayer_peer != null and multiplayer.get_peers().size() > 0:
+			_rpc_live_shot.rpc(px, hold.x, hold.z, aim.x, aim.z, power, bias, hand, jack)
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -1161,8 +1188,11 @@ func _on_live_clock_out() -> void:
 		return
 	if _waiting_live():
 		return
-	if opponent == "live" and multiplayer.multiplayer_peer != null and multiplayer.get_peers().size() > 0:
-		_rpc_live_skip.rpc()
+	if opponent == "live":
+		if live_net != null and live_net.has_method("has_table") and live_net.has_table():
+			live_net.send_skip()
+		elif multiplayer.multiplayer_peer != null and multiplayer.get_peers().size() > 0:
+			_rpc_live_skip.rpc()
 	_apply_live_skip()
 
 

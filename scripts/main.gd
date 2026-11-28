@@ -134,6 +134,12 @@ func _play(setup: Dictionary) -> void:
 		current.live_host = bool(setup.get("live_host", true))
 		if current.get("live_rival") != null:
 			current.live_rival = str(setup.get("rival", ""))
+		if current.get("live_points") != null:
+			current.live_points = int(setup.get("live_points", 7))
+		if current.get("live_ends") != null:
+			current.live_ends = int(setup.get("live_ends", 0))
+		if menu != null:
+			current.live_net = menu.live_net
 	get_tree().root.set_meta("flickdisc_sound", profile.sound)
 	get_tree().root.set_meta("flickdisc_haptics", profile.haptics)
 	get_tree().root.set_meta("flickdisc_kit", profile.kit())
@@ -180,6 +186,11 @@ func _menutest() -> void:
 	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
 	_dump_menu("menu_home_tall")
+	if menu.has_method("_open_lobby"):
+		menu._open_lobby()
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		_dump_menu("menu_lobby")
 	if menu.has_method("_launch_live"):
 		menu._launch_live()
 		await get_tree().process_frame
@@ -220,6 +231,13 @@ func _menutest() -> void:
 		await get_tree().process_frame
 		await RenderingServer.frame_post_draw
 		_dump_menu("menu_friends")
+		if menu.has_method("_on_invite_received"):
+			menu._on_invite_received("Tom", "TEST7", {"points": 7, "ends": 0, "guide": 0, "ditch": true, "race": 2})
+			await get_tree().process_frame
+			await RenderingServer.frame_post_draw
+			_dump_menu("menu_invite")
+			if menu.has_method("_decline_invite"):
+				menu._decline_invite()
 		if menu.has_method("_host_friend_table"):
 			menu._host_friend_table()
 			await get_tree().process_frame

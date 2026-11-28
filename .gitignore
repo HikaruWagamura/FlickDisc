@@ -1,4 +1,5 @@
 .godot/
+club/node_modules/
 *.translation
 export.cfg
 .import/
