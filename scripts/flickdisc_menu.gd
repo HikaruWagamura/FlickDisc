@@ -2103,12 +2103,12 @@ func _live_rival_card(wide: float, tall: float, fill: Color, mark: String, who: 
 	portrait.position = Vector2(inset + 4.0, (tall - face_d) * 0.5)
 	portrait.size = Vector2(face_d, face_d)
 	card.add_child(portrait)
-	var monogram := _label(mark, int(clampf(face_d * 0.22, 14.0, 22.0)), LiveFaces.ink_for(fill), title_font)
+	var monogram := _label(mark, int(clampf(face_d * 0.40, 32.0, 56.0)), LiveFaces.ink_for(fill), title_font)
 	monogram.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	monogram.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	monogram.position = portrait.position
 	monogram.size = portrait.size
-	monogram.modulate = Color(1, 1, 1, 0.88)
+	monogram.modulate = Color(1, 1, 1, 1.0)
 	monogram.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	card.add_child(monogram)
 	var copy_x := inset + ring_d + 18.0
@@ -2116,7 +2116,7 @@ func _live_rival_card(wide: float, tall: float, fill: Color, mark: String, who: 
 	var col := VBoxContainer.new()
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.alignment = BoxContainer.ALIGNMENT_CENTER
-	col.add_theme_constant_override("separation", 8)
+	col.add_theme_constant_override("separation", 6)
 	col.position = Vector2(copy_x, 16.0)
 	col.size = Vector2(copy_w, tall - 32.0)
 	card.add_child(col)
@@ -2125,11 +2125,11 @@ func _live_rival_card(wide: float, tall: float, fill: Color, mark: String, who: 
 	name_lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	name_lab.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
 	name_lab.clip_text = true
-	name_lab.custom_minimum_size = Vector2(0, float(name_px) + 6.0)
+	name_lab.add_theme_constant_override("line_spacing", -6)
+	name_lab.custom_minimum_size = Vector2(0, float(name_px))
 	name_lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	name_lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(name_lab)
-	col.add_child(_gap(4.0))
 	var tag_lab := _label(tag, 13, MUTED, bold_font)
 	tag_lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	tag_lab.custom_minimum_size = Vector2(0, 18.0)
@@ -2158,34 +2158,28 @@ func _skill_stars(skill: int) -> int:
 
 func _place_live_sights(reel_w: float, reel_h: float, focus_y: float, focus_h: float) -> void:
 	_show_live_sights(true)
-	var fade_h := clampf(reel_h * 0.18, 48.0, 110.0)
+	var fade_h := clampf(reel_h * 0.14, 36.0, 88.0)
 	if live_fade_top != null:
-		live_fade_top.visible = true
-		live_fade_top.position = Vector2.ZERO
-		live_fade_top.size = Vector2(reel_w, fade_h)
+		live_fade_top.visible = false
 	if live_fade_bot != null:
 		live_fade_bot.visible = true
 		live_fade_bot.position = Vector2(0.0, reel_h - fade_h)
 		live_fade_bot.size = Vector2(reel_w, fade_h)
 	if live_sight_top != null:
-		live_sight_top.visible = true
-		live_sight_top.position = Vector2(28.0, focus_y)
-		live_sight_top.size = Vector2(reel_w - 56.0, 2.0)
+		live_sight_top.visible = false
 	if live_sight_bot != null:
-		live_sight_bot.visible = true
-		live_sight_bot.position = Vector2(28.0, focus_y + focus_h - 2.0)
-		live_sight_bot.size = Vector2(reel_w - 56.0, 2.0)
+		live_sight_bot.visible = false
 
 
 func _show_live_sights(on: bool) -> void:
 	if live_fade_top != null:
-		live_fade_top.visible = on
+		live_fade_top.visible = false
 	if live_fade_bot != null:
 		live_fade_bot.visible = on
 	if live_sight_top != null:
-		live_sight_top.visible = on
+		live_sight_top.visible = false
 	if live_sight_bot != null:
-		live_sight_bot.visible = on
+		live_sight_bot.visible = false
 
 
 func _v_fade_tex(top: Color, bot: Color) -> Texture2D:
