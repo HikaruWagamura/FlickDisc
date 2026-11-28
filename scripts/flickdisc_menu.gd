@@ -121,6 +121,12 @@ var live_reel: Control
 var live_strip: Control
 var live_searching := false
 var live_reel_x := 0.0
+var live_reel_y := 0.0
+var live_card_step := 176.0
+var live_panel: Control
+var live_you_chip: Panel
+var live_you_tag: Label
+var live_focus: Control
 var live_token := 0
 var live_found_live := false
 var live_found_name := ""
@@ -131,6 +137,11 @@ var live_friend_button: Button
 var live_copy_button: Button
 var live_cancel_button: Button
 var live_reel_frame: Control
+var live_fade_top: TextureRect
+var live_fade_bot: TextureRect
+var live_sight_top: ColorRect
+var live_sight_bot: ColorRect
+var _crest_cache := {}
 var friends_back := "home"
 var friend_add_edit: LineEdit
 var friend_join_edit: LineEdit
@@ -417,6 +428,7 @@ func _layout_shell() -> void:
 		if item is Control:
 			(item as Control).custom_minimum_size = Vector2(wide, tall)
 	_layout_home(view, pad)
+	_layout_live(view, pad)
 
 
 func _layout_home(view: Vector2, pad: Vector2) -> void:
@@ -437,7 +449,7 @@ func _layout_home(view: Vector2, pad: Vector2) -> void:
 		floor = nav.position.y
 	var extra := maxf(0.0, view.y - 960.0)
 	var play_h := clampf(64.0 + extra * 0.04, 64.0, 72.0)
-	var rec_h := 48.0
+	var rec_h := 64.0
 	var rec_gap := 6.0
 	var logo_play := 11.0
 	var play_cards := 12.0
@@ -470,12 +482,124 @@ func _layout_home(view: Vector2, pad: Vector2) -> void:
 	if home_record_box != null:
 		home_record_box.position = Vector2(48.0, rec_y)
 		home_record_box.size = Vector2(wide - 96.0, rec_h)
+		home_record_box.custom_minimum_size = Vector2(wide - 96.0, rec_h)
+		home_record_box.add_theme_stylebox_override("panel", _chrome(Color(0.05, 0.10, 0.22, 0.92), GOLD, 2, int(round(rec_h * 0.5)), 0, 0.0, Color(0, 0, 0, 0)))
+		var wrap := home_record_box.get_node_or_null("RecWrap") as CenterContainer
+		if wrap != null:
+			wrap.set_anchors_preset(Control.PRESET_FULL_RECT)
+			wrap.offset_left = 12.0
+			wrap.offset_right = -12.0
+			wrap.offset_top = 4.0
+			wrap.offset_bottom = -6.0
 	if home_record != null:
-		home_record.position = Vector2(12.0, 4.0)
-		home_record.size = Vector2(wide - 120.0, 22.0)
+		home_record.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		home_record.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		home_record.add_theme_constant_override("line_spacing", -6)
 	if home_tally != null:
-		home_tally.position = Vector2(12.0, 26.0)
-		home_tally.size = Vector2(wide - 120.0, 16.0)
+		home_tally.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		home_tally.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		home_tally.add_theme_constant_override("line_spacing", -4)
+
+
+func _layout_live(view: Vector2, pad: Vector2) -> void:
+	if live_layer == null or live_panel == null:
+		return
+	var wide := view.x
+	var tall := view.y
+	live_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	live_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var top := pad.x + 10.0
+	var bottom := tall - pad.y - 14.0
+	var friend := live_mode == "host" or live_mode == "join"
+	var btn_h := 54.0
+	var btn_gap := 10.0
+	var btn_x := 22.0
+	var btn_w := wide - 44.0
+	if live_cancel_button != null:
+		live_cancel_button.position = Vector2(btn_x, bottom - btn_h)
+		live_cancel_button.size = Vector2(btn_w, btn_h)
+	var stack := bottom - btn_h
+	if live_friend_button != null and live_friend_button.visible:
+		stack -= btn_gap + btn_h
+		live_friend_button.position = Vector2(btn_x, stack)
+		live_friend_button.size = Vector2(btn_w, btn_h)
+	if live_copy_button != null and live_copy_button.visible:
+		stack -= btn_gap + btn_h
+		live_copy_button.position = Vector2(btn_x, stack)
+		live_copy_button.size = Vector2(btn_w, btn_h)
+	var floor_y := stack - 12.0
+	if live_title != null:
+		live_title.position = Vector2(20.0, top)
+		live_title.size = Vector2(wide - 40.0, 40.0)
+		live_title.add_theme_font_size_override("font_size", 38 if tall > 1400.0 else 30)
+	if live_body != null:
+		live_body.position = Vector2(28.0, top + 36.0)
+		live_body.size = Vector2(wide - 56.0, 52.0)
+		live_body.clip_text = false
+	var you_d := 48.0 if tall > 1200.0 else 42.0
+	var you_y := top + 110.0
+	if live_you_chip != null:
+		live_you_chip.position = Vector2((wide - you_d) * 0.5, you_y)
+		live_you_chip.size = Vector2(you_d, you_d)
+		live_you_chip.custom_minimum_size = Vector2(you_d, you_d)
+		var fill: Color = GOLD
+		if profile != null:
+			fill = profile.face_color()
+		live_you_chip.add_theme_stylebox_override("panel", _chrome(fill, GOLD, 2, int(you_d * 0.5), 0, 0.8, Color(0.96, 0.72, 0.12, 0.28)))
+		if live_you_letter != null:
+			live_you_letter.add_theme_font_size_override("font_size", 20 if you_d > 48.0 else 16)
+	if live_you_tag != null:
+		live_you_tag.visible = false
+	if live_you_name != null:
+		live_you_name.position = Vector2(24.0, you_y + you_d + 4.0)
+		live_you_name.size = Vector2(wide - 48.0, 22.0)
+		live_you_name.add_theme_font_size_override("font_size", 14)
+	var tag_h := 20.0
+	var reel_top := you_y + you_d + 28.0
+	var reel_x := 0.0
+	var reel_w := wide
+	if friend:
+		if live_rival_tag != null:
+			live_rival_tag.visible = true
+			live_rival_tag.position = Vector2(24.0, floor_y - tag_h)
+			live_rival_tag.size = Vector2(wide - 48.0, tag_h)
+		var reel_h := maxf(280.0, floor_y - tag_h - 10.0 - reel_top)
+		if live_reel_frame != null:
+			live_reel_frame.position = Vector2(reel_x, reel_top)
+			live_reel_frame.size = Vector2(reel_w, reel_h)
+		if live_rival_name != null:
+			live_rival_name.visible = true
+			live_rival_name.position = Vector2(24.0, reel_top)
+			live_rival_name.size = Vector2(wide - 48.0, reel_h)
+			live_rival_name.add_theme_font_size_override("font_size", 72 if tall > 1400.0 else 52)
+		if live_reel != null:
+			live_reel.visible = false
+		if live_focus != null:
+			live_focus.visible = false
+		_show_live_sights(false)
+	else:
+		if live_rival_tag != null:
+			live_rival_tag.visible = true
+			live_rival_tag.position = Vector2(24.0, floor_y - tag_h)
+			live_rival_tag.size = Vector2(wide - 48.0, tag_h)
+		if live_rival_name != null:
+			live_rival_name.visible = false
+		var reel_h := maxf(280.0, floor_y - tag_h - 8.0 - reel_top)
+		if live_reel_frame != null:
+			live_reel_frame.position = Vector2(reel_x, reel_top)
+			live_reel_frame.size = Vector2(reel_w, reel_h)
+		if live_reel != null:
+			live_reel.visible = true
+			live_reel.position = Vector2.ZERO
+			live_reel.size = Vector2(reel_w, reel_h)
+		live_card_step = clampf(reel_h / 3.05, 168.0, 320.0)
+		var focus_h := live_card_step
+		var focus_y := (reel_h - focus_h) * 0.5
+		if live_focus != null:
+			live_focus.visible = true
+			live_focus.position = Vector2(14.0, focus_y)
+			live_focus.size = Vector2(reel_w - 28.0, focus_h)
+		_place_live_sights(reel_w, reel_h, focus_y, focus_h)
 
 
 func _place_home_card(card: Button, pos: Vector2, box: Vector2) -> void:
@@ -520,12 +644,22 @@ func _place_home_card(card: Button, pos: Vector2, box: Vector2) -> void:
 
 
 func _process(delta: float) -> void:
-	if live_searching and live_strip != null:
-		live_reel_x += 260.0 * delta
-		var span := float(LiveFaces.RIVALS.size()) * 130.0
-		live_strip.position.x = -fmod(live_reel_x, span)
+	if live_searching and live_mode == "open" and live_strip != null and live_reel != null and live_reel.visible:
+		live_reel_y += 96.0 * delta
+		var span := float(LiveFaces.RIVALS.size()) * live_card_step
+		if span < 8.0:
+			return
+		live_strip.position.x = 0.0
+		live_strip.position.y = -fmod(live_reel_y, span)
+		_light_live_cards()
 		if live_rival_name != null:
-			live_rival_name.modulate.a = 0.55 + 0.45 * sin(live_reel_x * 0.045)
+			var n := LiveFaces.RIVALS.size()
+			var world := live_reel.size.y * 0.5 - live_strip.position.y
+			var idx := int(floor(world / live_card_step)) % n
+			if idx < 0:
+				idx += n
+			live_rival_name.text = str(LiveFaces.RIVALS[idx]["name"]).to_upper()
+			live_rival_name.modulate.a = 1.0
 
 
 func _arm_splash() -> void:
@@ -658,18 +792,32 @@ func _build_home() -> void:
 	]
 
 	home_record_box = Panel.new()
-	_place(page, home_record_box, Vector2(48, 720), Vector2(444, 48))
-	home_record_box.add_theme_stylebox_override("panel", _chrome(Color(0.05, 0.10, 0.22, 0.92), GOLD, 2, 24, 0, 1.4, Color(0, 0, 0, 0.45)))
-	home_record = _label("0W  ·  0L", 18, CREAM, bold_font)
-	home_record.position = Vector2(12, 4)
-	home_record.size = Vector2(420, 22)
+	_place(page, home_record_box, Vector2(48, 720), Vector2(444, 64))
+	home_record_box.add_theme_stylebox_override("panel", _chrome(Color(0.05, 0.10, 0.22, 0.92), GOLD, 2, 32, 0, 0.0, Color(0, 0, 0, 0)))
+	var rec_wrap := CenterContainer.new()
+	rec_wrap.name = "RecWrap"
+	rec_wrap.set_anchors_preset(Control.PRESET_FULL_RECT)
+	rec_wrap.offset_left = 12.0
+	rec_wrap.offset_right = -12.0
+	rec_wrap.offset_top = 4.0
+	rec_wrap.offset_bottom = -6.0
+	rec_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	home_record_box.add_child(rec_wrap)
+	var rec_col := VBoxContainer.new()
+	rec_col.alignment = BoxContainer.ALIGNMENT_CENTER
+	rec_col.add_theme_constant_override("separation", 0)
+	rec_col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rec_wrap.add_child(rec_col)
+	home_record = _label("0W  ·  0L", 17, CREAM, bold_font)
 	home_record.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	home_record_box.add_child(home_record)
-	home_tally = _label("ENDS 0  ·  NO DRIVE YET", 13, MUTED, bold_font)
-	home_tally.position = Vector2(12, 26)
-	home_tally.size = Vector2(420, 16)
+	home_record.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	home_record.add_theme_constant_override("line_spacing", -6)
+	rec_col.add_child(home_record)
+	home_tally = _label("ENDS 0  ·  NO DRIVE YET", 12, MUTED, bold_font)
 	home_tally.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	home_record_box.add_child(home_tally)
+	home_tally.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	home_tally.add_theme_constant_override("line_spacing", -4)
+	rec_col.add_child(home_tally)
 
 
 func _home_card(page: Control, rect: Rect2, title: String, body: String, art_tex: Texture2D, target: String, warm: bool) -> Button:
@@ -1362,81 +1510,109 @@ func _build_live_layer() -> void:
 	live_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
 	live_layer.visible = false
 	root.add_child(live_layer)
+	var wash := TextureRect.new()
+	wash.set_anchors_preset(Control.PRESET_FULL_RECT)
+	wash.texture = preload("res://assets/club_backdrop.png")
+	wash.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	wash.stretch_mode = TextureRect.STRETCH_SCALE
+	wash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	live_layer.add_child(wash)
 	var dim := ColorRect.new()
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	dim.color = Color(0.03, 0.05, 0.12, 0.82)
+	dim.color = Color(0.02, 0.04, 0.10, 0.55)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
 	live_layer.add_child(dim)
-	var panel := Panel.new()
-	panel.name = "Card"
-	panel.position = Vector2(18, 120)
-	panel.size = Vector2(504, 640)
-	panel.add_theme_stylebox_override("panel", _chrome(Color(0.07, 0.12, 0.30, 0.97), GOLD, 2, 26, 16, 2.0, Color(0.96, 0.72, 0.12, 0.28)))
-	live_layer.add_child(panel)
-	live_title = _label("LIVE GAME", 34, GOLD, title_font)
+	live_panel = Control.new()
+	live_panel.name = "Stage"
+	live_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	live_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	live_layer.add_child(live_panel)
+	live_title = _label("LIVE GAME", 42, GOLD, title_font)
 	live_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	live_title.position = Vector2(16, 16)
-	live_title.size = Vector2(472, 42)
-	panel.add_child(live_title)
-	live_body = _label("Searching for a live player.\nFirst to 7  ·  30s a shot.", 15, CREAM, body_font)
+	live_panel.add_child(live_title)
+	live_body = _label("Searching the club for a live player.\nFirst to 7  ·  30s a shot.", 16, CREAM, body_font)
 	live_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	live_body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	live_body.position = Vector2(24, 62)
-	live_body.size = Vector2(456, 52)
-	panel.add_child(live_body)
-	var you := _face_chip(Vector2(118, 118), GOLD, "F")
-	you.position = Vector2(48, 140)
-	panel.add_child(you)
-	live_you_letter = you.get_node("Mark") as Label
-	live_you_photo = you.get_node("Photo") as TextureRect
-	live_you_name = _label("YOU", 14, GOLD, bold_font)
+	live_panel.add_child(live_body)
+	live_you_chip = _face_chip(Vector2(52, 52), GOLD, "F")
+	live_panel.add_child(live_you_chip)
+	live_you_letter = live_you_chip.get_node("Mark") as Label
+	live_you_photo = live_you_chip.get_node("Photo") as TextureRect
+	live_you_tag = _label("YOU", 11, GOLD, bold_font)
+	live_you_tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	live_you_tag.visible = false
+	live_panel.add_child(live_you_tag)
+	live_you_name = _label("FLICKER", 14, CREAM, title_font)
 	live_you_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	live_you_name.position = Vector2(48, 266)
-	live_you_name.size = Vector2(118, 22)
-	panel.add_child(live_you_name)
-	var vs := _label("VS", 36, GOLD, title_font)
-	vs.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vs.position = Vector2(186, 172)
-	vs.size = Vector2(80, 44)
-	panel.add_child(vs)
-	var reel_frame := Panel.new()
-	live_reel_frame = reel_frame
-	reel_frame.position = Vector2(268, 128)
-	reel_frame.size = Vector2(204, 142)
-	reel_frame.add_theme_stylebox_override("panel", _chrome(Color(0.04, 0.08, 0.22, 0.96), GOLD, 2, 22, 0, 1.6, Color(0.96, 0.72, 0.12, 0.35)))
-	panel.add_child(reel_frame)
+	live_panel.add_child(live_you_name)
+	live_reel_frame = Panel.new()
+	var well := StyleBoxFlat.new()
+	well.bg_color = Color(0.02, 0.04, 0.10, 0.0)
+	well.set_corner_radius_all(0)
+	well.set_border_width_all(0)
+	well.shadow_size = 0
+	live_reel_frame.add_theme_stylebox_override("panel", well)
+	live_panel.add_child(live_reel_frame)
+	live_focus = Panel.new()
+	live_focus.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var focus_style := StyleBoxFlat.new()
+	focus_style.bg_color = Color(0.96, 0.78, 0.22, 0.10)
+	focus_style.border_color = GOLD
+	focus_style.set_border_width_all(2)
+	focus_style.set_corner_radius_all(26)
+	focus_style.shadow_color = Color(0.96, 0.72, 0.12, 0.45)
+	focus_style.shadow_size = 18
+	live_focus.add_theme_stylebox_override("panel", focus_style)
+	live_reel_frame.add_child(live_focus)
 	live_reel = Control.new()
-	live_reel.position = Vector2(12, 12)
-	live_reel.size = Vector2(180, 118)
 	live_reel.clip_contents = true
-	reel_frame.add_child(live_reel)
+	live_reel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	live_reel_frame.add_child(live_reel)
 	live_strip = Control.new()
-	live_strip.position = Vector2.ZERO
-	live_strip.size = Vector2(1600, 118)
+	live_strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	live_reel.add_child(live_strip)
-	_fill_live_reel()
-	live_rival_name = _label("SEARCHING", 16, CREAM, title_font)
+	live_fade_top = TextureRect.new()
+	live_fade_top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	live_fade_top.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	live_fade_top.stretch_mode = TextureRect.STRETCH_SCALE
+	live_fade_top.texture = _v_fade_tex(Color(0.05, 0.07, 0.14, 0.72), Color(0.05, 0.07, 0.14, 0.0))
+	live_reel_frame.add_child(live_fade_top)
+	live_fade_bot = TextureRect.new()
+	live_fade_bot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	live_fade_bot.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	live_fade_bot.stretch_mode = TextureRect.STRETCH_SCALE
+	live_fade_bot.texture = _v_fade_tex(Color(0.05, 0.07, 0.14, 0.0), Color(0.05, 0.07, 0.14, 0.78))
+	live_reel_frame.add_child(live_fade_bot)
+	live_sight_top = ColorRect.new()
+	live_sight_top.color = GOLD
+	live_sight_top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	live_reel_frame.add_child(live_sight_top)
+	live_sight_bot = ColorRect.new()
+	live_sight_bot.color = GOLD
+	live_sight_bot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	live_reel_frame.add_child(live_sight_bot)
+	live_rival_name = _label("SEARCHING", 28, CREAM, title_font)
 	live_rival_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	live_rival_name.position = Vector2(250, 266)
-	live_rival_name.size = Vector2(220, 24)
-	panel.add_child(live_rival_name)
-	live_rival_tag = _label("LIVE PLAYER OR CLUB AI", 12, MUTED, bold_font)
+	live_rival_name.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	live_panel.add_child(live_rival_name)
+	live_rival_tag = _label("WAITING FOR A LIVE PLAYER", 13, MUTED, bold_font)
 	live_rival_tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	live_rival_tag.position = Vector2(24, 300)
-	live_rival_tag.size = Vector2(456, 20)
-	panel.add_child(live_rival_tag)
-	live_copy_button = _row_button("Copy table code", _copy_live_code)
-	live_copy_button.position = Vector2(20, 430)
-	live_copy_button.size = Vector2(464, 48)
+	live_panel.add_child(live_rival_tag)
+	live_copy_button = _button("Copy table code", 16)
+	_paint_button(live_copy_button, PLUM, GOLD, CREAM, 16, 12, 2)
+	live_copy_button.pressed.connect(_copy_live_code)
 	live_copy_button.visible = false
-	panel.add_child(live_copy_button)
-	live_friend_button = _row_button("Play a friend instead", _open_friends.bind("home"))
-	live_friend_button.position = Vector2(20, 486)
-	live_friend_button.size = Vector2(464, 48)
-	panel.add_child(live_friend_button)
-	live_cancel_button = _row_button("Cancel search", _cancel_live_search)
-	live_cancel_button.position = Vector2(20, 540)
-	live_cancel_button.size = Vector2(464, 56)
-	panel.add_child(live_cancel_button)
+	live_panel.add_child(live_copy_button)
+	live_friend_button = _button("Play a friend instead", 16)
+	_paint_button(live_friend_button, GOLD, Color("#FFE9A0"), Color("#1A1208"), 16, 12, 2)
+	live_friend_button.add_theme_color_override("font_hover_color", Color("#1A1208"))
+	live_friend_button.add_theme_color_override("font_pressed_color", Color("#1A1208"))
+	live_friend_button.pressed.connect(_open_friends.bind("home"))
+	live_panel.add_child(live_friend_button)
+	live_cancel_button = _button("Cancel search", 16)
+	_paint_button(live_cancel_button, Color(0.06, 0.12, 0.24, 0.88), GOLD, CREAM, 16, 12, 2)
+	live_cancel_button.pressed.connect(_cancel_live_search)
+	live_panel.add_child(live_cancel_button)
 
 
 func _build_toast() -> void:
@@ -1654,33 +1830,20 @@ func _launch_live() -> void:
 	live_hosting = true
 	live_searching = true
 	live_reel_x = 0.0
-	_fill_live_reel()
+	live_reel_y = 0.0
 	_paint_player_face()
 	if live_layer != null:
 		live_layer.visible = true
 	if live_title != null:
 		live_title.text = "LIVE GAME"
 	if live_body != null:
-		live_body.text = "Searching for a live player.\nFirst to 7  ·  30s a shot."
+		live_body.text = "Searching the club for a live player.\nFirst to 7  ·  30s a shot."
 	if live_rival_name != null:
 		live_rival_name.text = "SEARCHING"
 		live_rival_name.modulate.a = 1.0
 	if live_rival_tag != null:
 		live_rival_tag.text = "WAITING FOR A LIVE PLAYER"
-	if live_friend_button != null:
-		live_friend_button.visible = true
-	if live_copy_button != null:
-		live_copy_button.visible = false
-	if live_reel != null:
-		live_reel.visible = true
-	if live_reel_frame != null:
-		live_reel_frame.visible = true
-	if live_cancel_button != null:
-		live_cancel_button.text = "Cancel search"
-	if live_rival_name != null:
-		live_rival_name.position = Vector2(250, 266)
-		live_rival_name.size = Vector2(220, 24)
-		live_rival_name.add_theme_font_size_override("font_size", 16)
+	_paint_live_stage()
 	_ensure_live_net()
 	live_net.start_search(profile.player_name if profile != null else "Flicker", room_code)
 	_wait_for_live(token)
@@ -1706,7 +1869,7 @@ func _on_live_pulse(_code: String) -> void:
 	elif live_mode == "join":
 		live_body.text = "Looking for table %s on this Wi-Fi.\nFirst to 7." % live_table_code
 	else:
-		live_body.text = "Searching for a live player on this Wi-Fi.\nFirst to 7  ·  30s a shot."
+		live_body.text = "Searching the club for a live player.\nFirst to 7  ·  30s a shot."
 
 
 func _on_live_found(hosting: bool, peer_name: String) -> void:
@@ -1752,6 +1915,9 @@ func _lock_live_rival(is_live: bool, rival_name: String, rival: Dictionary, star
 			live_rival_tag.text = "LIVE PLAYER"
 		if live_body != null:
 			live_body.text = "Matched with %s.\nFirst to 7. Thirty seconds a shot." % rival_name
+	if live_friend_button != null:
+		live_friend_button.visible = false
+	_layout_live(_view_size(), _safe_pad())
 	_show_locked_face(fill, mark)
 	if not start_match:
 		return
@@ -1801,7 +1967,7 @@ func _face_chip(size: Vector2, fill: Color, mark: String) -> Panel:
 	chip.custom_minimum_size = size
 	chip.size = size
 	chip.clip_children = Control.CLIP_CHILDREN_AND_DRAW
-	chip.add_theme_stylebox_override("panel", _flat(fill, Color("#FFE9A0"), 2, int(size.x * 0.5), 0))
+	chip.add_theme_stylebox_override("panel", _chrome(fill, Color("#FFE9A0"), 3, int(size.x * 0.5), 0, 1.4, Color(0.96, 0.72, 0.12, 0.28)))
 	var photo := TextureRect.new()
 	photo.name = "Photo"
 	photo.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -1819,32 +1985,237 @@ func _face_chip(size: Vector2, fill: Color, mark: String) -> Panel:
 	return chip
 
 
+func _paint_live_stage() -> void:
+	var friend := live_mode == "host" or live_mode == "join"
+	if live_copy_button != null:
+		live_copy_button.visible = live_mode == "host"
+	if live_friend_button != null:
+		live_friend_button.visible = live_mode == "open"
+	if live_cancel_button != null:
+		live_cancel_button.text = "Cancel search" if live_mode == "open" else "Cancel"
+	if live_reel_frame != null:
+		live_reel_frame.visible = true
+	_layout_live(_view_size(), _safe_pad())
+	if live_mode == "open":
+		_fill_live_reel()
+
+
 func _fill_live_reel() -> void:
-	if live_strip == null:
+	if live_strip == null or live_reel == null:
 		return
 	for child in live_strip.get_children():
+		live_strip.remove_child(child)
 		child.queue_free()
-	live_strip.position.x = 0.0
-	var x := 0.0
-	for _loop in 3:
+	live_strip.position = Vector2.ZERO
+	var wide := maxf(160.0, live_reel.size.x)
+	var step := live_card_step
+	var pad_x := 18.0
+	var card_w := maxf(120.0, wide - pad_x * 2.0)
+	var y := 0.0
+	for _loop in 4:
 		for rival in LiveFaces.RIVALS:
-			var chip := _face_chip(Vector2(118, 118), LiveFaces.color_at(int(rival["color"])), str(rival["mark"]))
-			chip.position = Vector2(x, 0)
-			live_strip.add_child(chip)
-			x += 130.0
-	live_strip.size = Vector2(x, 118)
+			var skill: int = int(rival.get("skill", 1))
+			var tag := "CLUB  ·  %s" % ["EASY", "MEDIUM", "HARD"][clampi(skill, 0, 2)]
+			var card := _live_rival_card(
+				card_w,
+				step - 16.0,
+				LiveFaces.color_at(int(rival["color"])),
+				str(rival["mark"]),
+				str(rival["name"]),
+				tag,
+				skill
+			)
+			card.position = Vector2(pad_x, y + 8.0)
+			live_strip.add_child(card)
+			y += step
+	live_strip.size = Vector2(wide, y)
+	_light_live_cards()
 
 
 func _show_locked_face(fill: Color, mark: String) -> void:
-	if live_strip == null:
+	if live_strip == null or live_reel == null:
 		return
 	for child in live_strip.get_children():
+		live_strip.remove_child(child)
 		child.queue_free()
-	live_strip.position.x = 31.0
-	var chip := _face_chip(Vector2(118, 118), fill, mark)
-	chip.position = Vector2.ZERO
-	live_strip.add_child(chip)
-	live_strip.size = Vector2(118, 118)
+	var wide := maxf(160.0, live_reel.size.x)
+	var pad_x := 18.0
+	var card_w := maxf(120.0, wide - pad_x * 2.0)
+	var tall := maxf(live_card_step - 16.0, 156.0)
+	var who := live_found_name if live_found_name != "" else "Club player"
+	var card := _live_rival_card(card_w, tall, fill, mark, who, live_rival_tag.text if live_rival_tag != null else "", 1)
+	card.position = Vector2(pad_x, maxf(0.0, (live_reel.size.y - tall) * 0.5))
+	live_strip.position = Vector2.ZERO
+	live_strip.add_child(card)
+	live_strip.size = Vector2(wide, live_reel.size.y)
+	card.modulate = Color.WHITE
+	card.scale = Vector2.ONE
+	card.pivot_offset = card.size * 0.5
+
+
+func _light_live_cards() -> void:
+	if live_strip == null or live_reel == null:
+		return
+	var center := live_reel.size.y * 0.5
+	for child in live_strip.get_children():
+		if child is Control:
+			var row := child as Control
+			var mid := row.position.y + row.size.y * 0.5 + live_strip.position.y
+			var dist := absf(mid - center)
+			var t := clampf(1.0 - dist / maxf(row.size.y * 1.05, 1.0), 0.0, 1.0)
+			row.pivot_offset = row.size * 0.5
+			row.modulate = Color(1, 1, 1, 0.28 + 0.72 * t)
+			var s := 0.90 + 0.10 * t
+			row.scale = Vector2(s, s)
+
+
+func _live_rival_card(wide: float, tall: float, fill: Color, mark: String, who: String, tag: String, skill: int = 1) -> Panel:
+	var card := Panel.new()
+	card.size = Vector2(wide, tall)
+	card.custom_minimum_size = Vector2(wide, tall)
+	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var plate := StyleBoxFlat.new()
+	plate.bg_color = Color(0.05, 0.09, 0.20, 0.82)
+	plate.border_color = Color(0.96, 0.78, 0.28, 0.22)
+	plate.set_border_width_all(1)
+	plate.set_corner_radius_all(24)
+	plate.content_margin_left = 0
+	plate.content_margin_right = 0
+	plate.shadow_color = Color(0, 0, 0, 0.35)
+	plate.shadow_size = 10
+	plate.shadow_offset = Vector2(0, 4)
+	card.add_theme_stylebox_override("panel", plate)
+	var inset := 18.0
+	var face_d := clampf(tall - 28.0, 96.0, 168.0)
+	var ring := Panel.new()
+	var ring_d := face_d + 8.0
+	ring.position = Vector2(inset, (tall - ring_d) * 0.5)
+	ring.size = Vector2(ring_d, ring_d)
+	ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ring.add_theme_stylebox_override("panel", _chrome(Color(0.08, 0.10, 0.16, 1.0), GOLD, 3, int(ring_d * 0.5), 0, 1.1, Color(0.96, 0.72, 0.12, 0.40)))
+	card.add_child(ring)
+	var portrait := TextureRect.new()
+	portrait.texture = _bowl_crest(fill)
+	portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	portrait.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	portrait.position = Vector2(inset + 4.0, (tall - face_d) * 0.5)
+	portrait.size = Vector2(face_d, face_d)
+	card.add_child(portrait)
+	var monogram := _label(mark, int(clampf(face_d * 0.22, 14.0, 22.0)), LiveFaces.ink_for(fill), title_font)
+	monogram.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	monogram.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	monogram.position = portrait.position
+	monogram.size = portrait.size
+	monogram.modulate = Color(1, 1, 1, 0.88)
+	monogram.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(monogram)
+	var copy_x := inset + ring_d + 18.0
+	var copy_w := maxf(80.0, wide - copy_x - 22.0)
+	var name_lab := _label(who.to_upper(), int(clampf(tall * 0.22, 26.0, 42.0)), GOLD, title_font)
+	name_lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	name_lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	name_lab.position = Vector2(copy_x, (tall - 78.0) * 0.5)
+	name_lab.size = Vector2(copy_w, 42.0)
+	name_lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(name_lab)
+	var tag_lab := _label(tag, 14, MUTED, bold_font)
+	tag_lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	tag_lab.position = Vector2(copy_x, name_lab.position.y + 40.0)
+	tag_lab.size = Vector2(copy_w, 20.0)
+	tag_lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(tag_lab)
+	var stars := ""
+	for i in 3:
+		stars += "●" if i <= skill else "○"
+		if i < 2:
+			stars += "  "
+	var star_lab := _label(stars, 12, GOLD, bold_font)
+	star_lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	star_lab.position = Vector2(copy_x, tag_lab.position.y + 20.0)
+	star_lab.size = Vector2(copy_w, 18.0)
+	star_lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(star_lab)
+	return card
+
+
+func _place_live_sights(reel_w: float, reel_h: float, focus_y: float, focus_h: float) -> void:
+	_show_live_sights(true)
+	var fade_h := clampf(reel_h * 0.18, 48.0, 110.0)
+	if live_fade_top != null:
+		live_fade_top.visible = true
+		live_fade_top.position = Vector2.ZERO
+		live_fade_top.size = Vector2(reel_w, fade_h)
+	if live_fade_bot != null:
+		live_fade_bot.visible = true
+		live_fade_bot.position = Vector2(0.0, reel_h - fade_h)
+		live_fade_bot.size = Vector2(reel_w, fade_h)
+	if live_sight_top != null:
+		live_sight_top.visible = true
+		live_sight_top.position = Vector2(28.0, focus_y)
+		live_sight_top.size = Vector2(reel_w - 56.0, 2.0)
+	if live_sight_bot != null:
+		live_sight_bot.visible = true
+		live_sight_bot.position = Vector2(28.0, focus_y + focus_h - 2.0)
+		live_sight_bot.size = Vector2(reel_w - 56.0, 2.0)
+
+
+func _show_live_sights(on: bool) -> void:
+	if live_fade_top != null:
+		live_fade_top.visible = on
+	if live_fade_bot != null:
+		live_fade_bot.visible = on
+	if live_sight_top != null:
+		live_sight_top.visible = on
+	if live_sight_bot != null:
+		live_sight_bot.visible = on
+
+
+func _v_fade_tex(top: Color, bot: Color) -> Texture2D:
+	var img := Image.create(4, 48, false, Image.FORMAT_RGBA8)
+	for y in 48:
+		var t := float(y) / 47.0
+		var c := top.lerp(bot, t)
+		for x in 4:
+			img.set_pixel(x, y, c)
+	return ImageTexture.create_from_image(img)
+
+
+func _bowl_crest(fill: Color) -> Texture2D:
+	var key := fill.to_html(false)
+	if _crest_cache.has(key):
+		return _crest_cache[key]
+	var size := 160
+	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var light := Vector3(-0.38, 0.72, 0.58).normalized()
+	var spec_dir := Vector3(-0.16, 0.48, 0.86).normalized()
+	var albedo := fill.lightened(0.08)
+	var shade := fill.darkened(0.22)
+	for y in size:
+		for x in size:
+			var nx := (float(x) + 0.5) / float(size) * 2.0 - 1.0
+			var ny := (float(y) + 0.5) / float(size) * 2.0 - 1.0
+			var r2 := nx * nx + ny * ny
+			if r2 > 1.0:
+				continue
+			var nz := sqrt(maxf(0.0, 1.0 - r2))
+			var n := Vector3(nx, -ny, nz).normalized()
+			var wrap := 0.22 + 0.78 * clampf(n.dot(light), 0.0, 1.0)
+			var spec := pow(clampf(n.dot(spec_dir), 0.0, 1.0), 28.0)
+			var col := shade.lerp(albedo, wrap)
+			var band := absf(fmod((ny * 0.5 + 0.5) * 6.2, 1.0) - 0.5)
+			if band < 0.07 and absf(ny) < 0.62:
+				col = col.lerp(Color(0.95, 0.93, 0.88), 0.22)
+			col = col.lerp(Color(1.0, 0.98, 0.90), spec * 0.72)
+			var rim := pow(1.0 - nz, 2.4)
+			col = col.lerp(GOLD.lightened(0.15), rim * 0.18)
+			col.a = clampf((1.0 - r2) / 0.06, 0.0, 1.0)
+			img.set_pixel(x, y, col)
+	var tex := ImageTexture.create_from_image(img)
+	_crest_cache[key] = tex
+	return tex
 
 
 func _initial_of(value: String) -> String:
@@ -1984,7 +2355,8 @@ func _paint_player_face() -> void:
 	if live_you_letter != null:
 		var chip := live_you_letter.get_parent() as Panel
 		if chip != null:
-			chip.add_theme_stylebox_override("panel", _flat(fill, GOLD, 2, 59, 0))
+			var rad := int(maxf(chip.size.x, 88.0) * 0.5)
+			chip.add_theme_stylebox_override("panel", _flat(fill, GOLD, 2, rad, 0))
 		live_you_letter.text = _initial()
 		live_you_letter.add_theme_color_override("font_color", ink)
 		live_you_letter.visible = photo == null
@@ -2182,7 +2554,7 @@ func _begin_friend_wait(kind: String, table: String, rival_hint: String) -> void
 	live_hosting = kind == "host"
 	live_searching = true
 	live_reel_x = 0.0
-	_fill_live_reel()
+	live_reel_y = 0.0
 	_paint_player_face()
 	if live_layer != null:
 		live_layer.visible = true
@@ -2196,41 +2568,15 @@ func _begin_friend_wait(kind: String, table: String, rival_hint: String) -> void
 			live_rival_name.modulate.a = 1.0
 		if live_rival_tag != null:
 			live_rival_tag.text = "WAITING FOR THEM TO TYPE IT"
-		if live_copy_button != null:
-			live_copy_button.visible = true
-		if live_friend_button != null:
-			live_friend_button.visible = false
-		if live_reel != null:
-			live_reel.visible = false
-		if live_reel_frame != null:
-			live_reel_frame.visible = true
-		if live_cancel_button != null:
-			live_cancel_button.text = "Cancel"
-		if live_rival_name != null:
-			live_rival_name.position = Vector2(268, 160)
-			live_rival_name.size = Vector2(204, 70)
-			live_rival_name.add_theme_font_size_override("font_size", 32)
 	else:
 		if live_body != null:
 			live_body.text = "Looking for table %s on this Wi-Fi.\nFirst to 7." % table
 		if live_rival_name != null:
 			live_rival_name.text = table
 			live_rival_name.modulate.a = 1.0
-			live_rival_name.position = Vector2(268, 160)
-			live_rival_name.size = Vector2(204, 70)
-			live_rival_name.add_theme_font_size_override("font_size", 32)
 		if live_rival_tag != null:
 			live_rival_tag.text = "JOINING YOUR FRIEND"
-		if live_copy_button != null:
-			live_copy_button.visible = false
-		if live_friend_button != null:
-			live_friend_button.visible = false
-		if live_reel != null:
-			live_reel.visible = false
-		if live_reel_frame != null:
-			live_reel_frame.visible = true
-		if live_cancel_button != null:
-			live_cancel_button.text = "Cancel"
+	_paint_live_stage()
 	_ensure_live_net()
 	var me: String = profile.player_name if profile != null else "Flicker"
 	if kind == "host":
