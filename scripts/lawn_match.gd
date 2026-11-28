@@ -289,6 +289,13 @@ func _begin_ready() -> void:
 		_ai_token += 1
 		_play_computer(_ai_token)
 		return
+	if _waiting_live():
+		if gesture != null:
+			gesture.busy()
+		disc.set_palette(_side())
+		ui.show_live_wait(_side_name(_side()), _score_line())
+		clock_live = false
+		return
 	if gesture != null:
 		gesture.arm()
 		gesture.anchor = disc.start_position
@@ -336,13 +343,15 @@ func _on_pull_cancelled() -> void:
 	ui.set_power_ratio(0.0)
 
 
-func _on_shot_fired(power: float, _needle: float) -> void:
-	disc.start_position = Vector3(place_x, 0.0, line_z)
-	if gesture != null and gesture.direct:
-		disc.global_position = gesture.direct_hold
-		disc.fire_taken(gesture.direct_aim, power)
+func _on_shot_fired(power: float, needle: float) -> void:
+	if _waiting_live():
 		return
-	disc.fire_taken(_aim_from(_needle), power)
+	var aim := _aim_from(needle)
+	var hold := Vector3(place_x, 0.0, line_z)
+	if gesture != null and gesture.direct:
+		hold = gesture.direct_hold
+		aim = gesture.direct_aim
+	_commit_fire(place_x, hold, aim, power, bias_index, hand_sign, delivering_jack, true)
 
 
 func _aim_from(needle: float) -> Vector3:
@@ -894,7 +903,7 @@ func _finish_shot(token: int) -> void:
 		match_complete = _is_match_over()
 		if match_complete and not match_reported and you_points != them_points:
 			match_reported = true
-			match_decided.emit(you_points > them_points)
+			match_decided.emit(_live_you_won())
 		disc.visible = false
 		_place_rack()
 		feel.settled(0.2 if shots > 0 else 9.0)
@@ -1047,7 +1056,8 @@ func _side() -> int:
 
 func _side_name(side: int) -> String:
 	if live_play:
-		if side == 0:
+		var mine: int = 0 if live_host or opponent != "live" else 1
+		if side == mine:
 			return "YOU"
 		if live_rival != "":
 			return live_rival.to_upper()
@@ -1065,6 +1075,8 @@ func _bowls_left(side: int) -> int:
 
 func _score_line() -> String:
 	if live_play:
+		if opponent == "live" and not live_host:
+			return "%s %d   %s %d" % [_side_name(1), them_points, _side_name(0), you_points]
 		return "%s %d   %s %d" % [_side_name(0), you_points, _side_name(1), them_points]
 	return "RED %d   BLUE %d" % [you_points, them_points]
 
@@ -1073,8 +1085,53 @@ func _computer_turn() -> bool:
 	return opponent == "ai" and not delivering_jack and _side() == 1
 
 
+func _my_live_turn() -> bool:
+	if opponent != "live":
+		return true
+	if delivering_jack:
+		return live_host
+	return live_host == (_side() == 0)
+
+
+func _waiting_live() -> bool:
+	return opponent == "live" and not _my_live_turn()
+
+
+func _live_you_won() -> bool:
+	if opponent == "live" and not live_host:
+		return them_points > you_points
+	return you_points > them_points
+
+
+func _commit_fire(px: float, hold: Vector3, aim: Vector3, power: float, bias: int, hand: float, jack: bool, send: bool) -> void:
+	place_x = px
+	disc.start_position = Vector3(px, 0.0, line_z)
+	disc.global_position = hold
+	if not jack:
+		bias_index = bias
+		hand_sign = hand
+		disc.configure_bowl(bias, hand)
+	disc.fire_taken(aim, power)
+	if send and opponent == "live" and multiplayer.multiplayer_peer != null and multiplayer.get_peers().size() > 0:
+		_rpc_live_shot.rpc(px, hold.x, hold.z, aim.x, aim.z, power, bias, hand, jack)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_live_shot(px: float, hx: float, hz: float, ax: float, az: float, power: float, bias: int, hand: float, jack: bool) -> void:
+	if disc == null or disc.shot_in_progress:
+		return
+	if gesture != null:
+		gesture.busy()
+	_commit_fire(px, Vector3(hx, 0.0, hz), Vector3(ax, 0.0, az), power, bias, hand, jack, false)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_live_skip() -> void:
+	_apply_live_skip()
+
+
 func _arm_live_clock() -> void:
-	if not live_play or match_complete or _computer_turn():
+	if not live_play or match_complete or _computer_turn() or _waiting_live():
 		clock_live = false
 		return
 	shot_clock = LIVE_CLOCK
@@ -1102,6 +1159,16 @@ func _paint_live_clock() -> void:
 func _on_live_clock_out() -> void:
 	if match_complete or disc == null or disc.shot_in_progress:
 		return
+	if _waiting_live():
+		return
+	if opponent == "live" and multiplayer.multiplayer_peer != null and multiplayer.get_peers().size() > 0:
+		_rpc_live_skip.rpc()
+	_apply_live_skip()
+
+
+func _apply_live_skip() -> void:
+	if match_complete or disc == null or disc.shot_in_progress:
+		return
 	if gesture != null:
 		gesture.busy()
 	if delivering_jack:
@@ -1115,7 +1182,7 @@ func _on_live_clock_out() -> void:
 	_place_rack()
 	disc.obstacles = _table()
 	if throws_left > 0:
-		if not _computer_turn():
+		if not _computer_turn() and not _waiting_live():
 			bias_index = player_bias
 			hand_sign = player_hand
 			disc.configure_bowl(bias_index, hand_sign)
@@ -1136,7 +1203,7 @@ func _on_live_clock_out() -> void:
 	match_complete = _is_match_over()
 	if match_complete and not match_reported and you_points != them_points:
 		match_reported = true
-		match_decided.emit(you_points > them_points)
+		match_decided.emit(_live_you_won())
 	disc.visible = false
 	_place_rack()
 	var holder_name := "TIED" if shots <= 0 else _side_name(holder)

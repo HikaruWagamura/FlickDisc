@@ -125,6 +125,20 @@ var live_token := 0
 var live_found_live := false
 var live_found_name := ""
 var live_hosting := true
+var live_mode := "open"
+var live_table_code := ""
+var live_friend_button: Button
+var live_copy_button: Button
+var live_cancel_button: Button
+var live_reel_frame: Control
+var friends_back := "home"
+var friend_add_edit: LineEdit
+var friend_join_edit: LineEdit
+var friend_list_box: VBoxContainer
+var friend_code_label: Label
+var profile_friend_edit: LineEdit
+var profile_friend_box: VBoxContainer
+const LiveNetScript := preload("res://scripts/live_net.gd")
 var home_face: TextureRect
 var profile_face: TextureRect
 var profile_avatar: Panel
@@ -291,7 +305,9 @@ func _show(next: String) -> void:
 		page.visible = str(key) == next
 	var hub := next == "home" or next == "profile" or next == "customise" or next == "shop" or next == "settings"
 	nav.visible = hub
-	if live_layer != null:
+	if live_searching:
+		_cancel_live_search()
+	elif live_layer != null:
 		live_layer.visible = false
 	backdrop.visible = true
 	choice_layer.visible = false
@@ -305,6 +321,8 @@ func _show(next: String) -> void:
 		if studio != null:
 			studio.refresh()
 		_paint_kit()
+	if next == "friends":
+		_paint_friends()
 	_sync_identity()
 	_layout_shell()
 
@@ -633,7 +651,7 @@ func _build_home() -> void:
 	)
 
 	home_cards = [
-		_home_card(page, Rect2(28, 444, 236, 136), "LIVE GAME", "First to 7 · 30s shots", _home_art.get("crazy") as Texture2D, "live", true),
+		_home_card(page, Rect2(28, 444, 236, 136), "LIVE GAME", "Search or play a friend", _home_art.get("crazy") as Texture2D, "live", true),
 		_home_card(page, Rect2(276, 444, 236, 136), "SOLO ENDS", "One bowl · the jack", _home_art.get("solo") as Texture2D, "solo", false),
 		_home_card(page, Rect2(28, 584, 236, 136), "PRACTICE", "You and the jack", _home_art.get("practice") as Texture2D, "practice", false),
 		_home_card(page, Rect2(276, 584, 236, 136), "THE BOARD", "Wins · ends · runs", _home_art.get("board") as Texture2D, "rankings", true),
@@ -792,7 +810,7 @@ func _build_setup() -> void:
 
 	big_play = _primary("▶  PLAY VERSUS AI", func() -> void: _launch("ai"))
 	_place(page, big_play, Vector2(20, 770), Vector2(500, 64))
-	friend_button = _row_button("PLAY A FRIEND", func() -> void: _launch("local"))
+	friend_button = _row_button("PLAY A FRIEND", _open_friends.bind("setup"))
 	_place(page, friend_button, Vector2(20, 848), Vector2(500, 56))
 
 	duo_note = _label("Both teams play on this device. Pass the phone each shot.", 13, MUTED, body_font)
@@ -867,11 +885,13 @@ func _build_practice() -> void:
 	root.add_child(page)
 	_back_on(page, "home")
 	box.add_child(_title("PRACTICE"))
-	box.add_child(_wrapped("Nothing is on the line except the shot. Solo ends keep a tally. Live Game is first to 7."))
+	box.add_child(_wrapped("Nothing is on the line except the shot. Solo ends keep a tally. Live Game is first to 7. Play a Friend uses a code or a username."))
 	box.add_child(_wide_card("SOLO ENDS", "Three bowls are already down. One bowl to be the shot.", "PLAY"))
 	box.get_child(box.get_child_count() - 1).pressed.connect(_launch_solo)
-	box.add_child(_wide_card("LIVE GAME", "First to 7. Thirty seconds a shot. Ranked head to head.", "PLAY"))
+	box.add_child(_wide_card("LIVE GAME", "First to 7. Thirty seconds a shot. Search, or play a friend.", "PLAY"))
 	box.get_child(box.get_child_count() - 1).pressed.connect(_launch_live)
+	box.add_child(_wide_card("PLAY A FRIEND", "Host a code, or bowl a friend from your list.", "PLAY"))
+	box.get_child(box.get_child_count() - 1).pressed.connect(_open_friends.bind("practice"))
 	box.add_child(_wide_card("OPEN BOARD", "Crokinmode with a clear road to the hole.", "PLAY"))
 	box.get_child(box.get_child_count() - 1).pressed.connect(_practice.bind("open"))
 	box.add_child(_wide_card("PEG GUARD", "The far side is sitting on the pegs.", "PLAY"))
@@ -908,14 +928,31 @@ func _build_friends() -> void:
 	pages["friends"] = page
 	root.add_child(page)
 	_back_on(page, "home")
-	box.add_child(_title("FRIENDS"))
-	box.add_child(_wrapped("Head-to-head on two phones is not live yet. A room code stays on this device. PLAY A FRIEND is pass-the-phone on one handset."))
-	box.add_child(_kicker("YOUR ROOM"))
+	box.add_child(_title("PLAY A FRIEND"))
+	box.add_child(_wrapped("Host a table and send the code. Your friend types it on their phone. Or add their username below, they add yours, and you both tap Play. Same Wi-Fi. First to 7."))
+	box.add_child(_kicker("YOUR TABLE CODE"))
 	friend_code = _label(room_code, 36, CREAM, title_font)
 	friend_code.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	friend_code_label = friend_code
 	box.add_child(friend_code)
-	box.add_child(_row_button("Copy room code", _copy_code))
-	box.add_child(_wrapped("No mates are stored on this device yet."))
+	box.add_child(_primary("HOST THIS TABLE", _host_friend_table))
+	box.add_child(_row_button("Copy code", _copy_code))
+	box.add_child(_kicker("JOIN WITH A CODE"))
+	friend_join_edit = LineEdit.new()
+	friend_join_edit.placeholder_text = "Type their code"
+	friend_join_edit.max_length = 8
+	friend_join_edit.custom_minimum_size = Vector2(0, 52)
+	_style_edit(friend_join_edit)
+	box.add_child(friend_join_edit)
+	box.add_child(_primary("JOIN TABLE", _join_friend_code))
+	box.add_child(_kicker("FRIENDS"))
+	box.add_child(_wrapped("Add a username. Both of you add each other. Then Play."))
+	box.add_child(_name_add_row("friend"))
+	friend_list_box = VBoxContainer.new()
+	friend_list_box.add_theme_constant_override("separation", 8)
+	box.add_child(friend_list_box)
+	box.add_child(_gap(8))
+	box.add_child(_row_button("Pass this phone", func() -> void: _launch("local")))
 
 
 func _build_rankings() -> void:
@@ -1019,6 +1056,15 @@ func _build_profile() -> void:
 	box.add_child(_row_button("Change picture", _open_face_sheet))
 	box.add_child(_row_button("Change disc", _show.bind("customise")))
 	box.add_child(_row_button("Settings", _show.bind("settings")))
+	box.add_child(_gap(8))
+	box.add_child(_kicker("FRIENDS"))
+	box.add_child(_wrapped("Add a username. Your brother adds yours. Then Play on either phone, same Wi-Fi."))
+	box.add_child(_row_button("Host or join a code", _open_friends.bind("profile")))
+	box.add_child(_name_add_row("profile"))
+	profile_friend_box = VBoxContainer.new()
+	profile_friend_box.add_theme_constant_override("separation", 8)
+	box.add_child(profile_friend_box)
+	box.add_child(_gap(20))
 
 
 func _build_customise() -> void:
@@ -1182,7 +1228,7 @@ func _build_settings() -> void:
 	var how_col := VBoxContainer.new()
 	how_col.add_theme_constant_override("separation", 8)
 	how_col.add_child(_kicker("HOW A ROUND WORKS"))
-	how_col.add_child(_wrapped("Drag the bowl back. The cream line is your finger. The blocks are where it will run. Let go — it leaves your hand and takes its bias as it slows.\n\nA match is four bowls each. Solo ends put three bowls around the jack. You have one bowl, and as many tries as you want, to finish closer than all of them.\n\nLive Game is first to 7, head to head, thirty seconds a shot. Search looks for another phone on this Wi-Fi, then a Club AI if nobody is on. Wins land in Records. Change your picture on your profile.\n\nThis device stores matches won, live wins, ends cleared, and your nearest mark."))
+	how_col.add_child(_wrapped("Drag the bowl back. The cream line is your finger. The blocks are where it will run. Let go — it leaves your hand and takes its bias as it slows.\n\nA match is four bowls each. Solo ends put three bowls around the jack. You have one bowl, and as many tries as you want, to finish closer than all of them.\n\nLive Game is first to 7, head to head, thirty seconds a shot. Search looks for another phone on this Wi-Fi, then a Club AI if nobody is on. Play a Friend hosts a code you send, or bowls someone on your Friends list. Wins land in Records. Change your picture on your profile.\n\nThis device stores matches won, live wins, ends cleared, and your nearest mark."))
 	how.add_child(how_col)
 	box.add_child(how)
 
@@ -1353,6 +1399,7 @@ func _build_live_layer() -> void:
 	vs.size = Vector2(80, 44)
 	panel.add_child(vs)
 	var reel_frame := Panel.new()
+	live_reel_frame = reel_frame
 	reel_frame.position = Vector2(268, 128)
 	reel_frame.size = Vector2(204, 142)
 	reel_frame.add_theme_stylebox_override("panel", _chrome(Color(0.04, 0.08, 0.22, 0.96), GOLD, 2, 22, 0, 1.6, Color(0.96, 0.72, 0.12, 0.35)))
@@ -1377,10 +1424,19 @@ func _build_live_layer() -> void:
 	live_rival_tag.position = Vector2(24, 300)
 	live_rival_tag.size = Vector2(456, 20)
 	panel.add_child(live_rival_tag)
-	var back := _row_button("Cancel search", _cancel_live_search)
-	back.position = Vector2(20, 540)
-	back.size = Vector2(464, 56)
-	panel.add_child(back)
+	live_copy_button = _row_button("Copy table code", _copy_live_code)
+	live_copy_button.position = Vector2(20, 430)
+	live_copy_button.size = Vector2(464, 48)
+	live_copy_button.visible = false
+	panel.add_child(live_copy_button)
+	live_friend_button = _row_button("Play a friend instead", _open_friends.bind("home"))
+	live_friend_button.position = Vector2(20, 486)
+	live_friend_button.size = Vector2(464, 48)
+	panel.add_child(live_friend_button)
+	live_cancel_button = _row_button("Cancel search", _cancel_live_search)
+	live_cancel_button.position = Vector2(20, 540)
+	live_cancel_button.size = Vector2(464, 56)
+	panel.add_child(live_cancel_button)
 
 
 func _build_toast() -> void:
@@ -1589,6 +1645,8 @@ func _launch_crazy() -> void:
 
 func _launch_live() -> void:
 	_tap()
+	live_mode = "open"
+	live_table_code = room_code
 	live_token += 1
 	var token := live_token
 	live_found_live = false
@@ -1609,12 +1667,21 @@ func _launch_live() -> void:
 		live_rival_name.modulate.a = 1.0
 	if live_rival_tag != null:
 		live_rival_tag.text = "WAITING FOR A LIVE PLAYER"
-	if live_net == null:
-		live_net = preload("res://scripts/live_net.gd").new()
-		live_net.name = "LiveNet"
-		add_child(live_net)
-		live_net.found_peer.connect(_on_live_found)
-		live_net.search_pulse.connect(_on_live_pulse)
+	if live_friend_button != null:
+		live_friend_button.visible = true
+	if live_copy_button != null:
+		live_copy_button.visible = false
+	if live_reel != null:
+		live_reel.visible = true
+	if live_reel_frame != null:
+		live_reel_frame.visible = true
+	if live_cancel_button != null:
+		live_cancel_button.text = "Cancel search"
+	if live_rival_name != null:
+		live_rival_name.position = Vector2(250, 266)
+		live_rival_name.size = Vector2(220, 24)
+		live_rival_name.add_theme_font_size_override("font_size", 16)
+	_ensure_live_net()
 	live_net.start_search(profile.player_name if profile != null else "Flicker", room_code)
 	_wait_for_live(token)
 
@@ -1625,6 +1692,8 @@ func _wait_for_live(token: int) -> void:
 		return
 	if live_found_live:
 		return
+	if live_mode != "open":
+		return
 	var rival: Dictionary = LiveFaces.random_rival()
 	_lock_live_rival(false, str(rival["name"]), rival, true)
 
@@ -1632,7 +1701,12 @@ func _wait_for_live(token: int) -> void:
 func _on_live_pulse(_code: String) -> void:
 	if not live_searching or live_body == null or live_layer == null or not live_layer.visible:
 		return
-	live_body.text = "Searching for a live player on this Wi-Fi.\nFirst to 7  ·  30s a shot."
+	if live_mode == "host":
+		live_body.text = "Send this code to your friend.\nSame Wi-Fi. First to 7."
+	elif live_mode == "join":
+		live_body.text = "Looking for table %s on this Wi-Fi.\nFirst to 7." % live_table_code
+	else:
+		live_body.text = "Searching for a live player on this Wi-Fi.\nFirst to 7  ·  30s a shot."
 
 
 func _on_live_found(hosting: bool, peer_name: String) -> void:
@@ -1641,6 +1715,9 @@ func _on_live_found(hosting: bool, peer_name: String) -> void:
 	live_hosting = hosting
 	live_found_live = true
 	var shown := peer_name.strip_edges()
+	if shown == "" or shown == "Friend" or shown == "Opponent":
+		if live_found_name != "":
+			shown = live_found_name
 	if shown == "":
 		shown = "Live player"
 	_lock_live_rival(true, shown, {}, true)
@@ -1653,7 +1730,10 @@ func _lock_live_rival(is_live: bool, rival_name: String, rival: Dictionary, star
 	live_found_live = is_live
 	live_found_name = rival_name
 	if live_net != null:
-		live_net.stop_search()
+		if is_live:
+			live_net.stop_search()
+		else:
+			live_net.close_table()
 	if live_rival_name != null:
 		live_rival_name.text = rival_name.to_upper()
 		live_rival_name.modulate.a = 1.0
@@ -1666,7 +1746,7 @@ func _lock_live_rival(is_live: bool, rival_name: String, rival: Dictionary, star
 		if live_rival_tag != null:
 			live_rival_tag.text = "CLUB AI  ·  %s" % ["EASY", "MEDIUM", "HARD"][clampi(skill, 0, 2)]
 		if live_body != null:
-			live_body.text = "No live player on this Wi-Fi.\n%s will play you to 11." % rival_name
+			live_body.text = "No live player on this Wi-Fi.\n%s will play you to 7." % rival_name
 	else:
 		if live_rival_tag != null:
 			live_rival_tag.text = "LIVE PLAYER"
@@ -1702,7 +1782,7 @@ func _start_live_table(is_live: bool, rival_name: String, skill: int) -> void:
 		"challenge": "",
 		"difficulty": skill if not is_live else 1,
 		"level": 0,
-		"target": 11,
+		"target": 7,
 		"guide": guide,
 	})
 
@@ -1711,7 +1791,7 @@ func _cancel_live_search() -> void:
 	live_token += 1
 	live_searching = false
 	if live_net != null:
-		live_net.stop_search()
+		live_net.close_table()
 	if live_layer != null:
 		live_layer.visible = false
 
@@ -2027,16 +2107,230 @@ func _create_room() -> void:
 
 
 func _join_room() -> void:
-	var entered := join_edit.text.strip_edges().to_upper()
-	if entered == "" or entered == room_code:
-		_launch("room")
-		return
-	_toast("That code is not on this phone. Two devices cannot share a room yet.")
+	_join_friend_code()
 
 
 func _copy_code() -> void:
 	DisplayServer.clipboard_set(room_code)
 	_toast("Copied %s" % room_code)
+
+
+func _copy_live_code() -> void:
+	var table := live_table_code if live_table_code != "" else room_code
+	DisplayServer.clipboard_set(table)
+	_toast("Copied %s" % table)
+
+
+func _go_back(page: Control, target: String) -> void:
+	if pages.get("friends") == page:
+		_show(friends_back if friends_back != "" else "home")
+		return
+	_show(target)
+
+
+func _open_friends(back: String = "home") -> void:
+	_tap()
+	friends_back = back if back != "" else "home"
+	_show("friends")
+
+
+func _ensure_live_net() -> void:
+	if live_net != null:
+		return
+	live_net = LiveNetScript.new()
+	live_net.name = "LiveNet"
+	add_child(live_net)
+	live_net.found_peer.connect(_on_live_found)
+	live_net.search_pulse.connect(_on_live_pulse)
+
+
+func _host_friend_table() -> void:
+	if room_code == "":
+		room_code = _make_code()
+	if friend_code != null:
+		friend_code.text = room_code
+	_begin_friend_wait("host", room_code, "")
+
+
+func _join_friend_code() -> void:
+	var source := friend_join_edit if friend_join_edit != null else join_edit
+	var entered := ""
+	if source != null:
+		entered = source.text.strip_edges().to_upper()
+	if entered.length() < 4:
+		_toast("Type the code your friend sent.")
+		return
+	_begin_friend_wait("join", entered, "")
+
+
+func _challenge_friend(who: String) -> void:
+	var mine: String = profile.player_name if profile != null else "Flicker"
+	var table := LiveNetScript.friend_room(mine, who)
+	if LiveNetScript.first_name(mine, who):
+		_begin_friend_wait("host", table, who)
+	else:
+		_begin_friend_wait("join", table, who)
+
+
+func _begin_friend_wait(kind: String, table: String, rival_hint: String) -> void:
+	_tap()
+	live_mode = kind
+	live_table_code = table
+	live_token += 1
+	live_found_live = false
+	live_found_name = rival_hint
+	live_hosting = kind == "host"
+	live_searching = true
+	live_reel_x = 0.0
+	_fill_live_reel()
+	_paint_player_face()
+	if live_layer != null:
+		live_layer.visible = true
+	if live_title != null:
+		live_title.text = "PLAY A FRIEND"
+	if kind == "host":
+		if live_body != null:
+			live_body.text = "Send this code to your friend.\nSame Wi-Fi. First to 7."
+		if live_rival_name != null:
+			live_rival_name.text = table
+			live_rival_name.modulate.a = 1.0
+		if live_rival_tag != null:
+			live_rival_tag.text = "WAITING FOR THEM TO TYPE IT"
+		if live_copy_button != null:
+			live_copy_button.visible = true
+		if live_friend_button != null:
+			live_friend_button.visible = false
+		if live_reel != null:
+			live_reel.visible = false
+		if live_reel_frame != null:
+			live_reel_frame.visible = true
+		if live_cancel_button != null:
+			live_cancel_button.text = "Cancel"
+		if live_rival_name != null:
+			live_rival_name.position = Vector2(268, 160)
+			live_rival_name.size = Vector2(204, 70)
+			live_rival_name.add_theme_font_size_override("font_size", 32)
+	else:
+		if live_body != null:
+			live_body.text = "Looking for table %s on this Wi-Fi.\nFirst to 7." % table
+		if live_rival_name != null:
+			live_rival_name.text = table
+			live_rival_name.modulate.a = 1.0
+			live_rival_name.position = Vector2(268, 160)
+			live_rival_name.size = Vector2(204, 70)
+			live_rival_name.add_theme_font_size_override("font_size", 32)
+		if live_rival_tag != null:
+			live_rival_tag.text = "JOINING YOUR FRIEND"
+		if live_copy_button != null:
+			live_copy_button.visible = false
+		if live_friend_button != null:
+			live_friend_button.visible = false
+		if live_reel != null:
+			live_reel.visible = false
+		if live_reel_frame != null:
+			live_reel_frame.visible = true
+		if live_cancel_button != null:
+			live_cancel_button.text = "Cancel"
+	_ensure_live_net()
+	var me: String = profile.player_name if profile != null else "Flicker"
+	if kind == "host":
+		live_net.start_host(me, table)
+	else:
+		live_net.start_join(me, table)
+
+
+func _name_add_row(which: String) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	var edit := LineEdit.new()
+	edit.placeholder_text = "Username"
+	edit.max_length = 16
+	edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	edit.custom_minimum_size = Vector2(0, 48)
+	_style_edit(edit)
+	row.add_child(edit)
+	var add_btn := _button("ADD", 14)
+	add_btn.custom_minimum_size = Vector2(88, 48)
+	_paint_button(add_btn, GOLD, Color("#FFE9A0"), Color("#1A1208"), 12, 8)
+	add_btn.add_theme_color_override("font_hover_color", Color("#1A1208"))
+	add_btn.add_theme_color_override("font_pressed_color", Color("#1A1208"))
+	add_btn.pressed.connect(_add_friend_from.bind(which))
+	row.add_child(add_btn)
+	if which == "profile":
+		profile_friend_edit = edit
+	else:
+		friend_add_edit = edit
+	return row
+
+
+func _add_friend_from(which: String) -> void:
+	if profile == null:
+		return
+	var edit := profile_friend_edit if which == "profile" else friend_add_edit
+	var typed := ""
+	if edit != null:
+		typed = edit.text
+	var err: String = profile.add_friend(typed)
+	if err != "":
+		_toast(err)
+		return
+	if edit != null:
+		edit.text = ""
+	_paint_friends()
+	_toast("Added. They add your username too.")
+
+
+func _drop_friend(who: String) -> void:
+	if profile == null:
+		return
+	profile.drop_friend(who)
+	_paint_friends()
+
+
+func _paint_friends() -> void:
+	_fill_friend_box(friend_list_box)
+	_fill_friend_box(profile_friend_box)
+	if friend_code != null and room_code != "":
+		friend_code.text = room_code
+
+
+func _fill_friend_box(box: VBoxContainer) -> void:
+	if box == null:
+		return
+	for child in box.get_children():
+		box.remove_child(child)
+		child.queue_free()
+	if profile == null or profile.friends.is_empty():
+		var empty := _wrapped("Nobody on your list yet. Add a username.")
+		box.add_child(empty)
+		return
+	for who in profile.friends:
+		box.add_child(_friend_row(str(who)))
+
+
+func _friend_row(who: String) -> Control:
+	var row := PanelContainer.new()
+	row.add_theme_stylebox_override("panel", _flat(PLUM, GOLD, 1, 14, 10))
+	var bar := HBoxContainer.new()
+	bar.add_theme_constant_override("separation", 8)
+	var name_lab := _label(who, 16, CREAM, bold_font)
+	name_lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	bar.add_child(name_lab)
+	var play := _button("PLAY", 13)
+	play.custom_minimum_size = Vector2(88, 44)
+	_paint_button(play, GOLD, Color("#FFE9A0"), Color("#1A1208"), 12, 8)
+	play.add_theme_color_override("font_hover_color", Color("#1A1208"))
+	play.add_theme_color_override("font_pressed_color", Color("#1A1208"))
+	play.pressed.connect(_challenge_friend.bind(who))
+	bar.add_child(play)
+	var drop := _button("✕", 14)
+	drop.custom_minimum_size = Vector2(44, 44)
+	_paint_button(drop, CARD, GOLD, CREAM, 12, 4)
+	drop.pressed.connect(_drop_friend.bind(who))
+	bar.add_child(drop)
+	row.add_child(bar)
+	return row
 
 
 func _toast(message: String) -> void:
@@ -2094,6 +2388,9 @@ func _sync_identity() -> void:
 		board_mark.text = profile.mark_text()
 	if board_recent != null:
 		board_recent.text = profile.results[0] if profile.results.size() > 0 else "NO ROUNDS YET"
+	if friend_code != null:
+		friend_code.text = room_code
+	_paint_friends()
 	_paint_player_face()
 
 
@@ -2387,7 +2684,7 @@ func _back_on(page: Control, target: String) -> void:
 	button.position = Vector2(16, 16)
 	button.size = Vector2(110, 40)
 	_paint_button(button, Color(0.06, 0.12, 0.24, 0.72), BLUE, CREAM, 18, 10)
-	button.pressed.connect(_show.bind(target))
+	button.pressed.connect(_go_back.bind(page, target))
 	page.add_child(button)
 	var mark := _mark_rect()
 	mark.position = Vector2(80, 2)

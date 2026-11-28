@@ -209,6 +209,34 @@ func _menutest() -> void:
 	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
 	_dump_menu("menu_profile")
+	if menu.profile != null and menu.profile.has_method("add_friend"):
+		menu.profile.add_friend("Tom")
+	if menu.has_method("_open_friends"):
+		menu._open_friends("profile")
+		await get_tree().process_frame
+		await get_tree().process_frame
+		if menu.has_method("_layout_shell"):
+			menu._layout_shell()
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		_dump_menu("menu_friends")
+		if menu.has_method("_host_friend_table"):
+			menu._host_friend_table()
+			await get_tree().process_frame
+			await RenderingServer.frame_post_draw
+			_dump_menu("menu_friend_host")
+			if menu.has_method("_cancel_live_search"):
+				menu._cancel_live_search()
+	menu.open_screen("profile")
+	await get_tree().process_frame
+	if menu.pages.has("profile"):
+		var profile_page := menu.pages["profile"] as Control
+		for child in profile_page.get_children():
+			if child is ScrollContainer:
+				(child as ScrollContainer).scroll_vertical = 280
+	await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	_dump_menu("menu_profile_friends")
 	if menu.has_method("_open_face_sheet"):
 		menu._open_face_sheet()
 		await get_tree().process_frame
@@ -324,6 +352,8 @@ func _dump_menu(name: String) -> void:
 
 
 func _leave() -> void:
+	if menu != null and menu.live_net != null:
+		menu.live_net.close_table()
 	_close_game()
 	menu.open_screen(return_screen)
 

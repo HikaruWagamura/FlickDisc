@@ -206,6 +206,17 @@ func show_live_ai(rival: String, score_line: String) -> void:
 	show_bowl_controls(false)
 
 
+func show_live_wait(rival: String, score_line: String) -> void:
+	level_label.text = "TO 7"
+	throws_label.text = "WAIT"
+	throws_label.add_theme_color_override("font_color", Color("#F5C84B"))
+	status_label.text = "%s  •  TO BOWL" % rival.to_upper()
+	score_label.text = "FIRST TO 7  •  %s" % score_line
+	reset_button.visible = true
+	next_button.visible = false
+	show_bowl_controls(false)
+
+
 func show_live_clock(seconds: float, side_name: String, score_line: String, jack: bool) -> void:
 	var secs := int(ceil(seconds))
 	level_label.text = "TO 7"

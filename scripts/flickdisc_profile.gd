@@ -41,6 +41,7 @@ var live_losses := 0
 var face_id := 0
 var face_photo := false
 var results: PackedStringArray = PackedStringArray()
+var friends: PackedStringArray = PackedStringArray()
 
 
 func level() -> int:
@@ -167,6 +168,13 @@ func load_profile() -> void:
 			var ident := str(part).strip_edges()
 			if ident != "":
 				cleared.append(ident)
+	friends = PackedStringArray()
+	var mates := str(cfg.get_value("player", "friends", ""))
+	if mates != "":
+		for part in mates.split(","):
+			var ident := str(part).strip_edges()
+			if ident != "":
+				friends.append(ident)
 
 
 func save_profile() -> void:
@@ -197,6 +205,7 @@ func save_profile() -> void:
 	cfg.set_value("player", "face_id", face_id)
 	cfg.set_value("player", "face_photo", face_photo)
 	cfg.set_value("player", "results", "|".join(results))
+	cfg.set_value("player", "friends", ",".join(friends))
 	cfg.save("user://flickdisc.cfg")
 
 
@@ -294,6 +303,41 @@ func _push_result(line: String) -> void:
 	results.insert(0, line)
 	while results.size() > 8:
 		results.remove_at(results.size() - 1)
+
+
+func clean_name(value: String) -> String:
+	var ident := value.strip_edges().replace(",", " ")
+	while ident.find("  ") >= 0:
+		ident = ident.replace("  ", " ")
+	if ident.length() > 16:
+		ident = ident.substr(0, 16)
+	return ident.strip_edges()
+
+
+func add_friend(value: String) -> String:
+	var ident := clean_name(value)
+	if ident == "":
+		return "Type a username."
+	if ident.to_upper() == player_name.strip_edges().to_upper():
+		return "That's your own name."
+	for existing in friends:
+		if existing.to_upper() == ident.to_upper():
+			return "%s is already on your list." % existing
+	if friends.size() >= 16:
+		return "Sixteen friends is the list."
+	friends.append(ident)
+	save_profile()
+	return ""
+
+
+func drop_friend(value: String) -> void:
+	var ident := clean_name(value).to_upper()
+	var next := PackedStringArray()
+	for existing in friends:
+		if existing.to_upper() != ident:
+			next.append(existing)
+	friends = next
+	save_profile()
 
 
 func clear_challenge(challenge_id: String) -> bool:
